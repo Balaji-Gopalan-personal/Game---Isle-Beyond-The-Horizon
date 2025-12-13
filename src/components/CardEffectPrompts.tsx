@@ -1,0 +1,239 @@
+import React from 'react';
+import { X } from 'lucide-react';
+import { Player } from '../types/game';
+
+interface BoomingEconomyPromptProps {
+  resourcesSelected: string[];
+  onSelectResource: (resource: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral') => void;
+  onConfirm?: () => void;
+  onCancel?: () => void;
+}
+
+export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
+  resourcesSelected,
+  onSelectResource,
+  onConfirm,
+  onCancel
+}) => {
+  const resources = [
+    { type: 'clay' as const, label: 'C', fullName: 'Clay', color: 'bg-red-600 hover:bg-red-700' },
+    { type: 'lumber' as const, label: 'L', fullName: 'Lumber', color: 'bg-green-600 hover:bg-green-700' },
+    { type: 'grain' as const, label: 'G', fullName: 'Grain', color: 'bg-yellow-600 hover:bg-yellow-700' },
+    { type: 'fabric' as const, label: 'F', fullName: 'Fabric', color: 'bg-purple-600 hover:bg-purple-700' },
+    { type: 'mineral' as const, label: 'M', fullName: 'Mineral', color: 'bg-gray-600 hover:bg-gray-700' }
+  ];
+
+  const canConfirm = resourcesSelected.length === 2;
+
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-medium text-gray-700 text-center">
+        Booming Economy
+      </div>
+      <div className="text-xs text-gray-600 text-center mb-2">
+        Select {2 - resourcesSelected.length} resource{2 - resourcesSelected.length !== 1 ? 's' : ''}
+        {resourcesSelected.length > 0 && ` (Selected: ${resourcesSelected.join(', ')})`}
+      </div>
+      <div className="flex gap-1 justify-center">
+        {resources.map(resource => (
+          <button
+            key={resource.type}
+            onClick={() => onSelectResource(resource.type)}
+            disabled={resourcesSelected.includes(resource.fullName)}
+            className={`${resource.color} text-white font-bold py-2 px-3 rounded transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed`}
+            title={resource.fullName}
+          >
+            {resource.label}
+          </button>
+        ))}
+      </div>
+      {canConfirm && onConfirm && (
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={onConfirm}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 rounded transition-all duration-200 text-sm"
+          >
+            Confirm
+          </button>
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-3 rounded transition-all duration-200 text-sm"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface ClosedMarketPromptProps {
+  onSelectResource: (resource: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral') => void;
+  selectedResource?: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral' | null;
+  onConfirm?: () => void;
+  onCancel?: () => void;
+}
+
+export const ClosedMarketPrompt: React.FC<ClosedMarketPromptProps> = ({
+  onSelectResource,
+  selectedResource,
+  onConfirm,
+  onCancel
+}) => {
+  const resources = [
+    { type: 'clay' as const, label: 'C', fullName: 'Clay', color: 'bg-red-600 hover:bg-red-700' },
+    { type: 'lumber' as const, label: 'L', fullName: 'Lumber', color: 'bg-green-600 hover:bg-green-700' },
+    { type: 'grain' as const, label: 'G', fullName: 'Grain', color: 'bg-yellow-600 hover:bg-yellow-700' },
+    { type: 'fabric' as const, label: 'F', fullName: 'Fabric', color: 'bg-purple-600 hover:bg-purple-700' },
+    { type: 'mineral' as const, label: 'M', fullName: 'Mineral', color: 'bg-gray-600 hover:bg-gray-700' }
+  ];
+
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-medium text-gray-700 text-center">
+        Closed Market
+      </div>
+      <div className="text-xs text-gray-600 text-center mb-2">
+        Take all of one resource type from all players
+        {selectedResource && ` (Selected: ${selectedResource})`}
+      </div>
+      <div className="flex gap-1 justify-center">
+        {resources.map(resource => (
+          <button
+            key={resource.type}
+            onClick={() => onSelectResource(resource.type)}
+            className={`${resource.color} text-white font-bold py-2 px-3 rounded transition-all duration-200 text-sm ${selectedResource === resource.type ? 'ring-2 ring-white ring-offset-2' : ''}`}
+            title={resource.fullName}
+          >
+            {resource.label}
+          </button>
+        ))}
+      </div>
+      {selectedResource && onConfirm && (
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={onConfirm}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 rounded transition-all duration-200 text-sm"
+          >
+            Confirm
+          </button>
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-3 rounded transition-all duration-200 text-sm"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface ResourceSwapPromptProps {
+  players: Player[];
+  currentPlayerId: string;
+  onSelectPlayer: (playerId: string) => void;
+  selectedPlayerId?: string | null;
+  onConfirm?: () => void;
+  onCancel?: () => void;
+}
+
+export const ResourceSwapPrompt: React.FC<ResourceSwapPromptProps> = ({
+  players,
+  currentPlayerId,
+  onSelectPlayer,
+  selectedPlayerId,
+  onConfirm,
+  onCancel
+}) => {
+  const opponents = players.filter(p => p.id !== currentPlayerId);
+  const selectedPlayer = selectedPlayerId ? players.find(p => p.id === selectedPlayerId) : null;
+
+  const getPlayerColorStyle = (color: string): string => {
+    const colorMap: Record<string, string> = {
+      red: '#EF4444',
+      green: '#10B981',
+      blue: '#3B82F6',
+      yellow: '#F59E0B',
+      purple: '#8B5CF6',
+      orange: '#F97316',
+      black: '#374151'
+    };
+    return colorMap[color] || color;
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-medium text-gray-700 text-center">
+        Resource Swap
+      </div>
+      <div className="text-xs text-gray-600 text-center mb-2">
+        Select player to swap resources with
+        {selectedPlayer && ` (Selected: ${selectedPlayer.name})`}
+      </div>
+      <div className="flex gap-2 justify-center flex-wrap">
+        {opponents.map(player => (
+          <button
+            key={player.id}
+            onClick={() => onSelectPlayer(player.id)}
+            className={`w-12 h-12 text-white font-bold rounded transition-all duration-200 text-sm hover:opacity-80 shadow-md ${selectedPlayerId === player.id ? 'ring-2 ring-yellow-400 ring-offset-2' : ''}`}
+            style={{ backgroundColor: getPlayerColorStyle(player.color) }}
+            title={`${player.name} (${player.resources.total} resources)`}
+          >
+            P{player.order}
+          </button>
+        ))}
+      </div>
+      {selectedPlayerId && onConfirm && (
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={onConfirm}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 rounded transition-all duration-200 text-sm"
+          >
+            Confirm
+          </button>
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-3 rounded transition-all duration-200 text-sm"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface FreeUpgradePromptProps {
+  onCancel?: () => void;
+}
+
+export const FreeUpgradePrompt: React.FC<FreeUpgradePromptProps> = ({
+  onCancel
+}) => {
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-medium text-gray-700 text-center">
+        Free Upgrade
+      </div>
+      <div className="text-xs text-gray-600 text-center mb-2">
+        Click on one of your Villages to upgrade to an Estate
+      </div>
+      {onCancel && (
+        <button
+          onClick={onCancel}
+          className="w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-3 rounded transition-all duration-200 flex items-center justify-center gap-2"
+        >
+          <X className="w-4 h-4" />
+          <span className="text-sm">Cancel</span>
+        </button>
+      )}
+    </div>
+  );
+};

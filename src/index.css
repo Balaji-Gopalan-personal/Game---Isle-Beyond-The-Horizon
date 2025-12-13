@@ -1,0 +1,150 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* === GLOBAL TYPOGRAPHY === */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body {
+  font-family: 'Inter', 'Roboto', 'Open Sans', sans-serif;
+  background-color: #f7f8fa;
+  color: #333;
+}
+
+/* === PLAYER DASHBOARD === */
+/* Player dashboard expanded width */
+.player-dashboard {
+  width: 100%;
+  max-width: none;
+}
+
+/* === GAME EVENTS === */
+.events-box {
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  padding: 0.5rem;
+  font-size: 12px;   /* Smaller font */
+  line-height: 1.3;
+  max-height: 40vh;  /* Fit nicely without pushing off screen */
+  overflow-y: auto;  /* Auto-scroll content */
+}
+
+/* === BUTTONS & INTERACTIONS === */
+button {
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+button:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+/* === GENERAL CARDS (Config, Status, etc.) === */
+.card {
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  padding: 1rem;
+}
+
+/* Player card grid structure */
+.player-card {
+  display: grid;
+  grid-template-rows: auto auto auto auto;
+  padding: 0.5rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  background: white;
+}
+
+.player-card .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.player-card .row .group {
+  flex: 1;
+  text-align: center;
+}
+
+/* Color-code player icons */
+.player-card .icon {
+  color: inherit; /* fallback */
+}
+.player-card[data-color="red"] .icon { color: #dc2626; }
+.player-card[data-color="blue"] .icon { color: #2563eb; }
+.player-card[data-color="green"] .icon { color: #16a34a; }
+.player-card[data-color="yellow"] .icon { color: #ca8a04; }
+.player-card[data-color="black"] .icon { color: #1f2937; }
+.player-card[data-color="purple"] .icon { color: #9333ea; }
+.player-card[data-color="orange"] .icon { color: #ea580c; }
+
+/* Game Events box */
+.events-box {
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 1rem !important;
+  background: white !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Ensure parent container uses column flow and no extra padding */
+.right-column {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.5rem !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* Optional wrapper if you have one around config + events */
+.config-events-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+/* The Events box itself */
+
+/* Slow down GIF animations */
+@keyframes slowGif {
+  from {
+    animation-timing-function: linear;
+  }
+  to {
+    animation-timing-function: linear;
+  }
+}
+
+img[src$=".gif"],
+div[style*=".gif"] {
+  animation-duration: 30s !important;
+  image-rendering: auto;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateX(0) rotate(0deg);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  25% {
+    transform: translateX(-8px) rotate(-15deg);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  75% {
+    transform: translateX(8px) rotate(15deg);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+}
