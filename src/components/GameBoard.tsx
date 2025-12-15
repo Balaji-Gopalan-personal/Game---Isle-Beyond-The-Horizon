@@ -4,14 +4,14 @@ import { BoardSize } from '../data/boardConfigs';
 import { loadBoardGraph, loadBoardForSize } from '../graph/loadBoard';
 import { generateTradingPorts } from '../utils/tradingPortUtils';
 import { canPlaceVillage } from '../engine/validators';
-import desertImg from '/public/Desert new.jpg';
-import clayImg from '/public/Clay new.jpg';
-import lumberImg from '/public/Lumber new.jpg';
-import grainImg from '/public/Grain new.jpg';
-import fabricImg from '/public/Fabric new.jpg';
-import mineralImg from '/public/Mineral new.jpg';
-import oceanGif from '/public/Ocean animated new.gif';
-import landmassImg from '/public/Landmass.jpg';
+import desertImg from '/images/resources/Desert new.jpg';
+import clayImg from '/images/resources/Clay new.jpg';
+import lumberImg from '/images/resources/Lumber new.jpg';
+import grainImg from '/images/resources/Grain new.jpg';
+import fabricImg from '/images/resources/Fabric new.jpg';
+import mineralImg from '/images/resources/Mineral new.jpg';
+import oceanGif from '/images/board/Ocean animated new.gif';
+import landmassImg from '/images/board/Landmass.jpg';
 
 interface CenterData {
   id: number;
