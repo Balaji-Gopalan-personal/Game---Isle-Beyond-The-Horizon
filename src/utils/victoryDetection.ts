@@ -1,4 +1,4 @@
-import { GameState, Player } from '../types/game';
+import { GameState, Player, AICharacter } from '../types/game';
 
 export interface PlayerVictoryStats {
   playerId: string;
@@ -13,6 +13,8 @@ export interface PlayerVictoryStats {
   hasLargestArmy: boolean;
   extraPointCards: number;
   totalPoints: number;
+  isHuman: boolean;
+  character?: AICharacter;
 }
 
 export function calculatePlayerTotalPoints(player: Player, gameSettings: GameState['gameSettings']): number {
@@ -55,7 +57,9 @@ export function getAllPlayerStats(gameState: GameState): PlayerVictoryStats[] {
         : 0,
       hasLargestArmy: player.hasLargestArmy,
       extraPointCards: player.secretPoints,
-      totalPoints
+      totalPoints,
+      isHuman: player.isHuman,
+      character: player.character
     };
   });
 

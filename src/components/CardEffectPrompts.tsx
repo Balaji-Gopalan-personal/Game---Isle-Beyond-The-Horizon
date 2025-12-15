@@ -1,6 +1,8 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { Player } from '../types/game';
+import { useAssets } from '../contexts/AssetsContext';
+import { getCharacterImage } from '../utils/assetHelpers';
 
 interface BoomingEconomyPromptProps {
   resourcesSelected: string[];
@@ -152,6 +154,7 @@ export const ResourceSwapPrompt: React.FC<ResourceSwapPromptProps> = ({
 }) => {
   const opponents = players.filter(p => p.id !== currentPlayerId);
   const selectedPlayer = selectedPlayerId ? players.find(p => p.id === selectedPlayerId) : null;
+  const assets = useAssets();
 
   const getPlayerColorStyle = (color: string): string => {
     const colorMap: Record<string, string> = {
@@ -166,6 +169,15 @@ export const ResourceSwapPrompt: React.FC<ResourceSwapPromptProps> = ({
     return colorMap[color] || color;
   };
 
+  const getPlayerInitials = (name: string): string => {
+    return name
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   return (
     <div className="space-y-2">
       <div className="text-sm font-medium text-gray-700 text-center">
@@ -175,16 +187,36 @@ export const ResourceSwapPrompt: React.FC<ResourceSwapPromptProps> = ({
         Select player to swap resources with
         {selectedPlayer && ` (Selected: ${selectedPlayer.name})`}
       </div>
-      <div className="flex gap-2 justify-center flex-wrap">
+      <div className="flex gap-2 justify-center flex-wrap max-w-xs mx-auto">
         {opponents.map(player => (
           <button
             key={player.id}
             onClick={() => onSelectPlayer(player.id)}
-            className={`w-12 h-12 text-white font-bold rounded transition-all duration-200 text-sm hover:opacity-80 shadow-md ${selectedPlayerId === player.id ? 'ring-2 ring-yellow-400 ring-offset-2' : ''}`}
-            style={{ backgroundColor: getPlayerColorStyle(player.color) }}
+            className={`relative w-12 h-12 rounded transition-all duration-200 hover:opacity-80 shadow-md ${selectedPlayerId === player.id ? 'ring-2 ring-yellow-400 ring-offset-2' : ''}`}
             title={`${player.name} (${player.resources.total} resources)`}
           >
-            P{player.order}
+            {player.isHuman ? (
+              <div
+                className="w-full h-full rounded flex items-center justify-center text-white font-bold text-sm"
+                style={{ backgroundColor: getPlayerColorStyle(player.color) }}
+              >
+                {getPlayerInitials(player.name)}
+              </div>
+            ) : (
+              <>
+                <img
+                  src={getCharacterImage(assets, player.character?.imageUrl || '')?.src}
+                  alt={player.character?.name}
+                  className="w-full h-full rounded object-cover"
+                />
+                <div
+                  className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center text-white font-bold text-[10px] border border-white"
+                  style={{ backgroundColor: getPlayerColorStyle(player.color) }}
+                >
+                  P{player.order}
+                </div>
+              </>
+            )}
           </button>
         ))}
       </div>

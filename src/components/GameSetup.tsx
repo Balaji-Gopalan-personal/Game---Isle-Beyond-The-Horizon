@@ -721,11 +721,14 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
                         </div>
                       ) : (
                         <div>
-                          <div 
+                          <div
                             className="text-xs font-semibold mb-1"
                             style={{ color: aiColorObj?.color }}
                           >
                             P{index + 1} {aiCharacter?.name}
+                          </div>
+                          <div className="text-[10px] text-gray-500 mb-1 line-clamp-1">
+                            {aiCharacter?.cartoon}
                           </div>
                           <img
                             src={getCharacterImage(assets, aiCharacter?.imageUrl || '')?.src}

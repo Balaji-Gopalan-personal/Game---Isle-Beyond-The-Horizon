@@ -5,6 +5,8 @@ import { loadBoardGraph } from '../graph/loadBoard';
 import { canPlaceVillage, legalRoadEdgesFrom, whyNotVillage, initializeValidators } from '../engine/validators';
 import { BoardSize } from '../data/boardConfigs';
 import { BoomingEconomyPrompt, ClosedMarketPrompt, ResourceSwapPrompt, FreeUpgradePrompt } from './CardEffectPrompts';
+import { useAssets } from '../contexts/AssetsContext';
+import { getCharacterImage } from '../utils/assetHelpers';
 
 interface ActionPromptProps {
   gameState: GameState;
@@ -110,6 +112,7 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
   const canPlayerAct = currentPlayer?.isHuman && gameState.turnState.currentPlayerId === currentPlayer.id;
   const [selectedEdge, setSelectedEdge] = React.useState<string | null>(null);
   const [validationError, setValidationError] = React.useState<string | null>(null);
+  const assets = useAssets();
 
   const renderDiceDots = (value: number) => {
     const dotPositions: Record<number, string[]> = {
@@ -303,12 +306,21 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
 
           {!diceRoll && !isRollingDice && !waitingForConfirmation && gameState.turnState.step === 'awaiting_dice_roll' && !canPlayerAct && currentPlayer && !currentPlayer.isHuman && (
             <div className="mb-3">
-              <div className="flex gap-2 justify-center mx-auto mb-2">
-                <div className="w-10 h-10 bg-blue-100 rounded flex items-center justify-center">
-                  <span className="text-2xl">🎲</span>
-                </div>
-                <div className="w-10 h-10 bg-blue-100 rounded flex items-center justify-center">
-                  <span className="text-2xl">🎲</span>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                {currentPlayer.character && (
+                  <img
+                    src={getCharacterImage(assets, currentPlayer.character.imageUrl)?.src}
+                    alt={currentPlayer.character.name}
+                    className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
+                  />
+                )}
+                <div className="flex gap-2">
+                  <div className="w-10 h-10 bg-blue-100 rounded flex items-center justify-center">
+                    <span className="text-2xl">🎲</span>
+                  </div>
+                  <div className="w-10 h-10 bg-blue-100 rounded flex items-center justify-center">
+                    <span className="text-2xl">🎲</span>
+                  </div>
                 </div>
               </div>
               <h3 className="text-sm font-semibold text-gray-800 mb-1">

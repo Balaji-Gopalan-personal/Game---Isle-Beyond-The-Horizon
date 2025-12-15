@@ -1,6 +1,8 @@
 import React from 'react';
 import { Trophy, Minimize2, Home, Route, Shield, Star } from 'lucide-react';
 import { PlayerVictoryStats } from '../utils/victoryDetection';
+import { useAssets } from '../contexts/AssetsContext';
+import { getCharacterImage } from '../utils/assetHelpers';
 
 interface VictoryModalProps {
   winner: PlayerVictoryStats;
@@ -19,6 +21,8 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
 }) => {
   if (!isVisible) return null;
 
+  const assets = useAssets();
+
   const getPlayerColorStyle = (color: string) => {
     const colorMap: Record<string, string> = {
       red: '#EF4444',
@@ -30,6 +34,15 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
       black: '#374151'
     };
     return colorMap[color] || color;
+  };
+
+  const getPlayerInitials = (name: string): string => {
+    return name
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   return (
@@ -67,11 +80,37 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold"
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
                       style={{ backgroundColor: getPlayerColorStyle(player.playerColor) }}
                     >
                       {index + 1}
                     </div>
+                    {player.isHuman ? (
+                      <div
+                        className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold border-2"
+                        style={{
+                          backgroundColor: getPlayerColorStyle(player.playerColor),
+                          borderColor: getPlayerColorStyle(player.playerColor)
+                        }}
+                      >
+                        {getPlayerInitials(player.playerName)}
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <img
+                          src={getCharacterImage(assets, player.character?.imageUrl || '')?.src}
+                          alt={player.character?.name}
+                          className="w-12 h-12 rounded-full object-cover border-2"
+                          style={{ borderColor: getPlayerColorStyle(player.playerColor) }}
+                        />
+                        <div
+                          className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white font-bold text-[10px] border border-white"
+                          style={{ backgroundColor: getPlayerColorStyle(player.playerColor) }}
+                        >
+                          P{player.playerNumber}
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <div
                         className="text-lg font-bold"
