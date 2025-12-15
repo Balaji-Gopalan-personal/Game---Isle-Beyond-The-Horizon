@@ -15,11 +15,14 @@ import { DevCardHandModal } from './components/DevCardHandModal';
 import { VictoryModal } from './components/VictoryModal';
 import { TradingModal } from './components/TradingModal';
 import { TradeResponseModal } from './components/TradeResponseModal';
+import { LoadingScreen } from './components/LoadingScreen';
 import { Gamepad2 } from 'lucide-react';
 import { BoardSize } from './data/boardConfigs';
 import { AICharacter } from './data/aiCharacters';
 import { loadBoardForSize } from './graph/loadBoard';
 import { getAllPlayerStats } from './utils/victoryDetection';
+import { useAssets } from './contexts/AssetsContext';
+import { preloadCharacterAssets, preloadGameAssets } from './assets/assetLoader';
 
 interface GameSettings {
   pointsToWin: number;
@@ -36,8 +39,10 @@ interface GameSettings {
   developmentCardDeck: 'standard' | 'expanded';
 }
 
+type AppPhase = 'loading-characters' | 'setup' | 'loading-game' | 'playing';
+
 function App() {
-  const [isConfigured, setIsConfigured] = useState(false);
+  const [appPhase, setAppPhase] = useState<AppPhase>('loading-characters');
   const [selectedVertex, setSelectedVertex] = useState<number | null>(null);
   const [firstRoadVertex, setFirstRoadVertex] = useState<number | null>(null);
   const [roadPlacementError, setRoadPlacementError] = useState<string | null>(null);
@@ -59,6 +64,8 @@ function App() {
     aiColors: string[];
     gameSettings: GameSettings;
   } | null>(null);
+
+  const { assets, setAssets, updateGameAssets } = useAssets();
   
   // Always call useGameEngine unconditionally to follow Rules of Hooks
   const gameEngine = useGameEngine(
@@ -111,7 +118,7 @@ function App() {
     setPlayedCardForModal
   } = gameEngine;
 
-  const handleStartWithConfig = (
+  const handleStartWithConfig = async (
     aiPlayerCount: number,
     playerName: string,
     playerColor: string,
@@ -134,11 +141,30 @@ function App() {
       aiColors: aiColorsParam,
       gameSettings: settings
     });
-    setIsConfigured(true);
+
+    setAppPhase('loading-game');
+
+    try {
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Asset loading timeout')), 3000)
+      );
+
+      const gameAssets = await Promise.race([
+        preloadGameAssets(settings.developmentCardDeck),
+        timeout
+      ]) as Awaited<ReturnType<typeof preloadGameAssets>>;
+
+      updateGameAssets(gameAssets);
+      setAppPhase('playing');
+    } catch (error) {
+      console.error('Failed to load game assets:', error);
+      alert('Failed to load game assets. The application will close.');
+      window.close();
+    }
   };
 
   const handleNewGame = () => {
-    setIsConfigured(false);
+    setAppPhase('setup');
     setGameConfig(null);
     setIsVictoryModalMinimized(false);
     setSelectedVertex(null);
@@ -148,6 +174,30 @@ function App() {
     setIsDiscardModalMinimized(false);
     setIsDevCardsModalOpen(false);
   };
+
+  useEffect(() => {
+    const loadCharacters = async () => {
+      try {
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Asset loading timeout')), 3000)
+        );
+
+        const characters = await Promise.race([
+          preloadCharacterAssets(),
+          timeout
+        ]) as Awaited<ReturnType<typeof preloadCharacterAssets>>;
+
+        setAssets({ characters });
+        setAppPhase('setup');
+      } catch (error) {
+        console.error('Failed to load character assets:', error);
+        alert('Failed to load character assets. The application will close.');
+        window.close();
+      }
+    };
+
+    loadCharacters();
+  }, [setAssets]);
 
   // Auto-open discard modal when human player needs to discard
   useEffect(() => {
@@ -178,7 +228,11 @@ function App() {
     }
   }, [gameState?.turnState.step, discardState.playersNeedingDiscard, discardState.currentDiscardIndex, isDiscardModalOpen, isDiscardModalMinimized, gameState?.players]);
 
-  if (!isConfigured || !gameConfig) {
+  if (appPhase === 'loading-characters') {
+    return <LoadingScreen message="Loading..." />;
+  }
+
+  if (appPhase === 'setup') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
         <div className="w-full max-w-none mx-auto">
@@ -189,6 +243,14 @@ function App() {
         </div>
       </div>
     );
+  }
+
+  if (appPhase === 'loading-game') {
+    return <LoadingScreen message="Loading..." />;
+  }
+
+  if (!gameConfig) {
+    return <LoadingScreen message="Loading..." />;
   }
 
   const handleTriggerStep = (stepId: string) => {
@@ -718,7 +780,7 @@ function App() {
       })()}
 
       {/* Trading Modals */}
-      {isConfigured && gameState.currentPlayer && (
+      {appPhase === 'playing' && gameState.currentPlayer && (
         <>
           <TradingModal
             isOpen={isTradingModalOpen}
