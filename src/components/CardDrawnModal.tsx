@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { DevelopmentCard } from '../types/game';
+import { useAssets } from '../contexts/AssetsContext';
+import { getDevelopmentCardImage } from '../utils/assetHelpers';
 
 interface CardDrawnModalProps {
   card: DevelopmentCard;
@@ -21,6 +23,7 @@ export const CardDrawnModal: React.FC<CardDrawnModalProps> = ({
   playerNumber,
   playerColor
 }) => {
+  const { assets } = useAssets();
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
 
@@ -92,7 +95,7 @@ export const CardDrawnModal: React.FC<CardDrawnModalProps> = ({
                     </div>
                   )}
                   <img
-                    src={card.imageUrl}
+                    src={getDevelopmentCardImage(assets, card.imageUrl)?.src}
                     alt={card.name}
                     className={`w-64 h-auto ${imageLoading ? 'hidden' : 'block'}`}
                     onError={handleImageError}

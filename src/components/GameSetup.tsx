@@ -3,6 +3,8 @@ import { Users, Settings, User, Palette, Grid3X3, Shuffle, Brain, Trophy, Route,
 import { BoardSize } from '../data/boardStructure';
 import { BOARD_STRUCTURES } from '../data/boardStructure';
 import { getRandomCharacters, AICharacter } from '../data/aiCharacters';
+import { useAssets } from '../contexts/AssetsContext';
+import { getCharacterImage } from '../utils/assetHelpers';
 
 interface GameSettings {
   pointsToWin: number;
@@ -35,6 +37,7 @@ interface GameSetupProps {
 }
 
 export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, defaultPlayerName = '' }) => {
+  const { assets } = useAssets();
   const [aiPlayerCount, setAiPlayerCount] = useState(0);
   const [playerName, setPlayerName] = useState(defaultPlayerName);
   const [playerColor, setPlayerColor] = useState('blue');
@@ -725,7 +728,7 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
                             P{index + 1} {aiCharacter?.name}
                           </div>
                           <img
-                            src={aiCharacter?.imageUrl}
+                            src={getCharacterImage(assets, aiCharacter?.imageUrl || '')?.src}
                             alt={aiCharacter?.name}
                             className="w-6 h-6 rounded-full object-cover border border-gray-200 mx-auto"
                           />

@@ -4,14 +4,8 @@ import { BoardSize } from '../data/boardConfigs';
 import { loadBoardGraph, loadBoardForSize } from '../graph/loadBoard';
 import { generateTradingPorts } from '../utils/tradingPortUtils';
 import { canPlaceVillage } from '../engine/validators';
-import desertImg from '/images/resources/Desert new.jpg';
-import clayImg from '/images/resources/Clay new.jpg';
-import lumberImg from '/images/resources/Lumber new.jpg';
-import grainImg from '/images/resources/Grain new.jpg';
-import fabricImg from '/images/resources/Fabric new.jpg';
-import mineralImg from '/images/resources/Mineral new.jpg';
-import oceanGif from '/images/board/Ocean animated new.gif';
-import landmassImg from '/images/board/Landmass.jpg';
+import { useAssets } from '../contexts/AssetsContext';
+import { getResourceImage, getBoardImage } from '../utils/assetHelpers';
 
 interface CenterData {
   id: number;
@@ -44,10 +38,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   onCentreClick,
   selectedCentre = null
 }) => {
-  // Load board data (graph + centers)
+  const { assets } = useAssets();
+
   const boardData = React.useMemo(() => {
     console.log('Loading board graph...');
-    const data = loadBoardForSize(boardSize); // Load complete board data including centers
+    const data = loadBoardForSize(boardSize);
     console.log('Board graph loaded:', {
       vertices: Object.keys(data.graph.vertices).length,
       edges: Object.keys(data.graph.edges).length,
@@ -133,16 +128,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     y: (center.y - minY) * scale + padding
   });
 
-  const getResourceImage = (resourceType: string) => {
-    switch (resourceType) {
-      case 'desert': return desertImg;
-      case 'clay': return clayImg;
-      case 'lumber': return lumberImg;
-      case 'grain': return grainImg;
-      case 'fabric': return fabricImg;
-      case 'mineral': return mineralImg;
-      default: return desertImg;
-    }
+  const getResourceImageSrc = (resourceType: string): string | undefined => {
+    const img = getResourceImage(assets, resourceType);
+    return img?.src;
   };
 
   const getResourceColor = (resourceType: string) => {
@@ -239,7 +227,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       <div
         className="absolute inset-0 rounded-lg"
         style={{
-          backgroundImage: `url(${oceanGif})`,
+          backgroundImage: `url(${getBoardImage(assets, 'ocean')?.src})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
@@ -265,7 +253,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             {/* Resource image patterns for centers */}
             <pattern id="pattern-desert" patternUnits="objectBoundingBox" width="1" height="1" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
               <image
-                href={desertImg}
+                href={getResourceImageSrc('desert')}
                 x="0"
                 y="0"
                 width="100"
@@ -276,7 +264,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
             <pattern id="pattern-clay" patternUnits="objectBoundingBox" width="1" height="1" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
               <image
-                href={clayImg}
+                href={getResourceImageSrc('clay')}
                 x="0"
                 y="0"
                 width="100"
@@ -287,7 +275,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
             <pattern id="pattern-lumber" patternUnits="objectBoundingBox" width="1" height="1" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
               <image
-                href={lumberImg}
+                href={getResourceImageSrc('lumber')}
                 x="0"
                 y="0"
                 width="100"
@@ -298,7 +286,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
             <pattern id="pattern-grain" patternUnits="objectBoundingBox" width="1" height="1" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
               <image
-                href={grainImg}
+                href={getResourceImageSrc('grain')}
                 x="0"
                 y="0"
                 width="100"
@@ -309,7 +297,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
             <pattern id="pattern-fabric" patternUnits="objectBoundingBox" width="1" height="1" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
               <image
-                href={fabricImg}
+                href={getResourceImageSrc('fabric')}
                 x="0"
                 y="0"
                 width="100"
@@ -320,7 +308,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
             <pattern id="pattern-mineral" patternUnits="objectBoundingBox" width="1" height="1" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
               <image
-                href={mineralImg}
+                href={getResourceImageSrc('mineral')}
                 x="0"
                 y="0"
                 width="100"
@@ -332,7 +320,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             {/* Landmass pattern for island background */}
             <pattern id="pattern-landmass" patternUnits="objectBoundingBox" width="1" height="1" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
               <image
-                href={landmassImg}
+                href={getBoardImage(assets, 'landmass')?.src}
                 x="0"
                 y="0"
                 width="100"

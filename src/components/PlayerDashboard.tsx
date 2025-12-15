@@ -1,6 +1,8 @@
 import React from 'react';
 import { GameState, Player } from '../types/game';
 import { Coins, Package, Shield, Route, Wheat, Hammer, TreePine, Shirt, Mountain } from 'lucide-react';
+import { useAssets } from '../contexts/AssetsContext';
+import { getCharacterImage } from '../utils/assetHelpers';
 
 interface PlayerDashboardProps {
   players: Player[];
@@ -15,6 +17,7 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({
   gameState,
   onOpenDevCardInventory
 }) => {
+  const { assets } = useAssets();
   console.log('=== PLAYER DASHBOARD DEBUG ===');
   console.log('Players received:', players.map(p => ({ 
     name: p.name, 
@@ -144,8 +147,8 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({
                 /* AI Player: Character image */
                 <div className="flex justify-center w-full">
                   {player.character?.imageUrl && (
-                    <img 
-                      src={player.character.imageUrl} 
+                    <img
+                      src={getCharacterImage(assets, player.character.imageUrl)?.src}
                       alt={player.character.name}
                       className="w-8 h-8 rounded-full object-cover border border-gray-300"
                     />
