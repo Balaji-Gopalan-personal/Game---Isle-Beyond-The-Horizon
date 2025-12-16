@@ -158,8 +158,8 @@ function App() {
       setAppPhase('playing');
     } catch (error) {
       console.error('Failed to load game assets:', error);
-      alert('Failed to load game assets. The application will close.');
-      window.close();
+      alert('Failed to load some game assets. The game may not display correctly. Check the console for details.');
+      setAppPhase('playing');
     }
   };
 
@@ -191,8 +191,8 @@ function App() {
         setAppPhase('setup');
       } catch (error) {
         console.error('Failed to load character assets:', error);
-        alert('Failed to load character assets. The application will close.');
-        window.close();
+        alert('Failed to load some character assets. Character images may not display correctly. Check the console for details.');
+        setAppPhase('setup');
       }
     };
 

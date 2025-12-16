@@ -5,8 +5,7 @@ import { loadBoardGraph } from '../graph/loadBoard';
 import { canPlaceVillage, legalRoadEdgesFrom, whyNotVillage, initializeValidators } from '../engine/validators';
 import { BoardSize } from '../data/boardConfigs';
 import { BoomingEconomyPrompt, ClosedMarketPrompt, ResourceSwapPrompt, FreeUpgradePrompt } from './CardEffectPrompts';
-import { useAssets } from '../contexts/AssetsContext';
-import { getCharacterImage } from '../utils/assetHelpers';
+import { CharacterAvatar } from './CharacterAvatar';
 
 interface ActionPromptProps {
   gameState: GameState;
@@ -308,17 +307,11 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
             <div className="mb-3">
               <div className="flex items-center justify-center gap-2 mb-2">
                 {currentPlayer.character && (
-                  <div className="relative overflow-hidden rounded-full w-8 h-8 border-2 border-gray-200">
-                    <img
-                      src={getCharacterImage(assets, currentPlayer.character.imageUrl)?.src}
-                      alt={currentPlayer.character.name}
-                      className="w-full h-full object-cover object-center"
-                      style={{
-                        objectPosition: 'center 30%',
-                        transform: 'scale(1.8)'
-                      }}
-                    />
-                  </div>
+                  <CharacterAvatar
+                    character={currentPlayer.character}
+                    color={currentPlayer.color}
+                    size="sm"
+                  />
                 )}
                 <div className="flex gap-2">
                   <div className="w-10 h-10 bg-blue-100 rounded flex items-center justify-center">

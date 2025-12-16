@@ -1,8 +1,7 @@
 import React from 'react';
 import { Trophy, Minimize2, Home, Route, Shield, Star } from 'lucide-react';
 import { PlayerVictoryStats } from '../utils/victoryDetection';
-import { useAssets } from '../contexts/AssetsContext';
-import { getCharacterImage } from '../utils/assetHelpers';
+import { CharacterAvatar } from './CharacterAvatar';
 
 interface VictoryModalProps {
   winner: PlayerVictoryStats;
@@ -96,15 +95,11 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
                         {getPlayerInitials(player.playerName)}
                       </div>
                     ) : (
-                      <div className="relative overflow-hidden rounded-full w-12 h-12 border-2" style={{ borderColor: getPlayerColorStyle(player.playerColor) }}>
-                        <img
-                          src={getCharacterImage(assets, player.character?.imageUrl || '')?.src}
-                          alt={player.character?.name}
-                          className="w-full h-full object-cover object-center"
-                          style={{
-                            objectPosition: 'center 30%',
-                            transform: 'scale(1.8)'
-                          }}
+                      <div className="relative">
+                        <CharacterAvatar
+                          character={player.character}
+                          color={getPlayerColorStyle(player.playerColor)}
+                          size="md"
                         />
                         <div
                           className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white font-bold text-[10px] border border-white"

@@ -1,8 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { Player } from '../types/game';
-import { useAssets } from '../contexts/AssetsContext';
-import { getCharacterImage } from '../utils/assetHelpers';
+import { CharacterAvatar } from './CharacterAvatar';
 
 interface BoomingEconomyPromptProps {
   resourcesSelected: string[];
@@ -204,14 +203,11 @@ export const ResourceSwapPrompt: React.FC<ResourceSwapPromptProps> = ({
               </div>
             ) : (
               <>
-                <img
-                  src={getCharacterImage(assets, player.character?.imageUrl || '')?.src}
-                  alt={player.character?.name}
-                  className="w-full h-full rounded object-cover object-center"
-                  style={{
-                    objectPosition: 'center 30%',
-                    transform: 'scale(1.8)'
-                  }}
+                <CharacterAvatar
+                  character={player.character}
+                  color={player.color}
+                  size="lg"
+                  className="w-full h-full"
                 />
                 <div
                   className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center text-white font-bold text-[10px] border border-white"

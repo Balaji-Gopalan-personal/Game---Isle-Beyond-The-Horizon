@@ -1,8 +1,7 @@
 import React from 'react';
 import { GameState, Player } from '../types/game';
 import { Coins, Package, Shield, Route, Wheat, Hammer, TreePine, Shirt, Mountain } from 'lucide-react';
-import { useAssets } from '../contexts/AssetsContext';
-import { getCharacterImage } from '../utils/assetHelpers';
+import { CharacterAvatar } from './CharacterAvatar';
 
 interface PlayerDashboardProps {
   players: Player[];
@@ -146,18 +145,12 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({
               ) : (
                 /* AI Player: Character image */
                 <div className="flex justify-center w-full">
-                  {player.character?.imageUrl && (
-                    <div className="relative overflow-hidden rounded-full w-8 h-8 border border-gray-300">
-                      <img
-                        src={getCharacterImage(assets, player.character.imageUrl)?.src}
-                        alt={player.character.name}
-                        className="w-full h-full object-cover object-center"
-                        style={{
-                          objectPosition: 'center 30%',
-                          transform: 'scale(1.8)'
-                        }}
-                      />
-                    </div>
+                  {player.character && (
+                    <CharacterAvatar
+                      character={player.character}
+                      color={player.color}
+                      size="sm"
+                    />
                   )}
                 </div>
               )}
