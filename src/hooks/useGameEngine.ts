@@ -792,11 +792,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   const checkLongestRoadBonus = useCallback((playerId: string, newLength: number) => {
     const minLength = gameState.gameSettings?.longestRoadSize || 5;
     const bonus = gameState.gameSettings?.longestRoadBonus || 2;
-    
+
     // Check if this player now qualifies and no one else has it
     if (newLength >= minLength) {
       const currentHolder = gameState.players.find(p => p.hasLongestRoad);
-      
+
       if (!currentHolder) {
         // First player to reach minimum length gets the bonus
         const player = gameState.players.find(p => p.id === playerId);
@@ -810,11 +810,17 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         if (newLength > currentHolderLength) {
           const player = gameState.players.find(p => p.id === playerId);
           addColoredLog(`${player?.name} took the Longest Road (${newLength}) from ${currentHolder.name} and earned ${bonus} bonus points!`, playerId);
+          // Add loss message for previous holder
+          const previousHolderId = currentHolder.id;
+          const previousHolderObj = gameState.players.find(p => p.id === previousHolderId);
+          if (previousHolderObj) {
+            addColoredLog(`${previousHolderObj.name} lost the Longest Road and ${bonus} bonus points`, previousHolderId);
+          }
           return { shouldAward: true, bonus, previousHolder: currentHolder.id };
         }
       }
     }
-    
+
     return { shouldAward: false, bonus: 0 };
   }, [gameState.gameSettings, gameState.players, gameState.longestRoadLengths, addColoredLog]);
 
@@ -2259,6 +2265,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       return p;
     });
 
+    // Track log messages to add after state update
+    let previousHolderName = '';
+    let achievementGained = false;
+
     // Check if this player now has largest army
     if (gameState.gameSettings.largestArmyEnabled && newArmyCount >= largestArmySize) {
       console.log('DEBUG: Checking Largest Army - player:', player.name, 'newArmyCount:', newArmyCount, 'largestArmySize:', largestArmySize);
@@ -2274,22 +2284,18 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         // Someone else has it, and this player now exceeds their count
         console.log('DEBUG: Player', player.name, 'exceeds current holder', currentLargestArmyHolder.name);
         shouldTakeLargestArmy = true;
+        previousHolderName = currentLargestArmyHolder.name;
       } else {
         console.log('DEBUG: Largest Army not changing');
       }
 
       if (shouldTakeLargestArmy) {
+        achievementGained = true;
         // Transfer largest army bonus
         updatedPlayers = updatedPlayers.map(p => {
           if (p.id === player.id) {
-            const playerColor = getPlayerColorStyle(p.color);
-            const bonusMessage = `<span style="color: ${playerColor}; font-weight: bold;">${p.name}</span> now has the Largest Army!`;
-            setTimeout(() => addToLog(bonusMessage), 100);
             return { ...p, hasLargestArmy: true, score: p.score + largestArmyBonus };
           } else if (p.hasLargestArmy) {
-            const playerColor = getPlayerColorStyle(p.color);
-            const lossMessage = `<span style="color: ${playerColor}; font-weight: bold;">${p.name}</span> lost the Largest Army`;
-            setTimeout(() => addToLog(lossMessage), 50);
             return { ...p, hasLargestArmy: false, score: p.score - largestArmyBonus };
           }
           return p;
@@ -2306,10 +2312,19 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       }
     }));
 
+    // Add log messages after state update
     const playerColor = getPlayerColorStyle(player.color);
     const armyMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> added 1 to Army count (now ${newArmyCount})`;
-    setTimeout(() => addToLog(armyMessage), 200);
-  }, [gameState, addToLog, getPlayerColorStyle]);
+    addToLog(armyMessage);
+
+    if (achievementGained) {
+      if (previousHolderName) {
+        addColoredLog(`${player.name} took the Largest Army (${newArmyCount}) from ${previousHolderName} and earned ${largestArmyBonus} bonus points!`, player.id);
+      } else {
+        addColoredLog(`${player.name} achieved the Largest Army (${newArmyCount}) and earned ${largestArmyBonus} bonus points!`, player.id);
+      }
+    }
+  }, [gameState, addToLog, addColoredLog, getPlayerColorStyle]);
 
   const handlePlayRoadConstructionCard = useCallback((player: Player) => {
     console.log('DEBUG: Playing Road Construction card for player:', player.name);
