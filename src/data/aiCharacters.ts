@@ -33,13 +33,14 @@ function parseCharactersCSV(): AICharacter[] {
     const filename = fields[3];
 
     if (cartoonTitle && characterName && filename) {
-      // Determine file extension (most are .png, but check for exceptions)
-      const extension = (filename === 'Jem' || filename === 'Tom') ? '.jpg' : '.png';
+      // Convert filename to lowercase to match actual file names
+      const lowerFilename = filename.toLowerCase();
+      const extension = '.png';
 
       characters.push({
         name: characterName,
         cartoon: cartoonTitle,
-        imageUrl: `/images/characters/${filename}${extension}`,
+        imageUrl: `/images/characters/${lowerFilename}${extension}`,
         filename: filename
       });
     }
