@@ -671,7 +671,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
   // Generate and store trading ports when board is loaded
   useEffect(() => {
-    if (boardCenters.length > 0 && !gameState.tradingPorts && gameState.gameSettings.tradingPortsEnabled) {
+    // Check if we need to generate ports: board centers loaded, ports not yet generated or empty, and ports enabled
+    const needsPortGeneration = boardCenters.length > 0 &&
+                                (!gameState.tradingPorts || gameState.tradingPorts.length === 0) &&
+                                gameState.gameSettings?.tradingPortsEnabled;
+
+    if (needsPortGeneration) {
+      console.log('DEBUG: Generating trading ports now that board centers are loaded');
+      console.log(`DEBUG: boardCenters.length = ${boardCenters.length}`);
+      console.log(`DEBUG: numberOfTradingPorts = ${gameState.gameSettings.numberOfTradingPorts}`);
+
       const vertices = Object.values(boardGraph.vertices).map(v => ({
         id: v.id,
         row: '',
@@ -692,14 +701,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         boardCenters
       );
 
-      console.log('DEBUG: Generated trading ports:', tradingPorts);
+      console.log('DEBUG: Successfully generated trading ports:', tradingPorts);
+      console.log(`DEBUG: Total ports created: ${tradingPorts.length}`);
 
       setGameState(prev => ({
         ...prev,
         tradingPorts
       }));
     }
-  }, [boardCenters, boardGraph.vertices, boardGraph.edges, gameState.tradingPorts, gameState.gameSettings.tradingPortsEnabled, gameState.gameSettings.numberOfTradingPorts]);
+  }, [boardCenters, boardGraph.vertices, boardGraph.edges, gameState.tradingPorts, gameState.gameSettings?.tradingPortsEnabled, gameState.gameSettings?.numberOfTradingPorts]);
 
   // Helper function to collect resources from adjacent centers
   const collectResourcesFromAdjacentCenters = useCallback((vertexId: number, playerId: string) => {
@@ -1902,31 +1912,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const initialDeck = createInitialDeck(config.gameSettings.developmentCardDeck);
       const shuffledDeck = shuffleDeck(initialDeck);
 
-      // Generate trading ports if enabled
-      let tradingPorts = undefined;
-      if (config.gameSettings.tradingPortsEnabled) {
-        const vertices = Object.values(boardGraph.vertices).map(v => ({
-          id: v.id,
-          row: '',
-          position: 0,
-          x: 0,
-          y: 0
-        }));
-
-        const edges = Object.values(boardGraph.edges).map(e => ({
-          from: e.v1,
-          to: e.v2
-        }));
-
-        tradingPorts = generateTradingPorts(
-          vertices,
-          edges,
-          config.gameSettings.numberOfTradingPorts,
-          boardCenters
-        );
-
-        console.log('DEBUG: Generated trading ports during initialization:', tradingPorts);
-      }
+      // Trading ports will be generated after board centers are loaded
+      // See the useEffect that watches boardCenters
+      console.log('DEBUG: Deferring trading port generation until board centers are loaded');
 
       setGameState({
         currentPlayer: firstPlayer.id,
@@ -1962,7 +1950,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         ...occupancyMaps,
         developmentCardDeck: shuffledDeck,
         developmentCardDiscard: [],
-        tradingPorts
+        tradingPorts: undefined
       });
       
       // Start the first player's turn
