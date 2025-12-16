@@ -1,4 +1,4 @@
-export type PlayerColorName = 'black' | 'red' | 'orange' | 'yellow' | 'green' | 'blue';
+export type PlayerColorName = 'black' | 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple';
 
 export interface PlayerColor {
   name: PlayerColorName;
@@ -43,6 +43,12 @@ export const PLAYER_COLORS: Record<PlayerColorName, PlayerColor> = {
     label: 'Blue',
     hex: '#0433FF',
     rgbText: 'rgb(4, 51, 255)'
+  },
+  purple: {
+    name: 'purple',
+    label: 'Purple',
+    hex: '#7B2D9F',
+    rgbText: 'rgb(123, 45, 159)'
   }
 };
 
@@ -52,7 +58,8 @@ export const PLAYER_COLOR_ARRAY: PlayerColor[] = [
   PLAYER_COLORS.orange,
   PLAYER_COLORS.yellow,
   PLAYER_COLORS.green,
-  PLAYER_COLORS.blue
+  PLAYER_COLORS.blue,
+  PLAYER_COLORS.purple
 ];
 
 export function getPlayerColorHex(colorName: string): string {
