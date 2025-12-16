@@ -4,6 +4,7 @@ import { BoardSize } from '../data/boardStructure';
 import { BOARD_STRUCTURES } from '../data/boardStructure';
 import { getRandomCharacters, AICharacter } from '../data/aiCharacters';
 import { CharacterAvatar } from './CharacterAvatar';
+import { PLAYER_COLOR_ARRAY } from '../utils/playerColors';
 
 interface GameSettings {
   pointsToWin: number;
@@ -61,15 +62,11 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
   const [developmentCardDeck, setDevelopmentCardDeck] = useState<'standard' | 'expanded'>('standard');
   const [testingMode, setTestingMode] = useState(false);
 
-  const availableColors = [
-    { value: 'red', label: 'Red', color: '#EF4444' },
-    { value: 'green', label: 'Green', color: '#10B981' },
-    { value: 'blue', label: 'Blue', color: '#3B82F6' },
-    { value: 'yellow', label: 'Yellow', color: '#F59E0B' },
-    { value: 'purple', label: 'Purple', color: '#8B5CF6' },
-    { value: 'orange', label: 'Orange', color: '#F97316' },
-    { value: 'black', label: 'Black', color: '#374151' }
-  ];
+  const availableColors = PLAYER_COLOR_ARRAY.map(color => ({
+    value: color.name,
+    label: color.label,
+    color: color.hex
+  }));
 
   const maxAiPlayers = BOARD_STRUCTURES[boardSize].maxPlayers - 1;
 

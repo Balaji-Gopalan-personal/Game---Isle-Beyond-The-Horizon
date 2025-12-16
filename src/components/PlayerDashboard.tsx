@@ -2,6 +2,7 @@ import React from 'react';
 import { GameState, Player } from '../types/game';
 import { Coins, Package, Shield, Route, Wheat, Hammer, TreePine, Shirt, Mountain } from 'lucide-react';
 import { CharacterAvatar } from './CharacterAvatar';
+import { getPlayerColorHex } from '../utils/playerColors';
 
 interface PlayerDashboardProps {
   players: Player[];
@@ -48,16 +49,7 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({
   };
 
   const getPlayerColorStyle = (color: string) => {
-    const colorMap: Record<string, string> = {
-      red: '#EF4444',
-      green: '#10B981', 
-      blue: '#3B82F6',
-      yellow: '#F59E0B',
-      purple: '#8B5CF6',
-      orange: '#F97316',
-      black: '#374151'
-    };
-    return colorMap[color] || color;
+    return getPlayerColorHex(color);
   };
 
   return (

@@ -13,6 +13,7 @@ import { createInitialDeck, shuffleDeck } from '../data/developmentCards';
 import { checkVictoryCondition } from '../utils/victoryDetection';
 import { generateTradingPorts } from '../utils/tradingPortUtils';
 import { getPlayerTradingPorts } from '../utils/tradingUtils';
+import { getPlayerColorHex } from '../utils/playerColors';
 
 const DEFAULT_GAME_SETTINGS: GameSettings = {
   pointsToWin: 10,
@@ -148,16 +149,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
   // Helper function to get player color style
   const getPlayerColorStyle = useCallback((color: string) => {
-    const colorMap: Record<string, string> = {
-      red: '#DC2626',
-      green: '#16A34A',
-      blue: '#2563EB',
-      yellow: '#CA8A04', // Darker yellow for better readability
-      purple: '#9333EA',
-      orange: '#EA580C',
-      black: '#374151'
-    };
-    return colorMap[color] || color;
+    return getPlayerColorHex(color);
   }, []);
 
   // Discard helper functions

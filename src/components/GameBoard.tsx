@@ -6,6 +6,7 @@ import { generateTradingPorts } from '../utils/tradingPortUtils';
 import { canPlaceVillage } from '../engine/validators';
 import { useAssets } from '../contexts/AssetsContext';
 import { getResourceImage, getBoardImage } from '../utils/assetHelpers';
+import { getPlayerColorHex } from '../utils/playerColors';
 
 interface CenterData {
   id: number;
@@ -402,7 +403,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 y1={fromPos.y}
                 x2={toPos.x}
                 y2={toPos.y}
-                stroke={roadPlayer.color}
+                stroke={getPlayerColorHex(roadPlayer.color)}
                 strokeWidth="18" // 3× thicker than board edges (6px)
                 strokeLinecap="round"
               />
@@ -743,7 +744,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     cy={pos.y}
                     r={Math.max(35, vertexRadius * 2.2)}
                     fill="rgba(59, 130, 246, 0.3)"
-                    stroke={currentPlayer.color}
+                    stroke={getPlayerColorHex(currentPlayer.color)}
                     strokeWidth="3"
                     style={{ cursor: 'pointer' }}
                     opacity="0.8"
@@ -764,7 +765,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     cy={pos.y}
                     r={vertexRadius * 2.5}
                     fill="none"
-                    stroke={currentPlayer.color}
+                    stroke={getPlayerColorHex(currentPlayer.color)}
                     strokeWidth="4"
                     strokeDasharray="8,4"
                     opacity="0.8"
@@ -779,7 +780,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     cy={pos.y}
                     r={Math.max(35, vertexRadius * 2.2)}
                     fill="rgba(255, 165, 0, 0.3)"
-                    stroke={currentPlayer.color}
+                    stroke={getPlayerColorHex(currentPlayer.color)}
                     strokeWidth="3"
                     style={{ cursor: 'pointer' }}
                     opacity="0.8"
@@ -815,7 +816,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     cy={pos.y}
                     r={Math.max(35, vertexRadius * 2.2)}
                     fill="rgba(147, 51, 234, 0.2)"
-                    stroke={currentPlayer.color}
+                    stroke={getPlayerColorHex(currentPlayer.color)}
                     strokeWidth="2"
                     style={{ cursor: 'pointer' }}
                     opacity="0.8"
@@ -836,7 +837,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     cy={pos.y}
                     r={vertexRadius * 2.5}
                     fill="none"
-                    stroke={currentPlayer.color}
+                    stroke={getPlayerColorHex(currentPlayer.color)}
                     strokeWidth="4"
                     strokeDasharray="8,4"
                     opacity="0.8"
@@ -893,9 +894,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     y={pos.y + iconFontSize * 0.2} // icon.y = vertex.y (moved up by 10% of icon height)
                     textAnchor="middle"
                     fontSize={iconFontSize}
-                    fill={villagePlayer.color}
+                    fill={getPlayerColorHex(villagePlayer.color)}
                     fontWeight="bold"
-                    stroke={villagePlayer.color}
+                    stroke={getPlayerColorHex(villagePlayer.color)}
                     strokeWidth="3"
                     style={isValidForEstate && onVertexClick ? { cursor: 'pointer', pointerEvents: 'auto' } : { pointerEvents: 'none' }}
                     onClick={isValidForEstate && onVertexClick ? (e) => {

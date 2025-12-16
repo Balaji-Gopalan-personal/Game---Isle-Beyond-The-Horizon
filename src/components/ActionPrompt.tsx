@@ -6,6 +6,7 @@ import { canPlaceVillage, legalRoadEdgesFrom, whyNotVillage, initializeValidator
 import { BoardSize } from '../data/boardConfigs';
 import { BoomingEconomyPrompt, ClosedMarketPrompt, ResourceSwapPrompt, FreeUpgradePrompt } from './CardEffectPrompts';
 import { CharacterAvatar } from './CharacterAvatar';
+import { getPlayerColorHex } from '../utils/playerColors';
 
 interface ActionPromptProps {
   gameState: GameState;
@@ -149,29 +150,20 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
   };
 
   const getPlayerColorStyle = (color: string) => {
-    const colorMap: Record<string, string> = {
-      red: '#DC2626',
-      green: '#16A34A',
-      blue: '#2563EB',
-      yellow: '#CA8A04',
-      purple: '#9333EA',
-      orange: '#EA580C',
-      black: '#374151'
-    };
-    return colorMap[color] || color;
+    return getPlayerColorHex(color);
   };
 
   const getPlayerLightColor = (color: string) => {
-    const colorMap: Record<string, string> = {
+    const lightColorMap: Record<string, string> = {
       red: '#FEE2E2',
-      green: '#DCFCE7',
+      green: '#D1FAE5',
       blue: '#DBEAFE',
       yellow: '#FEF3C7',
       purple: '#F3E8FF',
       orange: '#FFEDD5',
       black: '#F3F4F6'
     };
-    return colorMap[color] || '#FFFFFF';
+    return lightColorMap[color] || '#FFFFFF';
   };
 
   const canAffordRoad = () => {
