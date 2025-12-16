@@ -36,7 +36,6 @@ interface GameSetupProps {
 }
 
 export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, defaultPlayerName = '' }) => {
-  const { assets } = useAssets();
   const [aiPlayerCount, setAiPlayerCount] = useState(0);
   const [playerName, setPlayerName] = useState(defaultPlayerName);
   const [playerColor, setPlayerColor] = useState('blue');
