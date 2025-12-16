@@ -573,16 +573,31 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, [gameState.players, getPlayerColorStyle, addToLog]);
 
   const checkAndLogTradingPortAccess = useCallback((playerId: string, vertexId: number, updatedGameState: GameState) => {
+    console.log('DEBUG TRADING PORT CHECK:', {
+      playerId,
+      vertexId,
+      tradingPortsEnabled: updatedGameState.gameSettings.tradingPortsEnabled,
+      hasTradingPorts: !!updatedGameState.tradingPorts,
+      tradingPortsCount: updatedGameState.tradingPorts?.length,
+      tradingPorts: updatedGameState.tradingPorts
+    });
+
     if (!updatedGameState.gameSettings.tradingPortsEnabled || !updatedGameState.tradingPorts) {
+      console.log('DEBUG: Trading ports not enabled or not available');
       return;
     }
 
     const player = updatedGameState.players.find(p => p.id === playerId);
-    if (!player) return;
+    if (!player) {
+      console.log('DEBUG: Player not found');
+      return;
+    }
 
     const newPorts = updatedGameState.tradingPorts.filter(port =>
       port.vertices.includes(vertexId)
     );
+
+    console.log('DEBUG: Found ports for vertex:', { vertexId, newPorts });
 
     if (newPorts.length > 0) {
       newPorts.forEach(port => {
@@ -594,6 +609,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           portDescription = `2:1 ${resourceName} Trading Port (2 ${resourceName} for 1 of any other resource)`;
         }
 
+        console.log('DEBUG: Adding trading port log:', portDescription);
         addColoredLog(`${player.name} gained access to a ${portDescription}`, playerId);
       });
     }
