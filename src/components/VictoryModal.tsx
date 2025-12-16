@@ -20,8 +20,6 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
 }) => {
   if (!isVisible) return null;
 
-  const assets = useAssets();
-
   const getPlayerColorStyle = (color: string) => {
     const colorMap: Record<string, string> = {
       black: '#000000',
