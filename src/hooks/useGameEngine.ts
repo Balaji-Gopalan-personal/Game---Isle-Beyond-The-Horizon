@@ -999,35 +999,42 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     
     console.log('DEBUG: Updating React state after village placement');
     // Update React state
-    setGameState(prev => ({
-      ...prev,
-      verticesOccupiedBy: mutableState.verticesOccupiedBy,
-      turnState: mutableState.turnState,
-      currentPlayer: playerId,
-      villages: [...prev.villages, {
-        id: `village-${vertexId}`,
-        playerId,
-        vertexId: vertexId,
-        type: 'settlement'
-      }],
-      players: prev.players.map(p => 
-        p.id === playerId 
-          ? { 
-              ...p, 
-              villageCount: p.villageCount + 1, 
-              score: p.score + 1,
-              resources: gameState.phase === 'setup-phase-2' ? {
-                clay: p.resources.clay + (resourceCollection.resources.clay || 0),
-                lumber: p.resources.lumber + (resourceCollection.resources.lumber || 0),
-                grain: p.resources.grain + (resourceCollection.resources.grain || 0),
-                fabric: p.resources.fabric + (resourceCollection.resources.fabric || 0),
-                mineral: p.resources.mineral + (resourceCollection.resources.mineral || 0),
-                total: p.resources.total + Object.values(resourceCollection.resources).reduce((sum: number, count) => sum + (count as number), 0)
-              } : p.resources
-            }
-          : p
-      )
-    }));
+    setGameState(prev => {
+      const newState = {
+        ...prev,
+        verticesOccupiedBy: mutableState.verticesOccupiedBy,
+        turnState: mutableState.turnState,
+        currentPlayer: playerId,
+        villages: [...prev.villages, {
+          id: `village-${vertexId}`,
+          playerId,
+          vertexId: vertexId,
+          type: 'settlement'
+        }],
+        players: prev.players.map(p =>
+          p.id === playerId
+            ? {
+                ...p,
+                villageCount: p.villageCount + 1,
+                score: p.score + 1,
+                resources: gameState.phase === 'setup-phase-2' ? {
+                  clay: p.resources.clay + (resourceCollection.resources.clay || 0),
+                  lumber: p.resources.lumber + (resourceCollection.resources.lumber || 0),
+                  grain: p.resources.grain + (resourceCollection.resources.grain || 0),
+                  fabric: p.resources.fabric + (resourceCollection.resources.fabric || 0),
+                  mineral: p.resources.mineral + (resourceCollection.resources.mineral || 0),
+                  total: p.resources.total + Object.values(resourceCollection.resources).reduce((sum: number, count) => sum + (count as number), 0)
+                } : p.resources
+              }
+            : p
+        )
+      };
+
+      // Check for trading port access with the updated state
+      checkAndLogTradingPortAccess(playerId, vertexId, newState);
+
+      return newState;
+    });
     
     // Add to activity log
     if (gameState.phase === 'setup-phase-1') {
@@ -1044,12 +1051,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }));
       }
     }
-
-    // Check for trading port access
-    setGameState(prev => {
-      checkAndLogTradingPortAccess(playerId, vertexId, prev);
-      return prev;
-    });
 
     console.log('DEBUG: Village placement complete');
   }, [gameState, collectResourcesFromAdjacentCenters, addToLog, addColoredLog, checkAndLogTradingPortAccess]);
@@ -1592,26 +1593,27 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     };
 
     // Update game state
-    setGameState(prev => ({
-      ...prev,
-      villages: [...prev.villages, newVillage],
-      players: prev.players.map(p => 
-        p.id === currentPlayer.id 
-          ? { ...p, villageCount: p.villageCount + 1, score: p.score + 1, hasPlacedVillage: true }
-          : p
-      ),
-      lastPlacedVillage: vertexId,
-      currentStep: 'place-road',
-      adjacentVertices: getAdjacentVertices(vertexId)
-    }));
+    setGameState(prev => {
+      const newState = {
+        ...prev,
+        villages: [...prev.villages, newVillage],
+        players: prev.players.map(p =>
+          p.id === currentPlayer.id
+            ? { ...p, villageCount: p.villageCount + 1, score: p.score + 1, hasPlacedVillage: true }
+            : p
+        ),
+        lastPlacedVillage: vertexId,
+        currentStep: 'place-road',
+        adjacentVertices: getAdjacentVertices(vertexId)
+      };
+
+      // Check for trading port access with the updated state
+      checkAndLogTradingPortAccess(currentPlayer.id, vertexId, newState);
+
+      return newState;
+    });
 
     addToLog(`${currentPlayer.name} placed a Village and earned 1 point.`);
-
-    // Check for trading port access
-    setGameState(prev => {
-      checkAndLogTradingPortAccess(currentPlayer.id, vertexId, prev);
-      return prev;
-    });
 
     return true;
   }, [gameState, getCurrentPlayer, addToLog, getAdjacentVertices, checkAndLogTradingPortAccess]);
@@ -3175,46 +3177,47 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       type: 'settlement'
     };
 
-    setGameState(prev => ({
-      ...prev,
-      villages: [...prev.villages, newVillage],
-      verticesOccupiedBy: { ...prev.verticesOccupiedBy, [vertexId]: currentPlayer.id },
-      players: prev.players.map(p =>
-        p.id === currentPlayer.id
-          ? {
-              ...p,
-              resources: {
-                ...p.resources,
-                clay: p.resources.clay - 1,
-                lumber: p.resources.lumber - 1,
-                grain: p.resources.grain - 1,
-                fabric: p.resources.fabric - 1,
-                total: p.resources.total - 4
-              },
-              villageCount: p.villageCount + 1,
-              score: p.score + 1
-            }
-          : p
-      ),
-      turnState: {
-        ...prev.turnState,
-        step: 'main',
-        placementContext: {
-          lastVillageVertex: null,
-          buildingType: null
+    setGameState(prev => {
+      const newState = {
+        ...prev,
+        villages: [...prev.villages, newVillage],
+        verticesOccupiedBy: { ...prev.verticesOccupiedBy, [vertexId]: currentPlayer.id },
+        players: prev.players.map(p =>
+          p.id === currentPlayer.id
+            ? {
+                ...p,
+                resources: {
+                  ...p.resources,
+                  clay: p.resources.clay - 1,
+                  lumber: p.resources.lumber - 1,
+                  grain: p.resources.grain - 1,
+                  fabric: p.resources.fabric - 1,
+                  total: p.resources.total - 4
+                },
+                villageCount: p.villageCount + 1,
+                score: p.score + 1
+              }
+            : p
+        ),
+        turnState: {
+          ...prev.turnState,
+          step: 'main',
+          placementContext: {
+            lastVillageVertex: null,
+            buildingType: null
+          }
         }
-      }
-    }));
+      };
+
+      // Check for trading port access with the updated state
+      checkAndLogTradingPortAccess(currentPlayer.id, vertexId, newState);
+
+      return newState;
+    });
 
     const playerColor = getPlayerColorStyle(currentPlayer.color);
     const villageMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> built a village at vertex ${vertexId} and earned 1 point`;
     addToLog(villageMessage);
-
-    // Check for trading port access
-    setGameState(prev => {
-      checkAndLogTradingPortAccess(currentPlayer.id, vertexId, prev);
-      return prev;
-    });
   }, [gameState, boardSize, addToLog, getPlayerColorStyle, checkAndLogTradingPortAccess]);
 
   const handlePlaceEstateGameplay = useCallback((vertexId: number) => {
@@ -3369,38 +3372,39 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       type: 'settlement'
     };
 
-    setGameState(prev => ({
-      ...prev,
-      villages: [...prev.villages, newVillage],
-      verticesOccupiedBy: { ...prev.verticesOccupiedBy, [vertexId]: playerId },
-      players: prev.players.map(p =>
-        p.id === playerId
-          ? {
-              ...p,
-              resources: {
-                ...p.resources,
-                clay: p.resources.clay - 1,
-                lumber: p.resources.lumber - 1,
-                grain: p.resources.grain - 1,
-                fabric: p.resources.fabric - 1,
-                total: p.resources.total - 4
-              },
-              villageCount: p.villageCount + 1,
-              score: p.score + 1
-            }
-          : p
-      )
-    }));
+    setGameState(prev => {
+      const newState = {
+        ...prev,
+        villages: [...prev.villages, newVillage],
+        verticesOccupiedBy: { ...prev.verticesOccupiedBy, [vertexId]: playerId },
+        players: prev.players.map(p =>
+          p.id === playerId
+            ? {
+                ...p,
+                resources: {
+                  ...p.resources,
+                  clay: p.resources.clay - 1,
+                  lumber: p.resources.lumber - 1,
+                  grain: p.resources.grain - 1,
+                  fabric: p.resources.fabric - 1,
+                  total: p.resources.total - 4
+                },
+                villageCount: p.villageCount + 1,
+                score: p.score + 1
+              }
+            : p
+        )
+      };
+
+      // Check for trading port access with the updated state
+      checkAndLogTradingPortAccess(playerId, vertexId, newState);
+
+      return newState;
+    });
 
     const playerColor = getPlayerColorStyle(player.color);
     const villageMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> built a village at vertex ${vertexId} and earned 1 point`;
     addToLog(villageMessage);
-
-    // Check for trading port access
-    setGameState(prev => {
-      checkAndLogTradingPortAccess(playerId, vertexId, prev);
-      return prev;
-    });
 
     return true;
   }, [gameState, boardSize, getPlayerColorStyle, addToLog, checkAndLogTradingPortAccess]);
