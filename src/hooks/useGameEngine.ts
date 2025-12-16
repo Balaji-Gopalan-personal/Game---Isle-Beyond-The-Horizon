@@ -1352,9 +1352,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       aiResourceCollection = collectResourcesFromAdjacentCenters(vertexId, playerId);
     }
 
-    // Variable to capture trading port messages for AI
+    // Variable to capture trading port messages for AI (declared outside setGameState)
     let aiTradingPortMessages: Array<{message: string, playerId: string}> = [];
-    
+
     // Enhanced road logging
     if (roadAdded) {
       const edge = boardGraph.edges[roadAdded];
@@ -1509,7 +1509,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       }
 
-      // Add trading port messages after state update completes
+      // Add trading port messages captured from state update
       aiTradingPortMessages.forEach(msg => {
         addColoredLog(msg.message, msg.playerId);
       });
