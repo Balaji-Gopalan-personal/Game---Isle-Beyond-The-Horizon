@@ -1,7 +1,10 @@
 import React from 'react';
 import { Route, Coins } from 'lucide-react';
+import { useAssets } from '../contexts/AssetsContext';
+import { getResourceImage } from '../utils/assetHelpers';
 
 export function BuildingPriceGuide() {
+  const { assets } = useAssets();
   const buildings = [
     {
       name: 'Road',
@@ -39,14 +42,6 @@ export function BuildingPriceGuide() {
       ],
     },
   ];
-
-  const resourceImages: Record<string, string> = {
-    Clay: '/Clay new.jpg',
-    Lumber: '/Lumber new.jpg',
-    Grain: '/Grain new.jpg',
-    Fabric: '/Fabric new.jpg',
-    Mineral: '/Mineral new.jpg',
-  };
 
   const resourceLetters: Record<string, string> = {
     Clay: 'C',
@@ -91,7 +86,7 @@ export function BuildingPriceGuide() {
                       title={cost.resource}
                     >
                       <img
-                        src={resourceImages[cost.resource]}
+                        src={getResourceImage(assets, cost.resource)?.src}
                         alt={cost.resource}
                         className="w-full h-full object-cover"
                       />

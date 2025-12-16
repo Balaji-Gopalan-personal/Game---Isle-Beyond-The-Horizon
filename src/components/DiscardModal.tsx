@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Minus, Plus } from 'lucide-react';
 import { Resources } from '../types/game';
+import { useAssets } from '../contexts/AssetsContext';
+import { getResourceImage } from '../utils/assetHelpers';
 
 interface DiscardModalProps {
   isOpen: boolean;
@@ -21,6 +23,7 @@ export const DiscardModal: React.FC<DiscardModalProps> = ({
   onConfirm,
   onMinimize
 }) => {
+  const { assets } = useAssets();
   const [selection, setSelection] = useState({
     clay: 0,
     lumber: 0,
@@ -28,14 +31,6 @@ export const DiscardModal: React.FC<DiscardModalProps> = ({
     fabric: 0,
     mineral: 0
   });
-
-  const resourceImages: Record<string, string> = {
-    clay: '/Clay new.jpg',
-    lumber: '/Lumber new.jpg',
-    grain: '/Grain new.jpg',
-    fabric: '/Fabric new.jpg',
-    mineral: '/Mineral new.jpg',
-  };
 
   const resourceLabels: Record<string, string> = {
     clay: 'Clay',
@@ -140,7 +135,7 @@ export const DiscardModal: React.FC<DiscardModalProps> = ({
                   title={resourceLabels[resource]}
                 >
                   <img
-                    src={resourceImages[resource]}
+                    src={getResourceImage(assets, resource)?.src}
                     alt={resourceLabels[resource]}
                     className="w-full h-full object-cover"
                   />

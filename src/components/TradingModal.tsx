@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, Minus, Plus, Users, Building2, Sparkles } from 'lucide-react';
 import { GameState, Player, Resources, TradeProposal } from '../types/game';
 import { getAllAvailableTradeRates, canExecuteBankTrade, canProposePlayerTrade, getTradeRateDisplay, ResourceType } from '../utils/tradingUtils';
+import { useAssets } from '../contexts/AssetsContext';
+import { getResourceImage } from '../utils/assetHelpers';
 
 interface TradingModalProps {
   isOpen: boolean;
@@ -32,6 +34,7 @@ export const TradingModal: React.FC<TradingModalProps> = ({
   onProposePlayerTrade,
   activeTradeProposal
 }) => {
+  const { assets } = useAssets();
   const [tradeMode, setTradeMode] = useState<TradeMode>('bank');
   const [offeredResources, setOfferedResources] = useState<ResourceSelection>({
     clay: 0,
@@ -47,14 +50,6 @@ export const TradingModal: React.FC<TradingModalProps> = ({
     fabric: 0,
     mineral: 0
   });
-
-  const resourceImages: Record<string, string> = {
-    clay: '/Clay new.jpg',
-    lumber: '/Lumber new.jpg',
-    grain: '/Grain new.jpg',
-    fabric: '/Fabric new.jpg',
-    mineral: '/Mineral new.jpg',
-  };
 
   const resourceLabels: Record<string, string> = {
     clay: 'Clay',
@@ -310,7 +305,7 @@ export const TradingModal: React.FC<TradingModalProps> = ({
                       title={resourceLabels[resource]}
                     >
                       <img
-                        src={resourceImages[resource]}
+                        src={getResourceImage(assets, resource)?.src}
                         alt={resourceLabels[resource]}
                         className="w-full h-full object-cover"
                       />
@@ -366,7 +361,7 @@ export const TradingModal: React.FC<TradingModalProps> = ({
                       title={resourceLabels[resource]}
                     >
                       <img
-                        src={resourceImages[resource]}
+                        src={getResourceImage(assets, resource)?.src}
                         alt={resourceLabels[resource]}
                         className="w-full h-full object-cover"
                       />

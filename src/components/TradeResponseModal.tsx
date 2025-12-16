@@ -17,14 +17,6 @@ export const TradeResponseModal: React.FC<TradeResponseModalProps> = ({
   onClose,
   onTryAgain
 }) => {
-  const resourceImages: Record<string, string> = {
-    clay: '/Clay new.jpg',
-    lumber: '/Lumber new.jpg',
-    grain: '/Grain new.jpg',
-    fabric: '/Fabric new.jpg',
-    mineral: '/Mineral new.jpg',
-  };
-
   const resourceLabels: Record<string, string> = {
     clay: 'Clay',
     lumber: 'Lumber',
