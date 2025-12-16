@@ -2,7 +2,6 @@ import React from 'react';
 import { GameState } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
 import { loadBoardGraph, loadBoardForSize } from '../graph/loadBoard';
-import { generateTradingPorts } from '../utils/tradingPortUtils';
 import { canPlaceVillage } from '../engine/validators';
 import { useAssets } from '../contexts/AssetsContext';
 import { getResourceImage, getBoardImage } from '../utils/assetHelpers';
@@ -59,26 +58,16 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   console.log('GameBoard Debug: State of centers array:', centers);
   console.log('GameBoard Debug: First 5 centers:', centers.slice(0, 5));
 
-  // Generate trading ports
+  // Use trading ports from game state (generated once in useGameEngine)
   const tradingPorts = React.useMemo(() => {
     if (!gameState.gameSettings?.tradingPortsEnabled) return [];
-    
-    // Create mock vertices and edges for trading port generation
-    const vertices = Object.values(boardGraph.vertices).map(v => ({
-      id: v.id,
-      row: 'A',
-      position: 0,
-      x: v.x,
-      y: v.y
-    }));
-
-    const edges = Object.values(boardGraph.edges).map(e => ({
-      from: e.v1,
-      to: e.v2
-    }));
-
-    return generateTradingPorts(vertices, edges, gameState.gameSettings.numberOfTradingPorts);
-  }, [boardGraph, gameState.gameSettings]);
+    if (!gameState.tradingPorts || gameState.tradingPorts.length === 0) {
+      console.warn('GameBoard: Trading ports enabled but no ports found in gameState');
+      return [];
+    }
+    console.log('GameBoard: Using trading ports from gameState:', gameState.tradingPorts);
+    return gameState.tradingPorts;
+  }, [gameState.gameSettings?.tradingPortsEnabled, gameState.tradingPorts]);
 
   const vertices = Object.values(boardGraph.vertices);
   const edges = Object.values(boardGraph.edges);
