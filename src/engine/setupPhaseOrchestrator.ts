@@ -1,4 +1,4 @@
-import { GameState, Player, Village, Road } from '../types/game';
+import { GameState, Player, Village, Road, TradingPort } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
 import { GameStateManager } from './gameStateManager';
 import { AIEngine } from './aiEngine';
@@ -50,6 +50,34 @@ export class SetupPhaseOrchestrator {
     }
   }
 
+  private checkAndLogTradingPortAccess(playerId: string, vertexId: number): void {
+    const state = this.stateManager.getState();
+    if (!state.gameSettings.tradingPortsEnabled || !state.tradingPorts) {
+      return;
+    }
+
+    const player = this.stateManager.getPlayerById(playerId);
+    if (!player) return;
+
+    const newPorts = state.tradingPorts.filter(port =>
+      port.vertices.includes(vertexId)
+    );
+
+    if (newPorts.length > 0) {
+      newPorts.forEach(port => {
+        let portDescription = '';
+        if (port.type === 'generic') {
+          portDescription = '3:1 Trading Port (any 3 of the same resource for 1 of any other)';
+        } else {
+          const resourceName = port.type.charAt(0).toUpperCase() + port.type.slice(1);
+          portDescription = `2:1 ${resourceName} Trading Port (2 ${resourceName} for 1 of any other resource)`;
+        }
+
+        this.log(`${player.name} gained access to a ${portDescription}`);
+      });
+    }
+  }
+
   placeVillage(playerId: string, vertexId: number): boolean {
     const state = this.stateManager.getState();
     const player = this.stateManager.getPlayerById(playerId);
@@ -98,6 +126,9 @@ export class SetupPhaseOrchestrator {
     this.stateManager.updatePlayer(playerId, { hasPlacedVillage: true });
 
     this.log(`${player.name} placed a village at vertex ${vertexId}`);
+
+    // Check for trading port access
+    this.checkAndLogTradingPortAccess(playerId, vertexId);
 
     return true;
   }

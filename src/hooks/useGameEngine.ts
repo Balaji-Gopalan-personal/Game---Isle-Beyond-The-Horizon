@@ -12,6 +12,7 @@ import { findDesertCentre, isValidRobberDestination, getPlayersWithAdjacentBuild
 import { createInitialDeck, shuffleDeck } from '../data/developmentCards';
 import { checkVictoryCondition } from '../utils/victoryDetection';
 import { generateTradingPorts } from '../utils/tradingPortUtils';
+import { getPlayerTradingPorts } from '../utils/tradingUtils';
 
 const DEFAULT_GAME_SETTINGS: GameSettings = {
   pointsToWin: 10,
@@ -569,15 +570,42 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const player = gameState.players.find(p => p.id === playerId);
     const playerColor = getPlayerColorStyle(player?.color || '');
     const playerName = player?.name || playerId;
-    
+
     // Replace player name in message with colored version
     const coloredMessage = message.replace(
       playerName,
       `<span style="color: ${playerColor}; font-weight: bold;">${playerName}</span>`
     );
-    
+
     addToLog(coloredMessage);
   }, [gameState.players, getPlayerColorStyle, addToLog]);
+
+  const checkAndLogTradingPortAccess = useCallback((playerId: string, vertexId: number, updatedGameState: GameState) => {
+    if (!updatedGameState.gameSettings.tradingPortsEnabled || !updatedGameState.tradingPorts) {
+      return;
+    }
+
+    const player = updatedGameState.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    const newPorts = updatedGameState.tradingPorts.filter(port =>
+      port.vertices.includes(vertexId)
+    );
+
+    if (newPorts.length > 0) {
+      newPorts.forEach(port => {
+        let portDescription = '';
+        if (port.type === 'generic') {
+          portDescription = '3:1 Trading Port (any 3 of the same resource for 1 of any other)';
+        } else {
+          const resourceName = port.type.charAt(0).toUpperCase() + port.type.slice(1);
+          portDescription = `2:1 ${resourceName} Trading Port (2 ${resourceName} for 1 of any other resource)`;
+        }
+
+        addColoredLog(`${player.name} gained access to a ${portDescription}`, playerId);
+      });
+    }
+  }, [addColoredLog]);
   
   // Load board graph and add diagnostics
   const boardGraph = React.useMemo(() => {
@@ -1011,15 +1039,22 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       if (resourceCollection.logMessage) {
         setGameState(prev => ({
           ...prev,
-          gameLog: [...prev.gameLog, { 
-            message: resourceCollection.logMessage, 
-            timestamp: new Date().toLocaleTimeString() 
+          gameLog: [...prev.gameLog, {
+            message: resourceCollection.logMessage,
+            timestamp: new Date().toLocaleTimeString()
           }]
         }));
       }
     }
+
+    // Check for trading port access
+    setGameState(prev => {
+      checkAndLogTradingPortAccess(playerId, vertexId, prev);
+      return prev;
+    });
+
     console.log('DEBUG: Village placement complete');
-  }, [gameState, collectResourcesFromAdjacentCenters, addToLog, addColoredLog]);
+  }, [gameState, collectResourcesFromAdjacentCenters, addToLog, addColoredLog, checkAndLogTradingPortAccess]);
   
   const placeRoad_P1_byEdgeId_wrapper = useCallback((playerId: string, edgeIdStr: string) => {
     console.log('DEBUG: placeRoad_P1_byEdgeId_wrapper called with:', { playerId, edgeIdStr });
@@ -1549,8 +1584,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }));
 
     addToLog(`${currentPlayer.name} placed a Village and earned 1 point.`);
+
+    // Check for trading port access
+    setGameState(prev => {
+      checkAndLogTradingPortAccess(currentPlayer.id, vertexId, prev);
+      return prev;
+    });
+
     return true;
-  }, [gameState, getCurrentPlayer, addToLog, getAdjacentVertices]);
+  }, [gameState, getCurrentPlayer, addToLog, getAdjacentVertices, checkAndLogTradingPortAccess]);
 
   const placeRoadToVertex = useCallback((toVertexId: number) => {
     const currentPlayer = getCurrentPlayer();
@@ -3125,7 +3167,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const playerColor = getPlayerColorStyle(currentPlayer.color);
     const villageMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> built a village at vertex ${vertexId} and earned 1 point`;
     addToLog(villageMessage);
-  }, [gameState, boardSize, addToLog, getPlayerColorStyle]);
+
+    // Check for trading port access
+    setGameState(prev => {
+      checkAndLogTradingPortAccess(currentPlayer.id, vertexId, prev);
+      return prev;
+    });
+  }, [gameState, boardSize, addToLog, getPlayerColorStyle, checkAndLogTradingPortAccess]);
 
   const handlePlaceEstateGameplay = useCallback((vertexId: number) => {
     console.log('DEBUG: handlePlaceEstateGameplay called');
@@ -3290,8 +3338,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const villageMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> built a village at vertex ${vertexId} and earned 1 point`;
     addToLog(villageMessage);
 
+    // Check for trading port access
+    setGameState(prev => {
+      checkAndLogTradingPortAccess(playerId, vertexId, prev);
+      return prev;
+    });
+
     return true;
-  }, [gameState, boardSize, getPlayerColorStyle, addToLog]);
+  }, [gameState, boardSize, getPlayerColorStyle, addToLog, checkAndLogTradingPortAccess]);
 
   const handleAIBuildEstate = useCallback((playerId: string) => {
     console.log('DEBUG: AI building estate for', playerId);
