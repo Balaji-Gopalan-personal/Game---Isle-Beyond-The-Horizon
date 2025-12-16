@@ -311,7 +311,8 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
                   <img
                     src={getCharacterImage(assets, currentPlayer.character.imageUrl)?.src}
                     alt={currentPlayer.character.name}
-                    className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
+                    className="w-8 h-8 rounded-full object-cover object-center border-2 border-gray-200"
+                    style={{ objectPosition: 'center 20%' }}
                   />
                 )}
                 <div className="flex gap-2">

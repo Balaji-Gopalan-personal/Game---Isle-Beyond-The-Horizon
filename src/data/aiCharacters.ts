@@ -39,7 +39,7 @@ function parseCharactersCSV(): AICharacter[] {
       characters.push({
         name: characterName,
         cartoon: cartoonTitle,
-        imageUrl: `images/characters/${filename}${extension}`,
+        imageUrl: `/images/characters/${filename}${extension}`,
         filename: filename
       });
     }

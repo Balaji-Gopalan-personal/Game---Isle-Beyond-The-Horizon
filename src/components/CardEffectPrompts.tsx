@@ -207,7 +207,8 @@ export const ResourceSwapPrompt: React.FC<ResourceSwapPromptProps> = ({
                 <img
                   src={getCharacterImage(assets, player.character?.imageUrl || '')?.src}
                   alt={player.character?.name}
-                  className="w-full h-full rounded object-cover"
+                  className="w-full h-full rounded object-cover object-center"
+                  style={{ objectPosition: 'center 20%' }}
                 />
                 <div
                   className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center text-white font-bold text-[10px] border border-white"

@@ -100,8 +100,11 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
                         <img
                           src={getCharacterImage(assets, player.character?.imageUrl || '')?.src}
                           alt={player.character?.name}
-                          className="w-12 h-12 rounded-full object-cover border-2"
-                          style={{ borderColor: getPlayerColorStyle(player.playerColor) }}
+                          className="w-12 h-12 rounded-full object-cover object-center border-2"
+                          style={{
+                            borderColor: getPlayerColorStyle(player.playerColor),
+                            objectPosition: 'center 20%'
+                          }}
                         />
                         <div
                           className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white font-bold text-[10px] border border-white"
