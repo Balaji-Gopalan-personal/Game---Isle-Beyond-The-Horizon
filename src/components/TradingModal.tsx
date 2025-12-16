@@ -13,6 +13,7 @@ interface TradingModalProps {
   onExecuteBankTrade: (offeringResource: ResourceType, offeringAmount: number, requestedResource: ResourceType) => void;
   onProposePlayerTrade: (offeredResources: any, requestedResources: any) => void;
   activeTradeProposal?: TradeProposal;
+  initialMode?: 'bank' | 'player';
 }
 
 type TradeMode = 'bank' | 'player';
@@ -32,10 +33,11 @@ export const TradingModal: React.FC<TradingModalProps> = ({
   onClose,
   onExecuteBankTrade,
   onProposePlayerTrade,
-  activeTradeProposal
+  activeTradeProposal,
+  initialMode = 'bank'
 }) => {
   const { assets } = useAssets();
-  const [tradeMode, setTradeMode] = useState<TradeMode>('bank');
+  const [tradeMode, setTradeMode] = useState<TradeMode>(initialMode);
   const [offeredResources, setOfferedResources] = useState<ResourceSelection>({
     clay: 0,
     lumber: 0,
@@ -75,9 +77,9 @@ export const TradingModal: React.FC<TradingModalProps> = ({
     if (!isOpen) {
       setOfferedResources({ clay: 0, lumber: 0, grain: 0, fabric: 0, mineral: 0 });
       setRequestedResources({ clay: 0, lumber: 0, grain: 0, fabric: 0, mineral: 0 });
-      setTradeMode('bank');
+      setTradeMode(initialMode);
     }
-  }, [isOpen]);
+  }, [isOpen, initialMode]);
 
   const handleIncrement = (resource: keyof ResourceSelection, isOffering: boolean) => {
     if (isOffering) {

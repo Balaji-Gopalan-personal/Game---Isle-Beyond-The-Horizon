@@ -52,6 +52,7 @@ function App() {
   const [isVictoryModalMinimized, setIsVictoryModalMinimized] = useState(false);
   const [isTradingModalOpen, setIsTradingModalOpen] = useState(false);
   const [isTradeResponseModalOpen, setIsTradeResponseModalOpen] = useState(false);
+  const [lastTradeMode, setLastTradeMode] = useState<'bank' | 'player'>('bank');
   const [lastPlayerName, setLastPlayerName] = useState<string>('');
   const [gameConfig, setGameConfig] = useState<{
     aiCount: number;
@@ -789,14 +790,17 @@ function App() {
             onClose={() => setIsTradingModalOpen(false)}
             onExecuteBankTrade={(offeringResource, offeringAmount, requestedResource) => {
               gameEngine.handleExecuteBankTrade(offeringResource, offeringAmount, requestedResource);
+              setLastTradeMode('bank');
               setIsTradingModalOpen(false);
             }}
             onProposePlayerTrade={(offeredResources, requestedResources) => {
               gameEngine.handleProposePlayerTrade(offeredResources, requestedResources);
+              setLastTradeMode('player');
               setIsTradingModalOpen(false);
               setIsTradeResponseModalOpen(true);
             }}
             activeTradeProposal={gameState.turnState.tradeProposal}
+            initialMode={lastTradeMode}
           />
 
           {gameState.turnState.tradeProposal && (
