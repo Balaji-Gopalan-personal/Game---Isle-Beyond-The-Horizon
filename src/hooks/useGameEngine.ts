@@ -572,7 +572,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     addToLog(coloredMessage);
   }, [gameState.players, getPlayerColorStyle, addToLog]);
 
-  const checkAndLogTradingPortAccess = useCallback((playerId: string, vertexId: number, updatedGameState: GameState) => {
+  const checkAndLogTradingPortAccess = useCallback((playerId: string, vertexId: number, updatedGameState: GameState): Array<{message: string, playerId: string}> => {
     console.log('DEBUG TRADING PORT CHECK:', {
       playerId,
       vertexId,
@@ -584,13 +584,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
     if (!updatedGameState.gameSettings.tradingPortsEnabled || !updatedGameState.tradingPorts) {
       console.log('DEBUG: Trading ports not enabled or not available');
-      return;
+      return [];
     }
 
     const player = updatedGameState.players.find(p => p.id === playerId);
     if (!player) {
       console.log('DEBUG: Player not found');
-      return;
+      return [];
     }
 
     const newPorts = updatedGameState.tradingPorts.filter(port =>
@@ -599,6 +599,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
     console.log('DEBUG: Found ports for vertex:', { vertexId, newPorts });
 
+    const messages: Array<{message: string, playerId: string}> = [];
     if (newPorts.length > 0) {
       newPorts.forEach(port => {
         let portDescription = '';
@@ -609,11 +610,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           portDescription = `2:1 ${resourceName} Trading Port (2 ${resourceName} for 1 of any other resource)`;
         }
 
-        console.log('DEBUG: Adding trading port log:', portDescription);
-        addColoredLog(`${player.name} gained access to a ${portDescription}`, playerId);
+        console.log('DEBUG: Returning trading port message:', portDescription);
+        messages.push({
+          message: `${player.name} gained access to a ${portDescription}`,
+          playerId
+        });
       });
     }
-  }, [addColoredLog]);
+    return messages;
+  }, []);
   
   // Load board graph and add diagnostics
   const boardGraph = React.useMemo(() => {
@@ -1014,6 +1019,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
     
     console.log('DEBUG: Updating React state after village placement');
+
+    // Variable to capture trading port messages
+    let tradingPortMessages: Array<{message: string, playerId: string}> = [];
+
     // Update React state
     setGameState(prev => {
       const newState = {
@@ -1046,12 +1055,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         )
       };
 
-      // Check for trading port access with the updated state
-      checkAndLogTradingPortAccess(playerId, vertexId, newState);
+      // Check for trading port access with the updated state and capture messages
+      tradingPortMessages = checkAndLogTradingPortAccess(playerId, vertexId, newState);
 
       return newState;
     });
-    
+
     // Add to activity log
     if (gameState.phase === 'setup-phase-1') {
       addColoredLog(`${playerName} placed their first village and earned 1 point.`, playerId);
@@ -1067,6 +1076,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }));
       }
     }
+
+    // Add trading port messages after state update completes
+    tradingPortMessages.forEach(msg => {
+      addColoredLog(msg.message, msg.playerId);
+    });
 
     console.log('DEBUG: Village placement complete');
   }, [gameState, collectResourcesFromAdjacentCenters, addToLog, addColoredLog, checkAndLogTradingPortAccess]);
@@ -1608,6 +1622,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       type: 'settlement'
     };
 
+    // Variable to capture trading port messages
+    let tradingPortMessages: Array<{message: string, playerId: string}> = [];
+
     // Update game state
     setGameState(prev => {
       const newState = {
@@ -1623,16 +1640,21 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         adjacentVertices: getAdjacentVertices(vertexId)
       };
 
-      // Check for trading port access with the updated state
-      checkAndLogTradingPortAccess(currentPlayer.id, vertexId, newState);
+      // Check for trading port access with the updated state and capture messages
+      tradingPortMessages = checkAndLogTradingPortAccess(currentPlayer.id, vertexId, newState);
 
       return newState;
     });
 
     addToLog(`${currentPlayer.name} placed a Village and earned 1 point.`);
 
+    // Add trading port messages after state update completes
+    tradingPortMessages.forEach(msg => {
+      addColoredLog(msg.message, msg.playerId);
+    });
+
     return true;
-  }, [gameState, getCurrentPlayer, addToLog, getAdjacentVertices, checkAndLogTradingPortAccess]);
+  }, [gameState, getCurrentPlayer, addToLog, addColoredLog, getAdjacentVertices, checkAndLogTradingPortAccess]);
 
   const placeRoadToVertex = useCallback((toVertexId: number) => {
     const currentPlayer = getCurrentPlayer();
@@ -3220,6 +3242,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       type: 'settlement'
     };
 
+    // Variable to capture trading port messages
+    let tradingPortMessages: Array<{message: string, playerId: string}> = [];
+
     setGameState(prev => {
       const newState = {
         ...prev,
@@ -3252,8 +3277,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
 
-      // Check for trading port access with the updated state
-      checkAndLogTradingPortAccess(currentPlayer.id, vertexId, newState);
+      // Check for trading port access with the updated state and capture messages
+      tradingPortMessages = checkAndLogTradingPortAccess(currentPlayer.id, vertexId, newState);
 
       return newState;
     });
@@ -3261,6 +3286,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const playerColor = getPlayerColorStyle(currentPlayer.color);
     const villageMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> built a village at vertex ${vertexId} and earned 1 point`;
     addToLog(villageMessage);
+
+    // Add trading port messages after state update completes
+    tradingPortMessages.forEach(msg => {
+      addColoredLog(msg.message, msg.playerId);
+    });
   }, [gameState, boardSize, addToLog, getPlayerColorStyle, checkAndLogTradingPortAccess]);
 
   const handlePlaceEstateGameplay = useCallback((vertexId: number) => {
@@ -3415,6 +3445,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       type: 'settlement'
     };
 
+    // Variable to capture trading port messages
+    let tradingPortMessages: Array<{message: string, playerId: string}> = [];
+
     setGameState(prev => {
       const newState = {
         ...prev,
@@ -3439,8 +3472,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         )
       };
 
-      // Check for trading port access with the updated state
-      checkAndLogTradingPortAccess(playerId, vertexId, newState);
+      // Check for trading port access with the updated state and capture messages
+      tradingPortMessages = checkAndLogTradingPortAccess(playerId, vertexId, newState);
 
       return newState;
     });
@@ -3449,8 +3482,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const villageMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> built a village at vertex ${vertexId} and earned 1 point`;
     addToLog(villageMessage);
 
+    // Add trading port messages after state update completes
+    tradingPortMessages.forEach(msg => {
+      addColoredLog(msg.message, msg.playerId);
+    });
+
     return true;
-  }, [gameState, boardSize, getPlayerColorStyle, addToLog, checkAndLogTradingPortAccess]);
+  }, [gameState, boardSize, getPlayerColorStyle, addToLog, addColoredLog, checkAndLogTradingPortAccess]);
 
   const handleAIBuildEstate = useCallback((playerId: string) => {
     console.log('DEBUG: AI building estate for', playerId);
