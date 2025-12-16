@@ -57,10 +57,6 @@ export function CharacterAvatar({ character, color, name, size = 'md', className
         src={avatarSrc}
         alt={displayName}
         className="w-full h-full object-cover"
-        style={{
-          objectPosition: 'center center',
-          transform: 'scale(1.6)',
-        }}
         onError={() => setImageError(true)}
       />
     </div>
