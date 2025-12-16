@@ -2,6 +2,7 @@ import React from 'react';
 import { Trophy, Minimize2, Home, Route, Shield, Star } from 'lucide-react';
 import { PlayerVictoryStats } from '../utils/victoryDetection';
 import { CharacterAvatar } from './CharacterAvatar';
+import { useAssets } from '../contexts/AssetsContext';
 
 interface VictoryModalProps {
   winner: PlayerVictoryStats;
@@ -18,7 +19,11 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
   onMinimize,
   onNewGame
 }) => {
+  const { assets } = useAssets();
+
   if (!isVisible) return null;
+
+  const areAssetsLoaded = assets.characters && Object.keys(assets.characters).length > 0;
 
   const getPlayerColorStyle = (color: string) => {
     const colorMap: Record<string, string> = {
@@ -40,6 +45,55 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
       .toUpperCase()
       .slice(0, 2);
   };
+
+  if (!areAssetsLoaded) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+          <div
+            className="rounded-t-2xl p-8 text-center relative"
+            style={{ backgroundColor: getPlayerColorStyle(winner.playerColor) }}
+          >
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <Trophy className="w-16 h-16 text-yellow-300" />
+              <h1 className="text-5xl font-bold text-white">Victory!</h1>
+              <Trophy className="w-16 h-16 text-yellow-300" />
+            </div>
+            <div className="text-3xl font-bold text-white mb-2">
+              Player {winner.playerNumber}: {winner.playerName}
+            </div>
+            <div className="text-xl text-white opacity-90">
+              Wins with {winner.totalPoints} points!
+            </div>
+          </div>
+
+          <div className="flex-1 flex items-center justify-center p-6">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-600 mb-4"></div>
+              <p className="text-gray-600">Loading assets...</p>
+            </div>
+          </div>
+
+          <div className="border-t p-6 flex gap-4 justify-center">
+            <button
+              onClick={onMinimize}
+              className="flex items-center gap-2 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition-colors"
+            >
+              <Minimize2 className="w-5 h-5" />
+              Minimize
+            </button>
+            <button
+              onClick={onNewGame}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+            >
+              <Home className="w-5 h-5" />
+              New Game
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
