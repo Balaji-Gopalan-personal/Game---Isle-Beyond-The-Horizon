@@ -111,7 +111,6 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
   const canPlayerAct = currentPlayer?.isHuman && gameState.turnState.currentPlayerId === currentPlayer.id;
   const [selectedEdge, setSelectedEdge] = React.useState<string | null>(null);
   const [validationError, setValidationError] = React.useState<string | null>(null);
-  const assets = useAssets();
 
   const renderDiceDots = (value: number) => {
     const dotPositions: Record<number, string[]> = {

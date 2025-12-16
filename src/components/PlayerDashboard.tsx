@@ -16,7 +16,6 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({
   gameState,
   onOpenDevCardInventory
 }) => {
-  const { assets } = useAssets();
   console.log('=== PLAYER DASHBOARD DEBUG ===');
   console.log('Players received:', players.map(p => ({ 
     name: p.name, 
