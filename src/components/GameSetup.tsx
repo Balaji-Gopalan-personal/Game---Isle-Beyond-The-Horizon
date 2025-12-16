@@ -730,11 +730,17 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
                           <div className="text-[10px] text-gray-500 mb-1 line-clamp-1">
                             {aiCharacter?.cartoon}
                           </div>
-                          <img
-                            src={getCharacterImage(assets, aiCharacter?.imageUrl || '')?.src}
-                            alt={aiCharacter?.name}
-                            className="w-6 h-6 rounded-full object-cover border border-gray-200 mx-auto"
-                          />
+                          <div className="relative overflow-hidden rounded-full w-6 h-6 border border-gray-200 mx-auto">
+                            <img
+                              src={getCharacterImage(assets, aiCharacter?.imageUrl || '')?.src}
+                              alt={aiCharacter?.name}
+                              className="w-full h-full object-cover object-center"
+                              style={{
+                                objectPosition: 'center 30%',
+                                transform: 'scale(1.8)'
+                              }}
+                            />
+                          </div>
                         </div>
                       )}
                     </div>

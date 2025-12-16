@@ -147,11 +147,17 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({
                 /* AI Player: Character image */
                 <div className="flex justify-center w-full">
                   {player.character?.imageUrl && (
-                    <img
-                      src={getCharacterImage(assets, player.character.imageUrl)?.src}
-                      alt={player.character.name}
-                      className="w-8 h-8 rounded-full object-cover border border-gray-300"
-                    />
+                    <div className="relative overflow-hidden rounded-full w-8 h-8 border border-gray-300">
+                      <img
+                        src={getCharacterImage(assets, player.character.imageUrl)?.src}
+                        alt={player.character.name}
+                        className="w-full h-full object-cover object-center"
+                        style={{
+                          objectPosition: 'center 30%',
+                          transform: 'scale(1.8)'
+                        }}
+                      />
+                    </div>
                   )}
                 </div>
               )}
