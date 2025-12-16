@@ -1345,12 +1345,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     
     // Initialize resource collection for AI
     let aiResourceCollection = { resources: {}, logMessage: '' };
-    
+
     // Collect resources if AI placed a village in Phase 2
     if (villageAdded && gameState.phase === 'setup-phase-2') {
       const vertexId = parseInt(villageAdded);
       aiResourceCollection = collectResourcesFromAdjacentCenters(vertexId, playerId);
     }
+
+    // Variable to capture trading port messages for AI
+    let aiTradingPortMessages: Array<{message: string, playerId: string}> = [];
     
     // Enhanced road logging
     if (roadAdded) {
@@ -1404,19 +1407,20 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
     
     // Update React state with any changes made by AI
-    setGameState(prev => ({
-      ...prev,
-      verticesOccupiedBy: mutableState.verticesOccupiedBy,
-      edgesOccupiedBy: mutableState.edgesOccupiedBy,
-      turnState: mutableState.turnState,
-      currentPlayer: mutableState.turnState.currentPlayerId,
-      turn: mutableState.turnState.currentPlayerId !== initialPlayerId ? prev.turn + 1 : prev.turn,
-      villages: villageAdded ? [...prev.villages, {
-        id: `village-${villageAdded}`,
-        playerId,
-        vertexId: parseInt(villageAdded),
-        type: 'settlement'
-      }] : prev.villages,
+    setGameState(prev => {
+      const newState = {
+        ...prev,
+        verticesOccupiedBy: mutableState.verticesOccupiedBy,
+        edgesOccupiedBy: mutableState.edgesOccupiedBy,
+        turnState: mutableState.turnState,
+        currentPlayer: mutableState.turnState.currentPlayerId,
+        turn: mutableState.turnState.currentPlayerId !== initialPlayerId ? prev.turn + 1 : prev.turn,
+        villages: villageAdded ? [...prev.villages, {
+          id: `village-${villageAdded}`,
+          playerId,
+          vertexId: parseInt(villageAdded),
+          type: 'settlement'
+        }] : prev.villages,
       roads: roadAdded ? (() => {
         // Parse edge ID to get vertices
         const [v1Str, v2Str] = roadAdded.split('__');
@@ -1476,7 +1480,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           return { ...p, isActive: false };
         }
       })
-    }));
+      };
+
+      // Check for trading port access if AI placed a village and capture messages
+      if (villageAdded) {
+        const vertexId = parseInt(villageAdded);
+        aiTradingPortMessages = checkAndLogTradingPortAccess(playerId, vertexId, newState);
+      }
+
+      return newState;
+    });
     
     // Add appropriate log messages
     if (villageAdded) {
@@ -1488,13 +1501,18 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         if (aiResourceCollection.logMessage) {
           setGameState(prev => ({
             ...prev,
-            gameLog: [...prev.gameLog, { 
-              message: aiResourceCollection.logMessage, 
-              timestamp: new Date().toLocaleTimeString() 
+            gameLog: [...prev.gameLog, {
+              message: aiResourceCollection.logMessage,
+              timestamp: new Date().toLocaleTimeString()
             }]
           }));
         }
       }
+
+      // Add trading port messages after state update completes
+      aiTradingPortMessages.forEach(msg => {
+        addColoredLog(msg.message, msg.playerId);
+      });
     }
     
     if (roadAdded) {
@@ -1521,7 +1539,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         addColoredLog(`${nextPlayer.name} begins their turn.`, nextPlayer.id);
       }
     }
-  }, [gameState, collectResourcesFromAdjacentCenters, areRoadsConnected, addToLog, addColoredLog, boardGraph, checkLongestRoadBonus]);
+  }, [gameState, collectResourcesFromAdjacentCenters, areRoadsConnected, addToLog, addColoredLog, boardGraph, checkLongestRoadBonus, checkAndLogTradingPortAccess]);
   
   const getCurrentStep = useCallback(() => {
     if (!gameState) return undefined;
