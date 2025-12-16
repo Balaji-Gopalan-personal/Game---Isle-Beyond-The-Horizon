@@ -154,7 +154,6 @@ export const ResourceSwapPrompt: React.FC<ResourceSwapPromptProps> = ({
 }) => {
   const opponents = players.filter(p => p.id !== currentPlayerId);
   const selectedPlayer = selectedPlayerId ? players.find(p => p.id === selectedPlayerId) : null;
-  const { assets } = useAssets();
 
   const getPlayerColorStyle = (color: string): string => {
     const colorMap: Record<string, string> = {
@@ -177,67 +176,93 @@ export const ResourceSwapPrompt: React.FC<ResourceSwapPromptProps> = ({
       .slice(0, 2);
   };
 
+  const currentPlayer = players.find(p => p.id === currentPlayerId);
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       <div className="text-sm font-medium text-gray-700 text-center">
         Resource Swap
       </div>
-      <div className="text-xs text-gray-600 text-center mb-2">
+      <div className="text-[10px] text-gray-600 text-center">
         Select player to swap resources with
-        {selectedPlayer && ` (Selected: ${selectedPlayer.name})`}
       </div>
-      <div className="flex gap-2 justify-center flex-wrap max-w-xs mx-auto">
+
+      {currentPlayer && (
+        <div className="bg-gray-50 rounded p-1 border border-gray-200">
+          <div className="text-[9px] text-gray-600 text-center">
+            Your Hold: <span className="font-semibold">{currentPlayer.resources.clay}C {currentPlayer.resources.lumber}L {currentPlayer.resources.grain}G {currentPlayer.resources.fabric}F {currentPlayer.resources.mineral}M</span>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-1 justify-center">
         {opponents.map(player => (
           <button
             key={player.id}
             onClick={() => onSelectPlayer(player.id)}
-            className={`relative w-12 h-12 rounded transition-all duration-200 hover:opacity-80 shadow-md ${selectedPlayerId === player.id ? 'ring-2 ring-yellow-400 ring-offset-2' : ''}`}
-            title={`${player.name} (${player.resources.total} resources)`}
+            className={`relative flex flex-col items-center transition-all duration-200 ${
+              selectedPlayerId === player.id ? 'opacity-100' : 'opacity-70 hover:opacity-90'
+            }`}
+            title={`${player.name}: ${player.resources.clay}C ${player.resources.lumber}L ${player.resources.grain}G ${player.resources.fabric}F ${player.resources.mineral}M (${player.resources.total} total)`}
           >
-            {player.isHuman ? (
-              <div
-                className="w-full h-full rounded flex items-center justify-center text-white font-bold text-sm"
-                style={{ backgroundColor: getPlayerColorStyle(player.color) }}
-              >
-                {getPlayerInitials(player.name)}
-              </div>
-            ) : (
-              <>
-                <CharacterAvatar
-                  character={player.character}
-                  color={player.color}
-                  size="lg"
-                  className="w-full h-full"
-                />
+            <div className={`relative w-11 h-11 rounded ${selectedPlayerId === player.id ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}>
+              {player.isHuman ? (
                 <div
-                  className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center text-white font-bold text-[10px] border border-white"
+                  className="w-full h-full rounded flex items-center justify-center text-white font-bold text-xs"
                   style={{ backgroundColor: getPlayerColorStyle(player.color) }}
                 >
-                  P{player.order}
+                  {getPlayerInitials(player.name)}
                 </div>
-              </>
-            )}
+              ) : (
+                <>
+                  <CharacterAvatar
+                    character={player.character}
+                    color={player.color}
+                    size="lg"
+                    className="w-full h-full"
+                  />
+                  <div
+                    className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-white font-bold text-[8px] border border-white"
+                    style={{ backgroundColor: getPlayerColorStyle(player.color) }}
+                  >
+                    P{player.order}
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="text-[8px] font-medium text-gray-700 mt-0.5">
+              {player.resources.total}
+            </div>
           </button>
         ))}
       </div>
-      {selectedPlayerId && onConfirm && (
-        <div className="flex gap-2 mt-3">
+
+      {selectedPlayer && (
+        <div className="p-1 bg-blue-50 border border-blue-200 rounded">
+          <div className="text-[9px] text-blue-800 text-center">
+            You get: <span className="font-semibold">{selectedPlayer.resources.clay}C {selectedPlayer.resources.lumber}L {selectedPlayer.resources.grain}G {selectedPlayer.resources.fabric}F {selectedPlayer.resources.mineral}M</span>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        {selectedPlayerId && onConfirm && (
           <button
             onClick={onConfirm}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 rounded transition-all duration-200 text-sm"
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-2 rounded transition-all duration-200 text-xs"
           >
             Confirm
           </button>
-          {onCancel && (
-            <button
-              onClick={onCancel}
-              className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-3 rounded transition-all duration-200 text-sm"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-      )}
+        )}
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className={`${selectedPlayerId ? 'flex-1' : 'w-full'} bg-gray-600 hover:bg-gray-700 text-white font-semibold py-1.5 px-2 rounded transition-all duration-200 text-xs`}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
     </div>
   );
 };
