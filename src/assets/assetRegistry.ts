@@ -1,16 +1,16 @@
 export const Assets = {
   resources: {
-    clay: '/images/resources/Clay new.jpg',
-    desert: '/images/resources/Desert new.jpg',
-    fabric: '/images/resources/Fabric new.jpg',
-    grain: '/images/resources/Grain new.jpg',
-    lumber: '/images/resources/Lumber new.jpg',
-    mineral: '/images/resources/Mineral new.jpg',
+    clay: '/images/resources/Clay%20new.jpg',
+    desert: '/images/resources/Desert%20new.jpg',
+    fabric: '/images/resources/Fabric%20new.jpg',
+    grain: '/images/resources/Grain%20new.jpg',
+    lumber: '/images/resources/Lumber%20new.jpg',
+    mineral: '/images/resources/Mineral%20new.jpg',
   },
 
   board: {
     landmass: '/images/board/Landmass.jpg',
-    ocean: '/images/board/Ocean animated new.gif',
+    ocean: '/images/board/Ocean%20animated%20new.gif',
   },
 
   developmentCards: {

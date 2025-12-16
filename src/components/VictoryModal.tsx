@@ -96,14 +96,14 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
                         {getPlayerInitials(player.playerName)}
                       </div>
                     ) : (
-                      <div className="relative">
+                      <div className="relative overflow-hidden rounded-full w-12 h-12 border-2" style={{ borderColor: getPlayerColorStyle(player.playerColor) }}>
                         <img
                           src={getCharacterImage(assets, player.character?.imageUrl || '')?.src}
                           alt={player.character?.name}
-                          className="w-12 h-12 rounded-full object-cover object-center border-2"
+                          className="w-full h-full object-cover object-center"
                           style={{
-                            borderColor: getPlayerColorStyle(player.playerColor),
-                            objectPosition: 'center 20%'
+                            objectPosition: 'center 30%',
+                            transform: 'scale(1.8)'
                           }}
                         />
                         <div
