@@ -2,6 +2,7 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { Player } from '../types/game';
 import { CharacterAvatar } from './CharacterAvatar';
+import { useAssets } from '../contexts/AssetsContext';
 
 interface BoomingEconomyPromptProps {
   resourcesSelected: string[];
@@ -153,7 +154,7 @@ export const ResourceSwapPrompt: React.FC<ResourceSwapPromptProps> = ({
 }) => {
   const opponents = players.filter(p => p.id !== currentPlayerId);
   const selectedPlayer = selectedPlayerId ? players.find(p => p.id === selectedPlayerId) : null;
-  const assets = useAssets();
+  const { assets } = useAssets();
 
   const getPlayerColorStyle = (color: string): string => {
     const colorMap: Record<string, string> = {
