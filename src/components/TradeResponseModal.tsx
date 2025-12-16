@@ -27,13 +27,12 @@ export const TradeResponseModal: React.FC<TradeResponseModalProps> = ({
 
   const getPlayerColorStyle = (color: string) => {
     const colorMap: Record<string, string> = {
-      red: '#DC2626',
-      green: '#16A34A',
-      blue: '#2563EB',
-      yellow: '#CA8A04',
-      purple: '#9333EA',
-      orange: '#EA580C',
-      black: '#374151'
+      black: '#000000',
+      red: '#E52600',
+      orange: '#E5983D',
+      yellow: '#D3D521',
+      green: '#009500',
+      blue: '#0433FF'
     };
     return colorMap[color] || color;
   };

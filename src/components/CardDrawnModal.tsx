@@ -44,13 +44,12 @@ export const CardDrawnModal: React.FC<CardDrawnModalProps> = ({
 
   const getPlayerColorStyle = (color: string) => {
     const colorMap: Record<string, string> = {
-      red: '#EF4444',
-      green: '#10B981',
-      blue: '#3B82F6',
-      yellow: '#F59E0B',
-      purple: '#8B5CF6',
-      orange: '#F97316',
-      black: '#374151'
+      black: '#000000',
+      red: '#E52600',
+      orange: '#E5983D',
+      yellow: '#D3D521',
+      green: '#009500',
+      blue: '#0433FF'
     };
     return colorMap[color] || color;
   };

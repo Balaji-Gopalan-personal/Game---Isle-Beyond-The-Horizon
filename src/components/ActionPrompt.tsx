@@ -155,13 +155,12 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
 
   const getPlayerLightColor = (color: string) => {
     const lightColorMap: Record<string, string> = {
-      red: '#FEE2E2',
-      green: '#D1FAE5',
-      blue: '#DBEAFE',
-      yellow: '#FEF3C7',
-      purple: '#F3E8FF',
-      orange: '#FFEDD5',
-      black: '#F3F4F6'
+      black: '#F3F4F6',
+      red: '#FFE5DD',
+      orange: '#FFF0E0',
+      yellow: '#FFFDE0',
+      green: '#E0F8E0',
+      blue: '#E0E8FF'
     };
     return lightColorMap[color] || '#FFFFFF';
   };

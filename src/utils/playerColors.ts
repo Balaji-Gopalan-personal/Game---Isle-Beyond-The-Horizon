@@ -1,4 +1,4 @@
-export type PlayerColorName = 'red' | 'green' | 'blue' | 'yellow' | 'purple' | 'orange' | 'black';
+export type PlayerColorName = 'black' | 'red' | 'orange' | 'yellow' | 'green' | 'blue';
 
 export interface PlayerColor {
   name: PlayerColorName;
@@ -8,58 +8,51 @@ export interface PlayerColor {
 }
 
 export const PLAYER_COLORS: Record<PlayerColorName, PlayerColor> = {
+  black: {
+    name: 'black',
+    label: 'Black',
+    hex: '#000000',
+    rgbText: 'rgb(0, 0, 0)'
+  },
   red: {
     name: 'red',
     label: 'Red',
-    hex: '#EF4444',
-    rgbText: 'rgb(239, 68, 68)'
-  },
-  green: {
-    name: 'green',
-    label: 'Green',
-    hex: '#10B981',
-    rgbText: 'rgb(16, 185, 129)'
-  },
-  blue: {
-    name: 'blue',
-    label: 'Blue',
-    hex: '#3B82F6',
-    rgbText: 'rgb(59, 130, 246)'
-  },
-  yellow: {
-    name: 'yellow',
-    label: 'Yellow',
-    hex: '#F59E0B',
-    rgbText: 'rgb(245, 158, 11)'
-  },
-  purple: {
-    name: 'purple',
-    label: 'Purple',
-    hex: '#8B5CF6',
-    rgbText: 'rgb(139, 92, 246)'
+    hex: '#E52600',
+    rgbText: 'rgb(229, 38, 0)'
   },
   orange: {
     name: 'orange',
     label: 'Orange',
-    hex: '#F97316',
-    rgbText: 'rgb(249, 115, 22)'
+    hex: '#E5983D',
+    rgbText: 'rgb(229, 152, 61)'
   },
-  black: {
-    name: 'black',
-    label: 'Black',
-    hex: '#374151',
-    rgbText: 'rgb(55, 65, 81)'
+  yellow: {
+    name: 'yellow',
+    label: 'Yellow',
+    hex: '#D3D521',
+    rgbText: 'rgb(211, 213, 33)'
+  },
+  green: {
+    name: 'green',
+    label: 'Green',
+    hex: '#009500',
+    rgbText: 'rgb(0, 149, 0)'
+  },
+  blue: {
+    name: 'blue',
+    label: 'Blue',
+    hex: '#0433FF',
+    rgbText: 'rgb(4, 51, 255)'
   }
 };
 
 export const PLAYER_COLOR_ARRAY: PlayerColor[] = [
+  PLAYER_COLORS.black,
   PLAYER_COLORS.red,
-  PLAYER_COLORS.green,
-  PLAYER_COLORS.blue,
-  PLAYER_COLORS.yellow,
-  PLAYER_COLORS.purple,
   PLAYER_COLORS.orange,
-  PLAYER_COLORS.black
+  PLAYER_COLORS.yellow,
+  PLAYER_COLORS.green,
+  PLAYER_COLORS.blue
 ];
 
 export function getPlayerColorHex(colorName: string): string {

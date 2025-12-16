@@ -77,13 +77,12 @@ button:hover {
 .player-card .icon {
   color: inherit; /* fallback */
 }
-.player-card[data-color="red"] .icon { color: #dc2626; }
-.player-card[data-color="blue"] .icon { color: #2563eb; }
-.player-card[data-color="green"] .icon { color: #16a34a; }
-.player-card[data-color="yellow"] .icon { color: #ca8a04; }
-.player-card[data-color="black"] .icon { color: #1f2937; }
-.player-card[data-color="purple"] .icon { color: #9333ea; }
-.player-card[data-color="orange"] .icon { color: #ea580c; }
+.player-card[data-color="black"] .icon { color: #000000; }
+.player-card[data-color="red"] .icon { color: #E52600; }
+.player-card[data-color="orange"] .icon { color: #E5983D; }
+.player-card[data-color="yellow"] .icon { color: #D3D521; }
+.player-card[data-color="green"] .icon { color: #009500; }
+.player-card[data-color="blue"] .icon { color: #0433FF; }
 
 /* Game Events box */
 .events-box {
