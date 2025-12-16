@@ -2915,12 +2915,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           if (otherPlayers.length > 0) {
             const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
             handleResourceSwapPlayerSelection(targetPlayer.id);
+
+            setTimeout(() => {
+              handleConfirmResourceSwap();
+            }, 400);
           }
         }, 800);
         return () => clearTimeout(timer);
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.players, handleResourceSwapPlayerSelection]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.players, handleResourceSwapPlayerSelection, handleConfirmResourceSwap]);
 
   // Auto-handle Free Upgrade selection for AI players
   useEffect(() => {
