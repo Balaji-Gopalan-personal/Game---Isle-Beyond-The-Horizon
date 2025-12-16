@@ -4,7 +4,11 @@
 Trading port detection and logging was not working properly during setup phases T1 (setup-phase-1) and T2 (setup-phase-2). When a village was placed adjacent to a trading port during these phases, the Events Log did not reveal the new trading capability. This functionality worked correctly in T3 (main game phase) and beyond.
 
 ## Root Cause
-The `checkAndLogTradingPortAccess` function was being called within a problematic `setGameState` pattern:
+There were two main issues:
+
+1. **Timing Issue**: Trading ports were generated in a `useEffect` hook that ran after game initialization. This created a race condition where villages could be placed before trading ports were available in the game state.
+
+2. **State Update Pattern**: The `checkAndLogTradingPortAccess` function was being called within a problematic `setGameState` pattern that didn't properly pass the updated state:
 
 ```typescript
 // PROBLEMATIC PATTERN
@@ -14,12 +18,49 @@ setGameState(prev => {
 });
 ```
 
-This pattern had two issues:
-1. The function was receiving the old state (`prev`) before the village was fully added to the state
-2. The outer `setGameState` was returning `prev` without any changes, potentially interfering with the internal `setGameState` call made by `addColoredLog` within `checkAndLogTradingPortAccess`
+This pattern was receiving the old state before the village was fully added to the state.
 
 ## Solution
-The fix refactors all village placement code to properly integrate trading port detection:
+The fix addresses both issues:
+
+### 1. Generate Trading Ports During Initialization
+Trading ports are now generated synchronously during game initialization (line ~1865-1889 in `useGameEngine.ts`):
+
+```typescript
+// Generate trading ports if enabled
+let tradingPorts = undefined;
+if (config.gameSettings.tradingPortsEnabled) {
+  const vertices = Object.values(boardGraph.vertices).map(v => ({
+    id: v.id,
+    row: '',
+    position: 0,
+    x: 0,
+    y: 0
+  }));
+
+  const edges = Object.values(boardGraph.edges).map(e => ({
+    from: e.v1,
+    to: e.v2
+  }));
+
+  tradingPorts = generateTradingPorts(
+    vertices,
+    edges,
+    config.gameSettings.numberOfTradingPorts,
+    boardCenters
+  );
+}
+
+setGameState({
+  // ... other state
+  tradingPorts
+});
+```
+
+This ensures trading ports are available from the very start of the game, including during T1.
+
+### 2. Fix State Update Pattern
+All village placement code now properly integrates trading port detection:
 
 ```typescript
 // FIXED PATTERN
@@ -39,16 +80,19 @@ setGameState(prev => {
 
 ## Files Modified
 - `src/hooks/useGameEngine.ts`
+  - Game initialization (line ~1865-1925) - Added trading port generation during initialization
   - `placeVillage_P1_wrapper` (line ~1002) - Setup phase village placement
   - `placeVillageToVertex` (line ~1596) - Legacy village placement
   - `handlePlaceVillageGameplay` (line ~3180) - Main game human village placement
   - `handleAIBuildVillage` (line ~3375) - Main game AI village placement
 
 ## Implementation Details
-1. All `setGameState` calls that add villages now create a `newState` object first
-2. `checkAndLogTradingPortAccess` is called with this `newState` object before returning it
-3. This ensures the function receives the complete updated state including the newly placed village
-4. The trading port detection now works consistently across all game phases (T1, T2, and T3+)
+1. Trading ports are generated synchronously during game initialization when trading ports are enabled
+2. The existing `useEffect` for trading port generation still exists as a fallback but won't run if ports are already initialized
+3. All `setGameState` calls that add villages now create a `newState` object first
+4. `checkAndLogTradingPortAccess` is called with this `newState` object before returning it
+5. This ensures the function receives the complete updated state including the newly placed village
+6. The trading port detection now works consistently across all game phases (T1, T2, and T3+)
 
 ## Testing
 To verify the fix:

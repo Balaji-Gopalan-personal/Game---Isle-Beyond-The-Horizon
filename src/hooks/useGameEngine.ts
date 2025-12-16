@@ -1846,6 +1846,32 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const initialDeck = createInitialDeck(config.gameSettings.developmentCardDeck);
       const shuffledDeck = shuffleDeck(initialDeck);
 
+      // Generate trading ports if enabled
+      let tradingPorts = undefined;
+      if (config.gameSettings.tradingPortsEnabled) {
+        const vertices = Object.values(boardGraph.vertices).map(v => ({
+          id: v.id,
+          row: '',
+          position: 0,
+          x: 0,
+          y: 0
+        }));
+
+        const edges = Object.values(boardGraph.edges).map(e => ({
+          from: e.v1,
+          to: e.v2
+        }));
+
+        tradingPorts = generateTradingPorts(
+          vertices,
+          edges,
+          config.gameSettings.numberOfTradingPorts,
+          boardCenters
+        );
+
+        console.log('DEBUG: Generated trading ports during initialization:', tradingPorts);
+      }
+
       setGameState({
         currentPlayer: firstPlayer.id,
         currentStep: 'place-village',
@@ -1879,7 +1905,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         },
         ...occupancyMaps,
         developmentCardDeck: shuffledDeck,
-        developmentCardDiscard: []
+        developmentCardDiscard: [],
+        tradingPorts
       });
       
       // Start the first player's turn
