@@ -609,8 +609,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
   // Check and log trading port access when a village is placed
   const checkAndLogTradingPortAccess = useCallback((playerId: string, vertexId: number, updatedGameState: GameState): Array<{message: string, playerId: string}> => {
+    const player = updatedGameState.players.find(p => p.id === playerId);
+    const playerName = player?.name || playerId;
+    const isHuman = player?.isHuman || false;
+
     console.log('DEBUG TRADING PORT CHECK:', {
       playerId,
+      playerName,
+      isHuman,
       vertexId,
       tradingPortsEnabled: updatedGameState.gameSettings.tradingPortsEnabled,
       hasTradingPorts: !!updatedGameState.tradingPorts,
@@ -661,7 +667,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       }
     }
 
-    const player = updatedGameState.players.find(p => p.id === playerId);
     if (!player) {
       console.log('DEBUG: Player not found');
       return [];
@@ -680,10 +685,19 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         console.error('WARNING: Port has invalid vertices:', port);
         return false;
       }
-      return port.vertices.includes(vertexId);
+      const matchesVertex = port.vertices.includes(vertexId);
+      console.log(`DEBUG: Checking port at vertices [${port.vertices.join(', ')}] for player vertex ${vertexId}: ${matchesVertex ? 'MATCH' : 'no match'}`);
+      return matchesVertex;
     });
 
-    console.log('DEBUG: Found ports for vertex:', { vertexId, newPorts });
+    console.log('DEBUG: Found ports for vertex:', {
+      playerId,
+      playerName,
+      isHuman,
+      vertexId,
+      newPorts,
+      portsCount: newPorts.length
+    });
 
     const messages: Array<{message: string, playerId: string}> = [];
     if (newPorts.length > 0) {
@@ -696,13 +710,22 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           portDescription = `2:1 ${resourceName} Trading Port (2 ${resourceName} for 1 of any other resource)`;
         }
 
-        console.log('DEBUG: Returning trading port message:', portDescription);
+        const message = `${player.name} gained access to a ${portDescription}`;
+        console.log(`DEBUG: Creating trading port message for ${isHuman ? 'HUMAN' : 'AI'} player:`, {
+          playerId,
+          playerName,
+          message,
+          portDescription
+        });
         messages.push({
-          message: `${player.name} gained access to a ${portDescription}`,
+          message,
           playerId
         });
       });
+    } else {
+      console.log(`DEBUG: NO ports found at vertex ${vertexId} for player ${playerName} (${isHuman ? 'HUMAN' : 'AI'})`);
     }
+    console.log(`DEBUG: Returning ${messages.length} trading port messages for player ${playerName}`);
     return messages;
   }, [boardSize, boardGraph]);
 
@@ -1367,12 +1390,21 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     );
 
     console.log('DEBUG: AI changes detected:', {
+      playerId,
+      playerName,
       villagePlaced,
       villageVertexId,
       roadAdded,
       initialStep,
-      newStep: mutableState.turnState.step
+      newStep: mutableState.turnState.step,
+      placementContext: mutableState.turnState.placementContext
     });
+
+    if (villagePlaced) {
+      console.log(`DEBUG: AI ${playerName} (${playerId}) PLACED VILLAGE at vertex ${villageVertexId}`);
+    } else {
+      console.log(`DEBUG: AI ${playerName} (${playerId}) did NOT place village (step transition: ${initialStep} -> ${mutableState.turnState.step})`);
+    }
 
     // Initialize resource collection for AI
     let aiResourceCollection = { resources: {}, logMessage: '' };
@@ -1544,13 +1576,23 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       if (villagePlaced && villageVertexId !== null) {
         console.log('DEBUG [AI Trading Port]: About to call checkAndLogTradingPortAccess', {
           playerId,
+          playerName,
           vertexId: villageVertexId,
-          tradingPortsInNewState: newState.tradingPorts?.length || 0
+          tradingPortsInNewState: newState.tradingPorts?.length || 0,
+          tradingPortsEnabled: newState.gameSettings?.tradingPortsEnabled,
+          phase: newState.phase
         });
         aiTradingPortMessages = checkAndLogTradingPortAccess(playerId, villageVertexId, newState);
         console.log('DEBUG [AI Trading Port]: Returned messages', {
           messagesCount: aiTradingPortMessages.length,
-          messages: aiTradingPortMessages
+          messages: aiTradingPortMessages,
+          hasMessages: aiTradingPortMessages.length > 0
+        });
+      } else {
+        console.log('DEBUG [AI Trading Port]: NOT calling checkAndLogTradingPortAccess', {
+          villagePlaced,
+          villageVertexId,
+          reason: !villagePlaced ? 'villagePlaced is false' : 'villageVertexId is null'
         });
       }
 
@@ -1577,12 +1619,20 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Add trading port messages captured from state update
       console.log('DEBUG [AI Trading Port]: About to log messages', {
         messagesCount: aiTradingPortMessages.length,
-        messages: aiTradingPortMessages
+        messages: aiTradingPortMessages,
+        hasAnyMessages: aiTradingPortMessages.length > 0
       });
-      aiTradingPortMessages.forEach(msg => {
-        console.log('DEBUG [AI Trading Port]: Logging message:', msg);
-        addColoredLog(msg.message, msg.playerId);
-      });
+
+      if (aiTradingPortMessages.length === 0) {
+        console.log('DEBUG [AI Trading Port]: NO MESSAGES TO LOG - This is the problem!');
+      } else {
+        aiTradingPortMessages.forEach((msg, index) => {
+          console.log(`DEBUG [AI Trading Port]: Logging message ${index + 1}/${aiTradingPortMessages.length}:`, msg);
+          addColoredLog(msg.message, msg.playerId);
+          console.log(`DEBUG [AI Trading Port]: Successfully called addColoredLog for message ${index + 1}`);
+        });
+        console.log('DEBUG [AI Trading Port]: All messages logged successfully');
+      }
     }
     
     if (roadAdded) {
