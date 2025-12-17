@@ -669,48 +669,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
   }, [boardCenters, gameState.robberPosition]);
 
-  // Generate and store trading ports when board is loaded
-  useEffect(() => {
-    // Check if we need to generate ports: board centers loaded, ports not yet generated or empty, and ports enabled
-    const needsPortGeneration = boardCenters.length > 0 &&
-                                (!gameState.tradingPorts || gameState.tradingPorts.length === 0) &&
-                                gameState.gameSettings?.tradingPortsEnabled;
-
-    if (needsPortGeneration) {
-      console.log('DEBUG: Generating trading ports now that board centers are loaded');
-      console.log(`DEBUG: boardCenters.length = ${boardCenters.length}`);
-      console.log(`DEBUG: numberOfTradingPorts = ${gameState.gameSettings.numberOfTradingPorts}`);
-
-      const vertices = Object.values(boardGraph.vertices).map(v => ({
-        id: v.id,
-        row: '',
-        position: 0,
-        x: 0,
-        y: 0
-      }));
-
-      const edges = Object.values(boardGraph.edges).map(e => ({
-        from: e.v1,
-        to: e.v2
-      }));
-
-      const tradingPorts = generateTradingPorts(
-        vertices,
-        edges,
-        gameState.gameSettings.numberOfTradingPorts,
-        boardCenters
-      );
-
-      console.log('DEBUG: Successfully generated trading ports:', tradingPorts);
-      console.log(`DEBUG: Total ports created: ${tradingPorts.length}`);
-
-      setGameState(prev => ({
-        ...prev,
-        tradingPorts
-      }));
-    }
-  }, [boardCenters, boardGraph.vertices, boardGraph.edges, gameState.tradingPorts, gameState.gameSettings?.tradingPortsEnabled, gameState.gameSettings?.numberOfTradingPorts]);
-
   // Helper function to collect resources from adjacent centers
   const collectResourcesFromAdjacentCenters = useCallback((vertexId: number, playerId: string) => {
     console.log(`DEBUG: Collecting resources for vertex ${vertexId}, player ${playerId}`);
@@ -1912,9 +1870,40 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const initialDeck = createInitialDeck(config.gameSettings.developmentCardDeck);
       const shuffledDeck = shuffleDeck(initialDeck);
 
-      // Trading ports will be generated after board centers are loaded
-      // See the useEffect that watches boardCenters
-      console.log('DEBUG: Deferring trading port generation until board centers are loaded');
+      // Generate trading ports synchronously during initialization
+      let initialTradingPorts: any[] = [];
+      if (config.gameSettings.tradingPortsEnabled && boardCenters.length > 0) {
+        console.log('DEBUG: Generating trading ports during game initialization');
+        console.log(`DEBUG: boardCenters.length = ${boardCenters.length}`);
+        console.log(`DEBUG: numberOfTradingPorts = ${config.gameSettings.numberOfTradingPorts}`);
+
+        const vertices = Object.values(boardGraph.vertices).map(v => ({
+          id: v.id,
+          row: '',
+          position: 0,
+          x: 0,
+          y: 0
+        }));
+
+        const edges = Object.values(boardGraph.edges).map(e => ({
+          from: e.v1,
+          to: e.v2
+        }));
+
+        initialTradingPorts = generateTradingPorts(
+          vertices,
+          edges,
+          config.gameSettings.numberOfTradingPorts,
+          boardCenters
+        );
+
+        console.log('DEBUG: Successfully generated trading ports:', initialTradingPorts);
+        console.log(`DEBUG: Total ports created: ${initialTradingPorts.length}`);
+      } else if (!config.gameSettings.tradingPortsEnabled) {
+        console.log('DEBUG: Trading ports disabled, setting to empty array');
+      } else {
+        console.log('DEBUG: Board centers not yet loaded, ports will be empty');
+      }
 
       setGameState({
         currentPlayer: firstPlayer.id,
@@ -1950,7 +1939,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         ...occupancyMaps,
         developmentCardDeck: shuffledDeck,
         developmentCardDiscard: [],
-        tradingPorts: undefined
+        tradingPorts: initialTradingPorts
       });
       
       // Start the first player's turn

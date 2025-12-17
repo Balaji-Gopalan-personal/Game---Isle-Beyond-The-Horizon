@@ -85,16 +85,55 @@ export const generateTradingPorts = (
   // Available resource types for 2:1 ports
   const resourceTypes: Array<TradingPort['type']> = ['clay', 'lumber', 'grain', 'fabric', 'mineral'];
 
+  // Generate port type distribution based on percentages:
+  // Each resource-specific 2:1 port: 14% of total
+  // Generic 3:1 port: 28% of total
+  const portTypesList: Array<TradingPort['type']> = [];
+
+  // Calculate target counts for each type
+  const clayCount = Math.round(numberOfPorts * 0.14);
+  const lumberCount = Math.round(numberOfPorts * 0.14);
+  const grainCount = Math.round(numberOfPorts * 0.14);
+  const fabricCount = Math.round(numberOfPorts * 0.14);
+  const mineralCount = Math.round(numberOfPorts * 0.14);
+  const genericCount = Math.round(numberOfPorts * 0.28);
+
+  // Add port types to list based on calculated counts
+  for (let i = 0; i < clayCount; i++) portTypesList.push('clay');
+  for (let i = 0; i < lumberCount; i++) portTypesList.push('lumber');
+  for (let i = 0; i < grainCount; i++) portTypesList.push('grain');
+  for (let i = 0; i < fabricCount; i++) portTypesList.push('fabric');
+  for (let i = 0; i < mineralCount; i++) portTypesList.push('mineral');
+  for (let i = 0; i < genericCount; i++) portTypesList.push('generic');
+
+  // Adjust list length to match exact numberOfPorts
+  while (portTypesList.length > numberOfPorts) {
+    // Remove a random port type
+    const randomIndex = Math.floor(Math.random() * portTypesList.length);
+    portTypesList.splice(randomIndex, 1);
+  }
+  while (portTypesList.length < numberOfPorts) {
+    // Add a random port type
+    const allTypes: Array<TradingPort['type']> = [...resourceTypes, 'generic'];
+    portTypesList.push(allTypes[Math.floor(Math.random() * allTypes.length)]);
+  }
+
+  // Shuffle the port types list for random assignment
+  const shuffledPortTypes = [...portTypesList].sort(() => Math.random() - 0.5);
+  console.log(`Port type distribution:`, shuffledPortTypes);
+
   const ports: TradingPort[] = [];
   const usedVertices = new Set<number>();
-  
+
   // Generate exactly the requested number of ports
   let pairIndex = 0;
+  let portTypeIndex = 0;
+
   while (ports.length < numberOfPorts && pairIndex < shuffledPairs.length) {
     console.log(`Processing pair ${pairIndex + 1}/${shuffledPairs.length}: [${shuffledPairs[pairIndex][0]}, ${shuffledPairs[pairIndex][1]}]`);
-    
+
     const [vertex1Id, vertex2Id] = shuffledPairs[pairIndex];
-    
+
     // Skip if either vertex is already used
     if (usedVertices.has(vertex1Id) || usedVertices.has(vertex2Id)) {
       console.log(`  Skipping - vertices already used`);
@@ -102,26 +141,11 @@ export const generateTradingPorts = (
       continue;
     }
 
-    // Determine port type
-    let portType: TradingPort['type'] = 'generic';
-    
-    // Try to assign a specific resource type (70% chance)
-    if (Math.random() < 0.7) {
-      // Find resource types that don't conflict with adjacent centers
-      const validResourceTypes = resourceTypes.filter(resourceType => 
-        !pairConnectsToResource(vertex1Id, vertex2Id, resourceType)
-      );
-      
-      if (validResourceTypes.length > 0) {
-        // Randomly select from valid resource types
-        portType = validResourceTypes[Math.floor(Math.random() * validResourceTypes.length)];
-        console.log(`  Assigned 2:1 port type: ${portType}`);
-      } else {
-        console.log(`  No valid resource types, using generic`);
-      }
-    } else {
-      console.log(`  Random chance selected generic port`);
-    }
+    // Get the next port type from shuffled list
+    const portType = shuffledPortTypes[portTypeIndex];
+    portTypeIndex++;
+
+    console.log(`  Assigned port type: ${portType}`)
 
     // Calculate position for the port 
     const vertex1 = vertices.find(v => v.id === vertex1Id)!;
