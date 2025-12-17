@@ -233,8 +233,6 @@ function parseCentersFromCSV(boardSize: BoardSize, vertices: BoardVertex[]): Cen
     });
   }
 
-  console.log(`Successfully parsed ${centers.length} centers from ${boardSize}_centres.csv`);
-
   // Assign resource types and values
   assignResourceTypesAndValues(centers);
   
@@ -255,9 +253,7 @@ function calculateCenterPosition(centerVertices: number[], vertices: BoardVertex
   // Calculate average position of all vertices
   const avgX = centerVertexObjects.reduce((sum, v) => sum + v.x, 0) / centerVertexObjects.length;
   const avgY = centerVertexObjects.reduce((sum, v) => sum + v.y, 0) / centerVertexObjects.length;
-  
-  console.log(`Calculated center position from ${centerVertexObjects.length} vertices: (${avgX}, ${avgY})`);
-  
+
   return { x: avgX, y: avgY };
 }
 
@@ -342,7 +338,6 @@ function assignResourceTypesAndValues(centers: Center[]): void {
     desert: 0
   };
   centers.forEach(c => resourceCounts[c.resourceType]++);
-  console.log('Resource distribution:', resourceCounts);
 }
 
 function generateCenters(vertices: BoardVertex[], boardSize: BoardSize): Center[] {
@@ -499,19 +494,14 @@ export function loadBoardFromCSV(boardSize: BoardSize): { graph: BoardGraph; cen
       }
     }
   }
-  
-  console.log(`Created ${edges.length} edges from CSV adjacency data`);
-  
+
   // Validate adjacency map was populated
   if (Object.keys(adjacencyMap).length === 0) {
     console.error(`Failed to parse adjacency data from CSV for board size: ${boardSize}`);
     console.error(`CSV content preview:`, csvText.substring(0, 200));
     throw new Error(`Adjacency data for '${boardSize}' board is missing. Check CSV sources.`);
   }
-  
-  console.log(`Successfully parsed ${Object.keys(adjacencyMap).length} vertices with adjacency data for ${boardSize} board`);
-  console.log(`Sample adjacency entries:`, Object.entries(adjacencyMap).slice(0, 3));
-  
+
   // Validate edges against adjacency map - should now be consistent
   const invalidEdges: string[] = [];
   edges.forEach((edge, index) => {

@@ -28,9 +28,6 @@ export const generateTradingPorts = (
   numberOfPorts: number,
   centers: Center[] = []
 ): TradingPort[] => {
-  console.log(`=== TRADING PORT GENERATION DEBUG ===`);
-  console.log(`Requested number of ports: ${numberOfPorts}`);
-  
   if (numberOfPorts <= 0) return [];
   
   // Find all vertices and their connection counts
@@ -47,8 +44,6 @@ export const generateTradingPorts = (
     const connections = vertexConnections.get(vertex.id) || 0;
     return connections < 3;
   });
-  
-  console.log(`Found ${borderVertices.length} border vertices:`, borderVertices.map(v => v.id));
 
   // Find all border edges (edges that have at least one border vertex)
   const validPairs: Array<[number, number]> = [];
@@ -64,12 +59,9 @@ export const generateTradingPorts = (
       validPairs.push([v1, v2]);
     }
   }
-  
-  console.log(`Found ${validPairs.length} border edge pairs`);
 
   // Shuffle valid pairs for random selection
   const shuffledPairs = [...validPairs].sort(() => Math.random() - 0.5);
-  console.log(`Shuffled pairs:`, shuffledPairs);
   
   // Helper function to check if a vertex pair connects to a center with specific resource 
   const pairConnectsToResource = (vertex1Id: number, vertex2Id: number, resourceType: string): boolean => {
@@ -120,7 +112,6 @@ export const generateTradingPorts = (
 
   // Shuffle the port types list for random assignment
   const shuffledPortTypes = [...portTypesList].sort(() => Math.random() - 0.5);
-  console.log(`Port type distribution:`, shuffledPortTypes);
 
   const ports: TradingPort[] = [];
   const usedVertices = new Set<number>();
@@ -130,13 +121,10 @@ export const generateTradingPorts = (
   let portTypeIndex = 0;
 
   while (ports.length < numberOfPorts && pairIndex < shuffledPairs.length) {
-    console.log(`Processing pair ${pairIndex + 1}/${shuffledPairs.length}: [${shuffledPairs[pairIndex][0]}, ${shuffledPairs[pairIndex][1]}]`);
-
     const [vertex1Id, vertex2Id] = shuffledPairs[pairIndex];
 
     // Skip if either vertex is already used
     if (usedVertices.has(vertex1Id) || usedVertices.has(vertex2Id)) {
-      console.log(`  Skipping - vertices already used`);
       pairIndex++;
       continue;
     }
@@ -144,8 +132,6 @@ export const generateTradingPorts = (
     // Get the next port type from shuffled list
     const portType = shuffledPortTypes[portTypeIndex];
     portTypeIndex++;
-
-    console.log(`  Assigned port type: ${portType}`)
 
     // Calculate position for the port 
     const vertex1 = vertices.find(v => v.id === vertex1Id)!;
@@ -159,8 +145,6 @@ export const generateTradingPorts = (
       vertices: [vertex1Id, vertex2Id],
       position: { x: midX, y: midY }
     });
-    
-    console.log(`  Created port ${ports.length}: ${portType} at vertices [${vertex1Id}, ${vertex2Id}]`);
 
     // Mark vertices as used
     usedVertices.add(vertex1Id);
@@ -168,12 +152,6 @@ export const generateTradingPorts = (
     
     pairIndex++;
   }
-  
-  console.log(`=== FINAL RESULT ===`);
-  console.log(`Generated ${ports.length} ports, requested ${numberOfPorts}`);
-  console.log(`Used ${usedVertices.size} vertices out of ${borderVertices.length} border vertices`);
-  console.log(`Processed ${pairIndex} pairs out of ${shuffledPairs.length} available pairs`);
-  console.log(`Ports:`, ports.map(p => `${p.type} [${p.vertices[0]},${p.vertices[1]}]`));
 
   return ports;
 };

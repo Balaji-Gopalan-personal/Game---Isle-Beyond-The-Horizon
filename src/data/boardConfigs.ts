@@ -174,9 +174,7 @@ const generateCentersWithRules = (vertices: any[], config: BoardConfig) => {
     if (rowAbove >= 0 && rowBelow < config.rowCounts.length) {
       const verticesAbove = config.rowCounts[rowAbove];
       const verticesBelow = config.rowCounts[rowBelow];
-      
-      console.log(`Row ${rowIndex}: above=${verticesAbove}, below=${verticesBelow}`);
-      
+
       // For expanding/contracting sections, use the smaller row count
       // For parallel sections, use row count - 1
       let centersInThisRow;
@@ -187,8 +185,7 @@ const generateCentersWithRules = (vertices: any[], config: BoardConfig) => {
         // Expanding/contracting - use smaller count
         centersInThisRow = Math.min(verticesAbove, verticesBelow);
       }
-      console.log(`Placing ${centersInThisRow} centers at row ${rowIndex}`);
-      
+
       if (centersInThisRow > 0) {
         
         // Position centers horizontally (centered)
@@ -248,7 +245,6 @@ const generateCentersWithRules = (vertices: any[], config: BoardConfig) => {
       center.value = possibleValues[Math.floor(Math.random() * possibleValues.length)];
     }
   });
-  
-  console.log(`Generated ${centers.length} centers, expected ${config.totalCenters}`);
+
   return centers;
 };
