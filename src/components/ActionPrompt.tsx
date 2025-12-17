@@ -4,7 +4,7 @@ import { GameState, GameStep } from '../types/game';
 import { loadBoardGraph } from '../graph/loadBoard';
 import { canPlaceVillage, legalRoadEdgesFrom, whyNotVillage, initializeValidators } from '../engine/validators';
 import { BoardSize } from '../data/boardConfigs';
-import { BoomingEconomyPrompt, ClosedMarketPrompt, ResourceSwapPrompt, FreeUpgradePrompt } from './CardEffectPrompts';
+import { BoomingEconomyPrompt, ClosedMarketPrompt, ResourceSwapPrompt, FreeUpgradePrompt, OpponentSelector } from './CardEffectPrompts';
 import { CharacterAvatar } from './CharacterAvatar';
 import { getPlayerColorHex } from '../utils/playerColors';
 
@@ -450,34 +450,29 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
           )}
 
           {gameState.turnState.step === 'move_robber' && canPlayerAct && eligibleStealTargets.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-gray-700">
+            <div className="space-y-1.5">
+              <div className="text-sm font-medium text-gray-700 text-center">
                 Steal from a Player
               </div>
-              <div className="space-y-1">
-                {eligibleStealTargets.map(player => (
+
+              <OpponentSelector
+                opponents={eligibleStealTargets}
+                selectedPlayerId={selectedStealTarget}
+                onSelectPlayer={(playerId) => onSelectStealTarget?.(playerId)}
+                showResourceCount={true}
+                title="Select opponent to steal from"
+              />
+
+              <div className="flex gap-1.5">
+                {selectedStealTarget && (
                   <button
-                    key={player.id}
-                    onClick={() => onSelectStealTarget?.(player.id)}
-                    className={`w-full text-left px-2 py-1.5 rounded text-xs font-semibold transition-all duration-200 ${
-                      selectedStealTarget === player.id
-                        ? 'bg-green-500 text-white'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
-                    }`}
-                    style={selectedStealTarget === player.id ? {} : { color: getPlayerColorStyle(player.color) }}
+                    onClick={onConfirmSteal}
+                    className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-1.5 px-2 rounded text-xs transition-all duration-200"
                   >
-                    {player.name}
+                    Confirm
                   </button>
-                ))}
+                )}
               </div>
-              {selectedStealTarget && (
-                <button
-                  onClick={onConfirmSteal}
-                  className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200"
-                >
-                  Confirm
-                </button>
-              )}
             </div>
           )}
 
