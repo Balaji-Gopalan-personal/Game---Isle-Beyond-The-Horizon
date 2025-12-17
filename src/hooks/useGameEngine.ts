@@ -582,9 +582,47 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       tradingPorts: updatedGameState.tradingPorts
     });
 
-    if (!updatedGameState.gameSettings.tradingPortsEnabled || !updatedGameState.tradingPorts) {
-      console.log('DEBUG: Trading ports not enabled or not available');
+    if (!updatedGameState.gameSettings.tradingPortsEnabled) {
+      console.log('DEBUG: Trading ports not enabled');
       return [];
+    }
+
+    // FALLBACK MECHANISM: Regenerate trading ports if they're missing
+    if (!updatedGameState.tradingPorts || updatedGameState.tradingPorts.length === 0) {
+      console.warn('WARNING: Trading ports are missing! Attempting to regenerate...');
+
+      try {
+        const boardData = loadBoardForSize(updatedGameState.gameSettings.boardSize || boardSize);
+        const centers = boardData.centers;
+
+        const vertices = Object.values(boardGraph.vertices).map(v => ({
+          id: v.id,
+          row: '',
+          position: 0,
+          x: 0,
+          y: 0
+        }));
+
+        const edges = Object.values(boardGraph.edges).map(e => ({
+          from: e.v1,
+          to: e.v2
+        }));
+
+        const regeneratedPorts = generateTradingPorts(
+          vertices,
+          edges,
+          updatedGameState.gameSettings.numberOfTradingPorts || 9,
+          centers
+        );
+
+        console.log('FALLBACK: Successfully regenerated trading ports:', regeneratedPorts.length);
+
+        // Update the game state with regenerated ports
+        updatedGameState.tradingPorts = regeneratedPorts;
+      } catch (error) {
+        console.error('FALLBACK FAILED: Could not regenerate trading ports:', error);
+        return [];
+      }
     }
 
     const player = updatedGameState.players.find(p => p.id === playerId);
@@ -593,9 +631,21 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       return [];
     }
 
-    const newPorts = updatedGameState.tradingPorts.filter(port =>
-      port.vertices.includes(vertexId)
-    );
+    // Validate that the vertex exists in the board graph
+    if (!boardGraph.vertices[vertexId]) {
+      console.error('ERROR: Vertex does not exist in board graph:', vertexId);
+      return [];
+    }
+
+    const newPorts = updatedGameState.tradingPorts!.filter(port => {
+      // Validate that all port vertices exist in the board graph
+      const allVerticesValid = port.vertices.every(v => boardGraph.vertices[v]);
+      if (!allVerticesValid) {
+        console.error('WARNING: Port has invalid vertices:', port);
+        return false;
+      }
+      return port.vertices.includes(vertexId);
+    });
 
     console.log('DEBUG: Found ports for vertex:', { vertexId, newPorts });
 
@@ -618,7 +668,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       });
     }
     return messages;
-  }, []);
+  }, [boardSize, boardGraph]);
   
   // Load board graph and add diagnostics
   const boardGraph = React.useMemo(() => {
@@ -1870,11 +1920,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const initialDeck = createInitialDeck(config.gameSettings.developmentCardDeck);
       const shuffledDeck = shuffleDeck(initialDeck);
 
+      // Load board centers directly for trading port generation
+      const boardData = loadBoardForSize(config.boardSize);
+      const loadedBoardCenters = boardData.centers;
+      console.log('DEBUG: Loaded board centers directly for initialization:', loadedBoardCenters.length);
+
       // Generate trading ports synchronously during initialization
       let initialTradingPorts: any[] = [];
-      if (config.gameSettings.tradingPortsEnabled && boardCenters.length > 0) {
+      if (config.gameSettings.tradingPortsEnabled && loadedBoardCenters.length > 0) {
         console.log('DEBUG: Generating trading ports during game initialization');
-        console.log(`DEBUG: boardCenters.length = ${boardCenters.length}`);
+        console.log(`DEBUG: loadedBoardCenters.length = ${loadedBoardCenters.length}`);
         console.log(`DEBUG: numberOfTradingPorts = ${config.gameSettings.numberOfTradingPorts}`);
 
         const vertices = Object.values(boardGraph.vertices).map(v => ({
@@ -1894,15 +1949,24 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           vertices,
           edges,
           config.gameSettings.numberOfTradingPorts,
-          boardCenters
+          loadedBoardCenters
         );
 
         console.log('DEBUG: Successfully generated trading ports:', initialTradingPorts);
         console.log(`DEBUG: Total ports created: ${initialTradingPorts.length}`);
+
+        // Validate that all port vertices exist in the board graph
+        const invalidPorts = initialTradingPorts.filter(port => {
+          return port.vertices.some((vertexId: number) => !boardGraph.vertices[vertexId]);
+        });
+
+        if (invalidPorts.length > 0) {
+          console.error('WARNING: Some trading ports have invalid vertices:', invalidPorts);
+        }
       } else if (!config.gameSettings.tradingPortsEnabled) {
         console.log('DEBUG: Trading ports disabled, setting to empty array');
       } else {
-        console.log('DEBUG: Board centers not yet loaded, ports will be empty');
+        console.log('DEBUG: Board centers not loaded, ports will be empty');
       }
 
       setGameState({
