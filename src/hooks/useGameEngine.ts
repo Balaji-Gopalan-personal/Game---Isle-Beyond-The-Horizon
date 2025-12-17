@@ -1044,6 +1044,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
     // Update React state
     setGameState(prev => {
+      // DEBUG: Log what prev contains for human player
+      console.log('DEBUG [HUMAN Trading Port]: prev state', {
+        hasTradingPortsInPrev: 'tradingPorts' in prev,
+        tradingPortsCountInPrev: prev.tradingPorts?.length || 0
+      });
+
       const newState = {
         ...prev,
         verticesOccupiedBy: mutableState.verticesOccupiedBy,
@@ -1374,6 +1380,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     // Variable to capture trading port messages for AI (declared outside setGameState)
     let aiTradingPortMessages: Array<{message: string, playerId: string}> = [];
 
+    // DEBUG: Log trading ports state before AI placement
+    console.log('DEBUG [AI Trading Port]: Before setGameState', {
+      tradingPortsExist: !!gameState.tradingPorts,
+      tradingPortsCount: gameState.tradingPorts?.length || 0,
+      tradingPortsEnabled: gameState.gameSettings?.tradingPortsEnabled,
+      villageAdded,
+      playerId,
+      playerName
+    });
+
     // Enhanced road logging
     if (roadAdded) {
       const edge = boardGraph.edges[roadAdded];
@@ -1427,6 +1443,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     
     // Update React state with any changes made by AI
     setGameState(prev => {
+      // DEBUG: Log what prev contains
+      console.log('DEBUG [AI Trading Port]: prev state', {
+        hasTradingPortsInPrev: 'tradingPorts' in prev,
+        tradingPortsCountInPrev: prev.tradingPorts?.length || 0,
+        prevKeys: Object.keys(prev)
+      });
+
       const newState = {
         ...prev,
         verticesOccupiedBy: mutableState.verticesOccupiedBy,
@@ -1501,10 +1524,28 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       })
       };
 
+      // DEBUG: Log newState before trading port check
+      console.log('DEBUG [AI Trading Port]: newState created', {
+        hasVillagesProperty: 'villages' in newState,
+        villagesCount: newState.villages?.length || 0,
+        hasTradingPortsProperty: 'tradingPorts' in newState,
+        tradingPortsCount: newState.tradingPorts?.length || 0,
+        villageAdded
+      });
+
       // Check for trading port access if AI placed a village and capture messages
       if (villageAdded) {
         const vertexId = parseInt(villageAdded);
+        console.log('DEBUG [AI Trading Port]: About to call checkAndLogTradingPortAccess', {
+          playerId,
+          vertexId,
+          tradingPortsInNewState: newState.tradingPorts?.length || 0
+        });
         aiTradingPortMessages = checkAndLogTradingPortAccess(playerId, vertexId, newState);
+        console.log('DEBUG [AI Trading Port]: Returned messages', {
+          messagesCount: aiTradingPortMessages.length,
+          messages: aiTradingPortMessages
+        });
       }
 
       return newState;
@@ -1529,7 +1570,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       }
 
       // Add trading port messages captured from state update
+      console.log('DEBUG [AI Trading Port]: About to log messages', {
+        messagesCount: aiTradingPortMessages.length,
+        messages: aiTradingPortMessages
+      });
       aiTradingPortMessages.forEach(msg => {
+        console.log('DEBUG [AI Trading Port]: Logging message:', msg);
         addColoredLog(msg.message, msg.playerId);
       });
     }
