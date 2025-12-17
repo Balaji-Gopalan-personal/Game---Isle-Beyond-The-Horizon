@@ -1053,26 +1053,44 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     
     const player = gameState.players.find(p => p.id === playerId);
     const playerName = player?.name || playerId;
-    
+
     // Collect resources if in Phase 2
     let resourceCollection = { resources: {}, logMessage: '' };
     if (gameState.phase === 'setup-phase-2') {
       resourceCollection = collectResourcesFromAdjacentCenters(vertexId, playerId);
     }
-    
-    console.log('DEBUG: Updating React state after village placement');
 
-    // Variable to capture trading port messages
-    let tradingPortMessages: Array<{message: string, playerId: string}> = [];
+    // Generate all log messages BEFORE setState to avoid timing issues
+    const logMessages: Array<{message: string, playerId: string, timestamp: string}> = [];
 
-    // Update React state
-    setGameState(prev => {
-      // DEBUG: Log what prev contains for human player
-      console.log('DEBUG [HUMAN Trading Port]: prev state', {
-        hasTradingPortsInPrev: 'tradingPorts' in prev,
-        tradingPortsCountInPrev: prev.tradingPorts?.length || 0
+    // Add village placement message
+    if (gameState.phase === 'setup-phase-1') {
+      logMessages.push({
+        message: `${playerName} placed their first village and earned 1 point.`,
+        playerId,
+        timestamp: new Date().toLocaleTimeString()
+      });
+    } else if (gameState.phase === 'setup-phase-2') {
+      logMessages.push({
+        message: `${playerName} placed their second village and earned 1 point.`,
+        playerId,
+        timestamp: new Date().toLocaleTimeString()
       });
 
+      // Add resource collection message
+      if (resourceCollection.logMessage) {
+        logMessages.push({
+          message: resourceCollection.logMessage,
+          playerId,
+          timestamp: new Date().toLocaleTimeString()
+        });
+      }
+    }
+
+    console.log('DEBUG: Updating React state after village placement');
+
+    // Update React state - SINGLE ATOMIC UPDATE
+    setGameState(prev => {
       const newState = {
         ...prev,
         verticesOccupiedBy: mutableState.verticesOccupiedBy,
@@ -1103,31 +1121,33 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         )
       };
 
-      // Check for trading port access with the updated state and capture messages
-      tradingPortMessages = checkAndLogTradingPortAccess(playerId, vertexId, newState);
+      // Generate trading port messages if player placed a village
+      const tradingPortMessages: Array<{message: string, playerId: string, timestamp: string}> = [];
+      const portMsgs = checkAndLogTradingPortAccess(playerId, vertexId, newState);
+      console.log('DEBUG [HUMAN Trading Port]: Generated messages inside setState', {
+        messagesCount: portMsgs.length,
+        messages: portMsgs
+      });
+      portMsgs.forEach(msg => {
+        tradingPortMessages.push({
+          message: msg.message,
+          playerId: msg.playerId,
+          timestamp: new Date().toLocaleTimeString()
+        });
+      });
 
-      return newState;
-    });
+      // Combine all messages and add to gameLog in one atomic operation
+      const allMessages = [...logMessages, ...tradingPortMessages];
+      console.log('DEBUG [HUMAN Trading Port]: Adding all messages to gameLog', {
+        totalMessages: allMessages.length,
+        tradingPortCount: tradingPortMessages.length,
+        allMessagesContent: allMessages
+      });
 
-    // Add to activity log
-    if (gameState.phase === 'setup-phase-1') {
-      addColoredLog(`${playerName} placed their first village and earned 1 point.`, playerId);
-    } else if (gameState.phase === 'setup-phase-2') {
-      addColoredLog(`${playerName} placed their second village and earned 1 point.`, playerId);
-      if (resourceCollection.logMessage) {
-        setGameState(prev => ({
-          ...prev,
-          gameLog: [...prev.gameLog, {
-            message: resourceCollection.logMessage,
-            timestamp: new Date().toLocaleTimeString()
-          }]
-        }));
-      }
-    }
-
-    // Add trading port messages after state update completes
-    tradingPortMessages.forEach(msg => {
-      addColoredLog(msg.message, msg.playerId);
+      return {
+        ...newState,
+        gameLog: [...prev.gameLog, ...allMessages]
+      };
     });
 
     console.log('DEBUG: Village placement complete');
@@ -1414,34 +1434,52 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       aiResourceCollection = collectResourcesFromAdjacentCenters(villageVertexId, playerId);
     }
 
-    // Variable to capture trading port messages for AI (declared outside setGameState)
-    let aiTradingPortMessages: Array<{message: string, playerId: string}> = [];
+    // Generate all log messages BEFORE setState to avoid timing issues
+    const logMessages: Array<{message: string, playerId: string, timestamp: string}> = [];
 
-    // DEBUG: Log trading ports state before AI placement
-    console.log('DEBUG [AI Trading Port]: Before setGameState', {
-      tradingPortsExist: !!gameState.tradingPorts,
-      tradingPortsCount: gameState.tradingPorts?.length || 0,
-      tradingPortsEnabled: gameState.gameSettings?.tradingPortsEnabled,
-      villagePlaced,
-      villageVertexId,
-      playerId,
-      playerName
-    });
+    // Add village placement message
+    if (villagePlaced && villageVertexId !== null) {
+      logMessages.push({
+        message: `${playerName} placed a village at vertex ${villageVertexId} and earned 1 point.`,
+        playerId,
+        timestamp: new Date().toLocaleTimeString()
+      });
 
-    // Enhanced road logging
+      // Add resource collection message for Phase 2
+      if (gameState.phase === 'setup-phase-2' && aiResourceCollection.logMessage) {
+        logMessages.push({
+          message: aiResourceCollection.logMessage,
+          playerId,
+          timestamp: new Date().toLocaleTimeString()
+        });
+      }
+    }
+
+    // Add road placement messages
     if (roadAdded) {
       const edge = boardGraph.edges[roadAdded];
-      console.log('DEBUG: AI road edge details:', { 
-        roadAdded, 
-        edge, 
+      console.log('DEBUG: AI road edge details:', {
+        roadAdded,
+        edge,
         edgeExists: !!edge,
         totalEdgesInGraph: Object.keys(boardGraph.edges).length,
         boardSize: boardSize
       });
-      if (edge && edge.v1 && edge.v2) {
-        const fromVertex = edge.v1;
-        const toVertex = edge.v2;
-        console.log('DEBUG: AI road vertices:', { fromVertex, toVertex, edgeId: roadAdded });
+
+      const [v1Str, v2Str] = roadAdded.split('__');
+      const fromVertex = parseInt(v1Str);
+      const toVertex = parseInt(v2Str);
+
+      if (!isNaN(fromVertex) && !isNaN(toVertex)) {
+        logMessages.push({
+          message: `${playerName} placed a road connecting vertex ${fromVertex} to vertex ${toVertex}.`,
+          playerId,
+          timestamp: new Date().toLocaleTimeString()
+        });
+
+        if (edge && edge.v1 && edge.v2) {
+          console.log('DEBUG: AI road vertices:', { fromVertex, toVertex, edgeId: roadAdded });
+        }
       } else {
         console.error('DEBUG: AI selected invalid edge:', {
           roadAdded,
@@ -1449,13 +1487,18 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           availableEdges: Object.keys(boardGraph.edges).slice(0, 10),
           boardSize: boardSize
         });
+        logMessages.push({
+          message: `${playerName} attempted to place a road (edge data invalid).`,
+          playerId,
+          timestamp: new Date().toLocaleTimeString()
+        });
       }
     }
     
     // Check if AI road connects to existing road (Phase 2 only)
     let newLongestRoadLength = 1; // Default for any road
     let aiLongestRoadUpdate = null;
-    
+
     if (gameState.phase === 'setup-phase-2' && roadAdded) {
       const playerRoads = gameState.roads.filter(r => r.playerId === playerId);
       if (playerRoads.length > 0) {
@@ -1466,28 +1509,48 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           from: parseInt(v1Str),
           to: parseInt(v2Str)
         };
-        
+
         const isConnected = playerRoads.some(existingRoad => areRoadsConnected(newRoad, existingRoad));
         if (isConnected) {
           newLongestRoadLength = 2;
           aiLongestRoadUpdate = checkLongestRoadBonus(playerId, 2);
           console.log(`DEBUG: AI roads are connected, setting longest road to 2 for player ${playerId}`);
+
+          // Add longest road message if not awarding bonus
+          if (!aiLongestRoadUpdate?.shouldAward) {
+            logMessages.push({
+              message: `${playerName}'s roads are now connected (longest road: 2).`,
+              playerId,
+              timestamp: new Date().toLocaleTimeString()
+            });
+          }
         }
       }
     } else if (roadAdded) {
       // Phase 1: just track that AI has 1 road
       newLongestRoadLength = Math.max(gameState.longestRoadLengths.get(playerId) || 0, 1);
     }
-    
-    // Update React state with any changes made by AI
-    setGameState(prev => {
-      // DEBUG: Log what prev contains
-      console.log('DEBUG [AI Trading Port]: prev state', {
-        hasTradingPortsInPrev: 'tradingPorts' in prev,
-        tradingPortsCountInPrev: prev.tradingPorts?.length || 0,
-        prevKeys: Object.keys(prev)
-      });
 
+    // Add longest road bonus messages if applicable
+    if (aiLongestRoadUpdate) {
+      if (aiLongestRoadUpdate.shouldAward) {
+        logMessages.push({
+          message: `${playerName} claimed the Longest Road and earned ${aiLongestRoadUpdate.bonus} bonus points`,
+          playerId,
+          timestamp: new Date().toLocaleTimeString()
+        });
+      }
+      if (aiLongestRoadUpdate.previousHolder && aiLongestRoadUpdate.previousHolderName) {
+        logMessages.push({
+          message: `${aiLongestRoadUpdate.previousHolderName} lost the Longest Road and ${aiLongestRoadUpdate.bonus} bonus points`,
+          playerId: aiLongestRoadUpdate.previousHolder,
+          timestamp: new Date().toLocaleTimeString()
+        });
+      }
+    }
+    
+    // Update React state with any changes made by AI - SINGLE ATOMIC UPDATE
+    setGameState(prev => {
       const newState = {
         ...prev,
         verticesOccupiedBy: mutableState.verticesOccupiedBy,
@@ -1506,12 +1569,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         const [v1Str, v2Str] = roadAdded.split('__');
         const fromVertex = parseInt(v1Str);
         const toVertex = parseInt(v2Str);
-        
+
         if (isNaN(fromVertex) || isNaN(toVertex)) {
           console.error("DEBUG: Invalid edge ID format in AI road creation:", roadAdded);
           return prev.roads;
         }
-        
+
         console.log(`DEBUG: AI ${playerName} creating road: ${fromVertex} -> ${toVertex}`, {
           edgeId: roadAdded,
           playerId,
@@ -1562,103 +1625,52 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       })
       };
 
-      // DEBUG: Log newState before trading port check
-      console.log('DEBUG [AI Trading Port]: newState created', {
-        hasVillagesProperty: 'villages' in newState,
-        villagesCount: newState.villages?.length || 0,
-        hasTradingPortsProperty: 'tradingPorts' in newState,
-        tradingPortsCount: newState.tradingPorts?.length || 0,
-        villagePlaced,
-        villageVertexId
-      });
-
-      // Check for trading port access if AI placed a village and capture messages
+      // Generate trading port messages if AI placed a village
+      const tradingPortMessages: Array<{message: string, playerId: string, timestamp: string}> = [];
       if (villagePlaced && villageVertexId !== null) {
-        console.log('DEBUG [AI Trading Port]: About to call checkAndLogTradingPortAccess', {
-          playerId,
-          playerName,
-          vertexId: villageVertexId,
-          tradingPortsInNewState: newState.tradingPorts?.length || 0,
-          tradingPortsEnabled: newState.gameSettings?.tradingPortsEnabled,
-          phase: newState.phase
+        const portMsgs = checkAndLogTradingPortAccess(playerId, villageVertexId, newState);
+        console.log('DEBUG [AI Trading Port]: Generated messages inside setState', {
+          messagesCount: portMsgs.length,
+          messages: portMsgs
         });
-        aiTradingPortMessages = checkAndLogTradingPortAccess(playerId, villageVertexId, newState);
-        console.log('DEBUG [AI Trading Port]: Returned messages', {
-          messagesCount: aiTradingPortMessages.length,
-          messages: aiTradingPortMessages,
-          hasMessages: aiTradingPortMessages.length > 0
-        });
-      } else {
-        console.log('DEBUG [AI Trading Port]: NOT calling checkAndLogTradingPortAccess', {
-          villagePlaced,
-          villageVertexId,
-          reason: !villagePlaced ? 'villagePlaced is false' : 'villageVertexId is null'
+        portMsgs.forEach(msg => {
+          tradingPortMessages.push({
+            message: msg.message,
+            playerId: msg.playerId,
+            timestamp: new Date().toLocaleTimeString()
+          });
         });
       }
 
-      return newState;
-    });
-    
-    // Add appropriate log messages
-    if (villagePlaced && villageVertexId !== null) {
-      if (gameState.phase === 'setup-phase-1') {
-        addColoredLog(`${playerName} placed a village at vertex ${villageVertexId} and earned 1 point.`, playerId);
-      } else if (gameState.phase === 'setup-phase-2') {
-        addColoredLog(`${playerName} placed a village at vertex ${villageVertexId} and earned 1 point.`, playerId);
-        if (aiResourceCollection.logMessage) {
-          setGameState(prev => ({
-            ...prev,
-            gameLog: [...prev.gameLog, {
-              message: aiResourceCollection.logMessage,
-              timestamp: new Date().toLocaleTimeString()
-            }]
-          }));
+      // Add turn transition message
+      const turnTransitionMessages: Array<{message: string, playerId: string, timestamp: string}> = [];
+      if (mutableState.turnState.currentPlayerId !== initialPlayerId) {
+        const nextPlayer = gameState.players.find(p => p.id === mutableState.turnState.currentPlayerId);
+        if (nextPlayer) {
+          turnTransitionMessages.push({
+            message: `${nextPlayer.name} begins their turn.`,
+            playerId: nextPlayer.id,
+            timestamp: new Date().toLocaleTimeString()
+          });
         }
       }
 
-      // Add trading port messages captured from state update
-      console.log('DEBUG [AI Trading Port]: About to log messages', {
-        messagesCount: aiTradingPortMessages.length,
-        messages: aiTradingPortMessages,
-        hasAnyMessages: aiTradingPortMessages.length > 0
+      // Combine all messages and add to gameLog in one atomic operation
+      const allMessages = [...logMessages, ...tradingPortMessages, ...turnTransitionMessages];
+      console.log('DEBUG [AI Trading Port]: Adding all messages to gameLog', {
+        totalMessages: allMessages.length,
+        tradingPortCount: tradingPortMessages.length,
+        allMessagesContent: allMessages
       });
 
-      if (aiTradingPortMessages.length === 0) {
-        console.log('DEBUG [AI Trading Port]: NO MESSAGES TO LOG - This is the problem!');
-      } else {
-        aiTradingPortMessages.forEach((msg, index) => {
-          console.log(`DEBUG [AI Trading Port]: Logging message ${index + 1}/${aiTradingPortMessages.length}:`, msg);
-          addColoredLog(msg.message, msg.playerId);
-          console.log(`DEBUG [AI Trading Port]: Successfully called addColoredLog for message ${index + 1}`);
-        });
-        console.log('DEBUG [AI Trading Port]: All messages logged successfully');
-      }
-    }
-    
-    if (roadAdded) {
-      // Parse edge ID to get vertices
-      const [v1Str, v2Str] = roadAdded.split('__');
-      const fromVertex = parseInt(v1Str);
-      const toVertex = parseInt(v2Str);
-      
-      if (!isNaN(fromVertex) && !isNaN(toVertex)) {
-        addColoredLog(`${playerName} placed a road connecting vertex ${fromVertex} to vertex ${toVertex}.`, playerId);
-        if (gameState.phase === 'setup-phase-2' && newLongestRoadLength === 2 && !aiLongestRoadUpdate?.shouldAward) {
-          addColoredLog(`${playerName}'s roads are now connected (longest road: 2).`, playerId);
-        }
-      } else {
-        console.error("DEBUG: Invalid edge ID format in AI log message:", roadAdded);
-        addColoredLog(`${playerName} attempted to place a road (edge data invalid).`, playerId);
-      }
-    }
-    
-    // Check if turn advanced to next player
-    if (mutableState.turnState.currentPlayerId !== initialPlayerId) {
-      const nextPlayer = gameState.players.find(p => p.id === mutableState.turnState.currentPlayerId);
-      if (nextPlayer) {
-        addColoredLog(`${nextPlayer.name} begins their turn.`, nextPlayer.id);
-      }
-    }
+      return {
+        ...newState,
+        gameLog: [...prev.gameLog, ...allMessages]
+      };
+    });
+
+    // All log messages are now added inside the setGameState callback above
+    // This ensures atomic updates and prevents message loss due to multiple renders
   }, [gameState, collectResourcesFromAdjacentCenters, areRoadsConnected, addToLog, addColoredLog, boardGraph, checkLongestRoadBonus, checkAndLogTradingPortAccess]);
   
   const getCurrentStep = useCallback(() => {
