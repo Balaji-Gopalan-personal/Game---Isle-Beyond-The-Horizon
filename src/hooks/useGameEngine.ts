@@ -572,6 +572,42 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     addToLog(coloredMessage);
   }, [gameState.players, getPlayerColorStyle, addToLog]);
 
+  // Load board graph and add diagnostics
+  const boardGraph = React.useMemo(() => {
+    console.log('Loading board data for game engine, board size:', boardSize);
+    const boardData = loadBoardForSize(boardSize);
+    const G = boardData.graph;
+    
+    // Store centers for resource collection
+    setBoardCenters(boardData.centers);
+    
+    // Diagnostics at load
+    console.info('GRAPH', {
+      vertices: Object.keys(G.vertices).length,
+      edges: Object.keys(G.edges).length,
+      centers: boardData.centers.length,
+      boardSize: boardSize
+    });
+
+    for (const [v, list] of Object.entries(G.edgesByVertex!)) {
+      if (list.length < 2 || list.length > 3) {
+        console.error('Bad degree at', v, 'edges', list);
+      }
+    }
+
+    for (const [id, e] of Object.entries(G.edges)) {
+      if (!G.vertices[e.v1] || !G.vertices[e.v2]) {
+        console.error('Edge with missing endpoint', id, e);
+      }
+    }
+    
+    // Store the complete board data for validators
+    (G as any).boardData = boardData;
+
+    return G;
+  }, [boardSize]);
+
+  // Check and log trading port access when a village is placed
   const checkAndLogTradingPortAccess = useCallback((playerId: string, vertexId: number, updatedGameState: GameState): Array<{message: string, playerId: string}> => {
     console.log('DEBUG TRADING PORT CHECK:', {
       playerId,
@@ -669,41 +705,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
     return messages;
   }, [boardSize, boardGraph]);
-  
-  // Load board graph and add diagnostics
-  const boardGraph = React.useMemo(() => {
-    console.log('Loading board data for game engine, board size:', boardSize);
-    const boardData = loadBoardForSize(boardSize);
-    const G = boardData.graph;
-    
-    // Store centers for resource collection
-    setBoardCenters(boardData.centers);
-    
-    // Diagnostics at load
-    console.info('GRAPH', {
-      vertices: Object.keys(G.vertices).length,
-      edges: Object.keys(G.edges).length,
-      centers: boardData.centers.length,
-      boardSize: boardSize
-    });
-
-    for (const [v, list] of Object.entries(G.edgesByVertex!)) {
-      if (list.length < 2 || list.length > 3) {
-        console.error('Bad degree at', v, 'edges', list);
-      }
-    }
-
-    for (const [id, e] of Object.entries(G.edges)) {
-      if (!G.vertices[e.v1] || !G.vertices[e.v2]) {
-        console.error('Edge with missing endpoint', id, e);
-      }
-    }
-    
-    // Store the complete board data for validators
-    (G as any).boardData = boardData;
-
-    return G;
-  }, [boardSize]);
 
   // Initialize robber position to desert centre when board centers are loaded
   useEffect(() => {
