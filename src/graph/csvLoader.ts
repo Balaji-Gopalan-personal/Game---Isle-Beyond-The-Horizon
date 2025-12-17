@@ -195,15 +195,8 @@ function parseCentersFromCSV(boardSize: BoardSize, vertices: BoardVertex[]): Cen
     throw new Error(`No center CSV data found for board size: ${boardSize}. Available: ${Object.keys(CENTER_CSV_DATA).join(', ')}`);
   }
   
-  console.log(`=== PARSING CENTERS FROM CSV FOR ${boardSize.toUpperCase()} ===`);
-  console.log(`CSV content length: ${centerCsvText.length}`);
-  console.log(`Using center CSV file: ${boardSize}_centres.csv`);
-  
   const lines = centerCsvText.trim().split('\n');
   const centers: Center[] = [];
-  
-  console.log(`CSV lines: ${lines.length}`);
-  console.log(`First few lines:`, lines.slice(0, 5));
   
   // Skip header lines (first line is TotalCentres, second is column headers)
   for (let i = 2; i < lines.length; i++) {
@@ -222,17 +215,13 @@ function parseCentersFromCSV(boardSize: BoardSize, vertices: BoardVertex[]): Cen
       parseInt(parts[2]), parseInt(parts[3]), parseInt(parts[4]),
       parseInt(parts[5]), parseInt(parts[6]), parseInt(parts[7])
     ];
-    
-    console.log(`Processing center ${centerId}: topVertex=${topVertex}, vertices=[${centerVertices.join(',')}]`);
-    
+
     // Calculate center position as average of all 6 vertices (columns 3-8)
     const centerPosition = calculateCenterPosition(centerVertices, vertices);
     if (!centerPosition) {
       console.warn(`Could not calculate position for center ${centerId} with vertices [${centerVertices.join(',')}]`);
       continue;
     }
-    
-    console.log(`Center ${centerId} positioned at (${centerPosition.x}, ${centerPosition.y}) as average of vertices [${centerVertices.join(',')}]`);
     
     centers.push({
       id: centerId,
@@ -243,10 +232,9 @@ function parseCentersFromCSV(boardSize: BoardSize, vertices: BoardVertex[]): Cen
       value: 0 // Will be assigned below
     });
   }
-  
-  console.log(`=== PARSED ${centers.length} CENTERS FROM CSV ===`);
-  centers.forEach(c => console.log(`Center ${c.id}: (${c.x}, ${c.y}) vertices=[${c.vertices.join(',')}]`));
-  
+
+  console.log(`Successfully parsed ${centers.length} centers from ${boardSize}_centres.csv`);
+
   // Assign resource types and values
   assignResourceTypesAndValues(centers);
   
@@ -455,19 +443,13 @@ export function loadBoardFromCSV(boardSize: BoardSize): { graph: BoardGraph; cen
     console.error(`Available CSV data:`, Object.keys(CSV_DATA));
     throw new Error(`No CSV data found for board size: ${boardSize}. Available: ${Object.keys(CSV_DATA).join(', ')}`);
   }
-  
-  console.log(`=== LOADING BOARD DATA FOR ${boardSize.toUpperCase()} ===`);
-  console.log(`Using board CSV file: ${boardSize}_board.csv`);
-  console.log(`CSV text length: ${csvText.length} characters`);
-  
+
   // Parse CSV and extract adjacency data
   const lines = csvText.trim().split('\n');
   const vertices: BoardVertex[] = [];
   const edges: Omit<BoardEdge, 'id'>[] = [];
   const adjacencyMap: Record<number, number[]> = {};
   const edgeSet = new Set<string>(); // To avoid duplicate edges
-  
-  console.log(`Processing ${lines.length - 1} CSV lines (excluding header)`);
   
   // Skip header line
   for (let i = 1; i < lines.length; i++) {
@@ -480,9 +462,7 @@ export function loadBoardFromCSV(boardSize: BoardSize): { graph: BoardGraph; cen
     
     // Store adjacency data using vertex number as key
     adjacencyMap[vertexId] = adjacentVertices;
-    
-    console.log(`CSV parsing: Vertex ${vertexId} -> Adjacent vertices: [${adjacentVertices.join(', ')}]`);
-    
+
     // Create vertex with placeholder coordinates
     const vertex: BoardVertex = {
       id: vertexId,
@@ -568,11 +548,9 @@ export function loadBoardFromCSV(boardSize: BoardSize): { graph: BoardGraph; cen
   
   // Use proper structure-based positioning
   calculateVertexPositionsFromStructure(vertices, boardSize);
-  
+
   // Parse centers from CSV instead of generating them
-  console.log(`=== PARSING CENTERS FROM ${boardSize.toUpperCase()}_CENTRES.CSV ===`);
   const centers = parseCentersFromCSV(boardSize, vertices);
-  console.log(`Successfully loaded ${centers.length} centers from ${boardSize}_centres.csv`);
   
   return {
     graph: buildGraph({ vertices, edges }),

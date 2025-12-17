@@ -9,17 +9,14 @@ let currentAdjacencyMap: Record<string, number[]> = {};
 function ensureBoardDataLoaded(boardSize: BoardSize) {
   if (currentBoardSize !== boardSize || Object.keys(currentAdjacencyMap).length === 0) {
     currentBoardSize = boardSize;
-    console.log(`DEBUG: Phase1 engine loading adjacency rules from ${boardSize}_board.csv`);
     const boardData = loadBoardForSize(boardSize);
-    
+
     if (!boardData.adjacencyMap || Object.keys(boardData.adjacencyMap).length === 0) {
-      throw new Error(`Failed to load adjacency map from ${boardSize}_board.csv`);
+      throw new Error(`Failed to load adjacency map for ${boardSize} board`);
     }
-    
+
     currentAdjacencyMap = boardData.adjacencyMap;
     initializeValidators(boardSize);
-    console.log(`DEBUG: Phase1 engine successfully loaded ${Object.keys(currentAdjacencyMap).length} vertices from ${boardSize}_board.csv`);
-    console.log(`DEBUG: Sample adjacency rules from ${boardSize}_board.csv:`, Object.entries(currentAdjacencyMap).slice(0, 3));
   }
 }
 
@@ -27,18 +24,15 @@ export function placeVillage_P1(state: any, playerId: string, v: number) {
   // Get board size from game state or fall back to current
   const boardSize = state.gameSettings?.boardSize || state.boardSize || currentBoardSize || 'standard';
   ensureBoardDataLoaded(boardSize);
-  
-  console.log(`DEBUG: placeVillage_P1 engine called - Player ${playerId} attempting to place village at vertex ${v} using ${boardSize.toUpperCase()}_board.csv rules`);
-  
+
   // Check if village already exists at this vertex (idempotency)
   if (state.verticesOccupiedBy[v]) {
     console.log(`DEBUG: Village already exists at vertex ${v}, owned by ${state.verticesOccupiedBy[v]}`);
     return;
   }
 
-  // VALIDATE: Follow "_board" CSV rules exactly
+  // VALIDATE: Follow board rules exactly
   const canPlace = canPlaceVillage(v, state.verticesOccupiedBy || {}, boardSize);
-  console.log(`DEBUG: Village placement validation for vertex ${v} using ${boardSize}_board.csv: ${canPlace}`);
   
   if (!canPlace) {
     const reason = whyNotVillage(v, state.verticesOccupiedBy || {}, boardSize);
@@ -57,21 +51,18 @@ export function placeRoad_P1_byEdgeId(state: any, playerId: string, edgeId: stri
   // Get board size from game state or fall back to current
   const boardSize = state.gameSettings?.boardSize || state.boardSize || currentBoardSize || 'standard';
   ensureBoardDataLoaded(boardSize);
-  
-  console.log(`DEBUG: placeRoad_P1_byEdgeId engine called - Player ${playerId} attempting to place road on edge ${edgeId} using ${boardSize.toUpperCase()}_board.csv rules`);
-  
+
   // Get the last placed village vertex
   const lastV = state.turnState.placementContext.lastVillageVertex!;
   if (!lastV) {
-    console.error('DEBUG: CRITICAL ERROR - No last village vertex found for road placement');
+    console.error('DEBUG: No last village vertex found for road placement');
     throw new Error('No last village vertex found');
   }
-  
+
   // Parse the attempted edge to get the two vertices
   const [v1Str, v2Str] = edgeId.split('__');
   const v1 = parseInt(v1Str);
   const v2 = parseInt(v2Str);
-  console.log(`DEBUG: Attempting to place road on edge ${edgeId} connecting vertices ${v1} and ${v2}`);
   
   // RULE CHECK: Edge must connect the village vertex to one of the vertices in column 2
   const villageVertex = lastV;
@@ -82,13 +73,11 @@ export function placeRoad_P1_byEdgeId(state: any, playerId: string, edgeId: stri
     throw new Error(`Road edge ${edgeId} must connect to the village at vertex ${villageVertex}`);
   }
   
-  // Check if the other vertex is listed in column 2 for the village vertex
+  // Check if the other vertex is allowed by adjacency rules
   const allowedVertices = currentAdjacencyMap[villageVertex] || [];
-  console.log(`DEBUG: Village at vertex ${villageVertex} can connect to these vertices from ${boardSize}_board.csv column 2: [${allowedVertices.join(', ')}]`);
-  
+
   if (!allowedVertices.includes(otherVertex)) {
-    console.error(`DEBUG: ILLEGAL ROAD - Vertex ${otherVertex} is not listed in column 2 for village vertex ${villageVertex} in ${boardSize}_board.csv`);
-    console.error(`DEBUG: Allowed vertices for village ${villageVertex}: [${allowedVertices.join(', ')}]`);
+    console.error(`DEBUG: ILLEGAL ROAD - Vertex ${otherVertex} not adjacent to village vertex ${villageVertex}`);
     throw new Error(`Road cannot connect vertex ${villageVertex} to vertex ${otherVertex}. Allowed connections: [${allowedVertices.join(', ')}]`);
   }
   
@@ -122,21 +111,15 @@ export function aiTakeTurn_P1(state: any) {
   // Get board size from game state - this is critical for AI decisions
   const boardSize = state.gameSettings?.boardSize || state.boardSize || currentBoardSize || 'standard';
   ensureBoardDataLoaded(boardSize);
-  
-  console.log(`DEBUG: AI TURN START - Using ${boardSize.toUpperCase()}_board.csv for all AI decisions`);
-  
+
   const me = state.players.find((p: any) => p.id === state.turnState.currentPlayerId && !p.isHuman);
   if (!me) {
     console.log('DEBUG: No AI player found for current turn or current player is human');
     return;
   }
 
-  console.log(`DEBUG: AI ${me.id} (${me.name}) taking turn in step ${state.turnState.step} using ${boardSize.toUpperCase()}_board.csv rules`);
-
   if (state.turnState.step === 'init_place_village') {
-    console.log(`DEBUG: AI ${me.id} placing village - checking vertices from column 1 of ${boardSize.toUpperCase()}_board.csv`);
-    
-    // RULE: Only vertices listed in column 1 of "_board" CSV are valid, and must follow placement rules
+    // Find valid village placement candidates
     const candidates: number[] = [];
     for (const vertexNum of Object.keys(currentAdjacencyMap)) {
       const vertexId = parseInt(vertexNum);
@@ -144,11 +127,9 @@ export function aiTakeTurn_P1(state: any) {
         candidates.push(vertexId);
       }
     }
-    
-    console.log(`DEBUG: AI ${me.id} found ${candidates.length} valid village candidates from ${boardSize.toUpperCase()}_board.csv: [${candidates.join(', ')}]`);
-    
+
     if (candidates.length === 0) {
-      console.error(`DEBUG: CRITICAL - No valid village candidates for AI ${me.id} in ${boardSize.toUpperCase()}_board.csv`);
+      console.error(`DEBUG: No valid village candidates for AI ${me.id}`);
       return;
     }
     
@@ -159,25 +140,17 @@ export function aiTakeTurn_P1(state: any) {
   }
 
   if (state.turnState.step === 'init_place_road') {
-    console.log(`DEBUG: AI ${me.id} placing road from village using ${boardSize.toUpperCase()}_board.csv adjacency rules`);
     const v = state.turnState.placementContext.lastVillageVertex!;
     if (!v) {
-      console.error(`DEBUG: CRITICAL - No last village vertex for AI ${me.id} road placement`);
+      console.error(`DEBUG: No last village vertex for AI ${me.id} road placement`);
       return;
     }
-    
-    // RULE: Roads can only connect to vertices listed in column 2 for the village vertex
-    const allowedVertices = currentAdjacencyMap[v] || [];
-    console.log(`DEBUG: AI ${me.id} village at vertex ${v} can connect to vertices from ${boardSize.toUpperCase()}_board.csv column 2: [${allowedVertices.join(', ')}]`);
-    
-    // Create edge options for each allowed vertex, but only if no road exists
+
+    // Find legal road edges from the village vertex
     const options = legalRoadEdgesFrom(v, state.edgesOccupiedBy || {}, boardSize);
-    console.log(`DEBUG: AI ${me.id} available road options from village vertex ${v}:`, options);
-    
+
     if (options.length === 0) {
-      console.error(`DEBUG: CRITICAL - No valid road options for AI ${me.id} from village vertex ${v}`);
-      console.error(`DEBUG: Allowed vertices from ${boardSize.toUpperCase()}_board.csv: [${allowedVertices.join(', ')}]`);
-      console.error(`DEBUG: All edges already occupied or no valid connections available`);
+      console.error(`DEBUG: No valid road options for AI ${me.id} from village vertex ${v}`);
       advanceTurnFromP1(state);
       return;
     }
