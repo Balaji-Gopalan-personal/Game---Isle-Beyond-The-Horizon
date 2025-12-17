@@ -1356,25 +1356,30 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     
     const player = gameState.players.find(p => p.id === playerId);
     const playerName = player?.name || playerId;
-    
-    // Check what changed and update accordingly
-    const villageAdded = Object.keys(mutableState.verticesOccupiedBy).find(v => 
-      mutableState.verticesOccupiedBy[v] === playerId && !gameState.verticesOccupiedBy[v]
-    );
-    
-    const roadAdded = Object.keys(mutableState.edgesOccupiedBy).find(e => 
+
+    // Check what changed using reliable placement context instead of state comparison
+    // If step changed from 'init_place_village' to 'init_place_road', a village was placed
+    const villagePlaced = initialStep === 'init_place_village' && mutableState.turnState.step === 'init_place_road';
+    const villageVertexId = villagePlaced ? mutableState.turnState.placementContext.lastVillageVertex : null;
+
+    const roadAdded = Object.keys(mutableState.edgesOccupiedBy).find(e =>
       mutableState.edgesOccupiedBy[e] === playerId && !gameState.edgesOccupiedBy[e]
     );
-    
-    console.log('DEBUG: AI changes detected:', { villageAdded, roadAdded });
-    
+
+    console.log('DEBUG: AI changes detected:', {
+      villagePlaced,
+      villageVertexId,
+      roadAdded,
+      initialStep,
+      newStep: mutableState.turnState.step
+    });
+
     // Initialize resource collection for AI
     let aiResourceCollection = { resources: {}, logMessage: '' };
 
     // Collect resources if AI placed a village in Phase 2
-    if (villageAdded && gameState.phase === 'setup-phase-2') {
-      const vertexId = parseInt(villageAdded);
-      aiResourceCollection = collectResourcesFromAdjacentCenters(vertexId, playerId);
+    if (villagePlaced && villageVertexId !== null && gameState.phase === 'setup-phase-2') {
+      aiResourceCollection = collectResourcesFromAdjacentCenters(villageVertexId, playerId);
     }
 
     // Variable to capture trading port messages for AI (declared outside setGameState)
@@ -1385,7 +1390,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       tradingPortsExist: !!gameState.tradingPorts,
       tradingPortsCount: gameState.tradingPorts?.length || 0,
       tradingPortsEnabled: gameState.gameSettings?.tradingPortsEnabled,
-      villageAdded,
+      villagePlaced,
+      villageVertexId,
       playerId,
       playerName
     });
@@ -1457,10 +1463,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         turnState: mutableState.turnState,
         currentPlayer: mutableState.turnState.currentPlayerId,
         turn: mutableState.turnState.currentPlayerId !== initialPlayerId ? prev.turn + 1 : prev.turn,
-        villages: villageAdded ? [...prev.villages, {
-          id: `village-${villageAdded}`,
+        villages: villagePlaced && villageVertexId !== null ? [...prev.villages, {
+          id: `village-${villageVertexId}`,
           playerId,
-          vertexId: parseInt(villageAdded),
+          vertexId: villageVertexId,
           type: 'settlement'
         }] : prev.villages,
       roads: roadAdded ? (() => {
@@ -1492,16 +1498,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       ]) : prev.longestRoadLengths,
       players: prev.players.map(p => {
         if (p.id === playerId) {
-          const villageScore = villageAdded ? 1 : 0;
+          const villageScore = villagePlaced ? 1 : 0;
           const longestRoadScore = aiLongestRoadUpdate?.shouldAward ? aiLongestRoadUpdate.bonus : 0;
           return {
             ...p,
-            villageCount: villageAdded ? p.villageCount + 1 : p.villageCount,
+            villageCount: villagePlaced ? p.villageCount + 1 : p.villageCount,
             roadCount: roadAdded ? p.roadCount + 1 : p.roadCount,
             score: p.score + villageScore + longestRoadScore,
             hasLongestRoad: aiLongestRoadUpdate?.shouldAward ? true : p.hasLongestRoad,
             isActive: mutableState.turnState.currentPlayerId === playerId,
-            resources: villageAdded && gameState.phase === 'setup-phase-2' ? {
+            resources: villagePlaced && gameState.phase === 'setup-phase-2' ? {
               clay: p.resources.clay + (aiResourceCollection.resources.clay || 0),
               lumber: p.resources.lumber + (aiResourceCollection.resources.lumber || 0),
               grain: p.resources.grain + (aiResourceCollection.resources.grain || 0),
@@ -1530,18 +1536,18 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         villagesCount: newState.villages?.length || 0,
         hasTradingPortsProperty: 'tradingPorts' in newState,
         tradingPortsCount: newState.tradingPorts?.length || 0,
-        villageAdded
+        villagePlaced,
+        villageVertexId
       });
 
       // Check for trading port access if AI placed a village and capture messages
-      if (villageAdded) {
-        const vertexId = parseInt(villageAdded);
+      if (villagePlaced && villageVertexId !== null) {
         console.log('DEBUG [AI Trading Port]: About to call checkAndLogTradingPortAccess', {
           playerId,
-          vertexId,
+          vertexId: villageVertexId,
           tradingPortsInNewState: newState.tradingPorts?.length || 0
         });
-        aiTradingPortMessages = checkAndLogTradingPortAccess(playerId, vertexId, newState);
+        aiTradingPortMessages = checkAndLogTradingPortAccess(playerId, villageVertexId, newState);
         console.log('DEBUG [AI Trading Port]: Returned messages', {
           messagesCount: aiTradingPortMessages.length,
           messages: aiTradingPortMessages
@@ -1552,12 +1558,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     });
     
     // Add appropriate log messages
-    if (villageAdded) {
-      const vertexNum = parseInt(villageAdded);
+    if (villagePlaced && villageVertexId !== null) {
       if (gameState.phase === 'setup-phase-1') {
-        addColoredLog(`${playerName} placed a village at vertex ${vertexNum} and earned 1 point.`, playerId);
+        addColoredLog(`${playerName} placed a village at vertex ${villageVertexId} and earned 1 point.`, playerId);
       } else if (gameState.phase === 'setup-phase-2') {
-        addColoredLog(`${playerName} placed a village at vertex ${vertexNum} and earned 1 point.`, playerId);
+        addColoredLog(`${playerName} placed a village at vertex ${villageVertexId} and earned 1 point.`, playerId);
         if (aiResourceCollection.logMessage) {
           setGameState(prev => ({
             ...prev,
