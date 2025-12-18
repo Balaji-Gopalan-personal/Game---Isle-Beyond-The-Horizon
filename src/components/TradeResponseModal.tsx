@@ -150,8 +150,26 @@ export const TradeResponseModal: React.FC<TradeResponseModalProps> = ({
             <div className="text-lg font-semibold text-gray-800 mb-2">
               Waiting for responses...
             </div>
-            <div className="text-sm text-gray-600">
-              Players are considering your trade proposal
+            {tradeProposal.respondingPlayerOrder && tradeProposal.currentRespondingPlayerIndex < tradeProposal.respondingPlayerOrder.length && (
+              <div className="text-sm text-gray-600 mb-2">
+                {(() => {
+                  const currentResponderId = tradeProposal.respondingPlayerOrder[tradeProposal.currentRespondingPlayerIndex];
+                  const currentResponder = players.find(p => p.id === currentResponderId);
+                  return currentResponder ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: getPlayerColorStyle(currentResponder.color) }}
+                      />
+                      <span className="font-semibold">{currentResponder.name}</span>
+                      <span>is considering...</span>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+            )}
+            <div className="text-xs text-gray-500">
+              ({tradeProposal.currentRespondingPlayerIndex + 1} of {tradeProposal.respondingPlayerOrder?.length || tradeProposal.respondingPlayers.length} players)
             </div>
           </div>
         )}

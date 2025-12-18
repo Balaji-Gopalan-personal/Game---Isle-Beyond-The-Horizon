@@ -83,6 +83,8 @@ export interface TradeProposal {
   respondingPlayers: string[];
   responses: Record<string, 'accepted' | 'rejected' | 'pending'>;
   proposerIsAI?: boolean;
+  currentRespondingPlayerIndex: number;
+  respondingPlayerOrder: string[];
 }
 
 export interface TurnState {

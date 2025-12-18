@@ -102,6 +102,9 @@ export const HumanTradeAcceptModal: React.FC<HumanTradeAcceptModalProps> = ({
             </span>
             <span className="text-xs text-gray-600">wants to trade with you</span>
           </div>
+          <div className="text-xs text-blue-700 font-semibold">
+            Your turn to respond ({tradeProposal.currentRespondingPlayerIndex + 1} of {tradeProposal.respondingPlayerOrder.length})
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-4">
