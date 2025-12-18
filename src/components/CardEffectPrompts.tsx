@@ -12,6 +12,7 @@ interface OpponentSelectorProps {
   showResourceCount?: boolean;
   title?: string;
   compact?: boolean;
+  hideDetailedResources?: boolean;
 }
 
 export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
@@ -20,7 +21,8 @@ export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
   onSelectPlayer,
   showResourceCount = true,
   title,
-  compact = false
+  compact = false,
+  hideDetailedResources = false
 }) => {
   const getPlayerInitials = (name: string): string => {
     return name
@@ -47,7 +49,7 @@ export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
               className={`relative flex flex-col items-center transition-all duration-200 ${
                 selectedPlayerId === player.id ? 'opacity-100' : 'opacity-70 hover:opacity-90'
               }`}
-              title={showResourceCount ? `${player.name}: ${player.resources.clay}C ${player.resources.lumber}L ${player.resources.grain}G ${player.resources.fabric}F ${player.resources.mineral}M (${player.resources.total} total)` : player.name}
+              title={showResourceCount ? (hideDetailedResources ? `${player.name}: ${player.resources.total} total` : `${player.name}: ${player.resources.clay}C ${player.resources.lumber}L ${player.resources.grain}G ${player.resources.fabric}F ${player.resources.mineral}M (${player.resources.total} total)`) : player.name}
             >
               <div className={`relative w-6 h-10 rounded-full overflow-hidden ${selectedPlayerId === player.id ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}>
                 {player.isHuman ? (
@@ -103,7 +105,7 @@ export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
             className={`relative flex flex-col items-center transition-all duration-200 ${
               selectedPlayerId === player.id ? 'opacity-100' : 'opacity-70 hover:opacity-90'
             }`}
-            title={showResourceCount ? `${player.name}: ${player.resources.clay}C ${player.resources.lumber}L ${player.resources.grain}G ${player.resources.fabric}F ${player.resources.mineral}M (${player.resources.total} total)` : player.name}
+            title={showResourceCount ? (hideDetailedResources ? `${player.name}: ${player.resources.total} total` : `${player.name}: ${player.resources.clay}C ${player.resources.lumber}L ${player.resources.grain}G ${player.resources.fabric}F ${player.resources.mineral}M (${player.resources.total} total)`) : player.name}
           >
             <div className={`relative w-11 h-11 rounded ${selectedPlayerId === player.id ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}>
               {player.isHuman ? (
@@ -308,15 +310,8 @@ export const ResourceSwapPrompt: React.FC<ResourceSwapPromptProps> = ({
         onSelectPlayer={onSelectPlayer}
         showResourceCount={true}
         compact={true}
+        hideDetailedResources={true}
       />
-
-      {selectedPlayer && (
-        <div className="p-1 bg-blue-50 border border-blue-200 rounded mt-1">
-          <div className="text-[9px] text-blue-800 text-center">
-            You get: <span className="font-semibold">{selectedPlayer.resources.clay}C {selectedPlayer.resources.lumber}L {selectedPlayer.resources.grain}G {selectedPlayer.resources.fabric}F {selectedPlayer.resources.mineral}M</span>
-          </div>
-        </div>
-      )}
 
       <div className="flex gap-1.5 pt-1">
         {selectedPlayerId && onConfirm && (
