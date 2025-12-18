@@ -21,7 +21,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { Gamepad2 } from 'lucide-react';
 import { BoardSize } from './data/boardConfigs';
 import { AICharacter } from './data/aiCharacters';
-import { loadBoardForSize } from './graph/loadBoard';
+import { loadBoardForSize, loadBoardGraph } from './graph/loadBoard';
 import { getAllPlayerStats } from './utils/victoryDetection';
 import { useAssets } from './contexts/AssetsContext';
 import { preloadCharacterAssets, preloadGameAssets } from './assets/assetLoader';
@@ -755,6 +755,45 @@ function App() {
         const isInPlayPhase = gameState.turnState.step === 'play_dev_cards' &&
                              gameState.currentPlayer === humanPlayer.id;
 
+        // Calculate validation flags for development cards
+        const otherPlayersHaveResources = gameState.players
+          .filter(p => p.id !== humanPlayer.id)
+          .some(p => p.resources.total > 0);
+
+        const hasVillagesToUpgrade = gameState.villages.some(
+          v => v.playerId === humanPlayer.id && v.type === 'settlement'
+        );
+
+        // Check if player has valid road placements
+        const playerRoads = gameState.roads.filter(r => r.playerId === humanPlayer.id);
+        const playerVillages = gameState.villages.filter(v => v.playerId === humanPlayer.id);
+        const playerVertices = new Set<number>();
+        playerRoads.forEach(r => {
+          playerVertices.add(r.from);
+          playerVertices.add(r.to);
+        });
+        playerVillages.forEach(v => playerVertices.add(v.vertexId));
+
+        let hasValidRoadPlacement = false;
+        for (const vertexId of playerVertices) {
+          const G = loadBoardGraph(boardSize);
+          const neighbors = G.vertices.find(v => v.id === vertexId)?.neighbors || [];
+
+          for (const neighborId of neighbors) {
+            const edgeExists = gameState.roads.some(
+              r => (r.from === vertexId && r.to === neighborId) ||
+                   (r.from === neighborId && r.to === vertexId)
+            );
+            if (!edgeExists) {
+              hasValidRoadPlacement = true;
+              break;
+            }
+          }
+          if (hasValidRoadPlacement) break;
+        }
+
+        const expertNegotiatorPlayedThisTurn = gameState.turnState.expertNegotiatorActive || false;
+
         return (
           <DevCardHandModal
             cards={humanPlayer.developmentCardsInHand}
@@ -764,6 +803,10 @@ function App() {
             isPlayPhase={isInPlayPhase}
             currentTurn={humanPlayer.currentTurn}
             guardsPlayedThisTurn={humanPlayer.guardsPlayedThisTurn}
+            hasValidRoadPlacement={hasValidRoadPlacement}
+            otherPlayersHaveResources={otherPlayersHaveResources}
+            hasVillagesToUpgrade={hasVillagesToUpgrade}
+            expertNegotiatorPlayedThisTurn={expertNegotiatorPlayedThisTurn}
           />
         );
       })()}

@@ -2941,8 +2941,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     addToLog(message);
 
     transfers.forEach(transfer => {
-      const detailMessage = `${transfer.from} gave up ${transfer.amount} ${resourceType}`;
-      setTimeout(() => addToLog(detailMessage), 100);
+      const transferPlayer = gameState.players.find(p => p.name === transfer.from);
+      if (transferPlayer) {
+        const transferPlayerColor = getPlayerColorStyle(transferPlayer.color);
+        const detailMessage = `<span style="color: ${transferPlayerColor}; font-weight: bold;">${transfer.from}</span> gave up ${transfer.amount} ${resourceType}`;
+        setTimeout(() => addToLog(detailMessage), 100);
+      }
     });
   }, [gameState, addToLog, getPlayerColorStyle]);
 

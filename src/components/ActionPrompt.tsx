@@ -883,15 +883,26 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
           )}
 
           {!canPlayerAct && currentPlayer && !currentPlayer.isHuman && (
-            <div className="flex flex-col space-y-1">
-              <div
-                className="text-sm font-medium"
-                style={{ color: getPlayerColorStyle(currentPlayer.color) }}
-              >
-                P{currentPlayer.order} {currentPlayer.name}
-              </div>
-              <div className="text-xs text-gray-600">
-                - {gameState.phase === 'setup-phase-1' ? 'Setup Phase 1' : 'Setup Phase 2'}
+            <div className="flex flex-col items-center space-y-2">
+              <div className="flex items-center gap-2">
+                {currentPlayer.character && (
+                  <CharacterAvatar
+                    character={currentPlayer.character}
+                    color={currentPlayer.color}
+                    size="sm"
+                  />
+                )}
+                <div className="flex flex-col">
+                  <div
+                    className="text-sm font-semibold"
+                    style={{ color: getPlayerColorStyle(currentPlayer.color) }}
+                  >
+                    P{currentPlayer.order} - {currentPlayer.name}
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    {gameState.phase === 'setup-phase-1' ? 'Setup Phase 1' : 'Setup Phase 2'}
+                  </div>
+                </div>
               </div>
             </div>
           )}

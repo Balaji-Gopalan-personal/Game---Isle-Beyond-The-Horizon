@@ -11,6 +11,10 @@ interface DevCardHandModalProps {
   isPlayPhase?: boolean;
   currentTurn?: number;
   guardsPlayedThisTurn?: number;
+  hasValidRoadPlacement?: boolean;
+  otherPlayersHaveResources?: boolean;
+  hasVillagesToUpgrade?: boolean;
+  expertNegotiatorPlayedThisTurn?: boolean;
 }
 
 interface CardCount {
@@ -25,7 +29,11 @@ export const DevCardHandModal: React.FC<DevCardHandModalProps> = ({
   onPlayCard,
   isPlayPhase = false,
   currentTurn = 0,
-  guardsPlayedThisTurn = 0
+  guardsPlayedThisTurn = 0,
+  hasValidRoadPlacement = true,
+  otherPlayersHaveResources = true,
+  hasVillagesToUpgrade = true,
+  expertNegotiatorPlayedThisTurn = false
 }) => {
   const [selectedCard, setSelectedCard] = useState<DevelopmentCard | null>(null);
 
@@ -48,8 +56,31 @@ export const DevCardHandModal: React.FC<DevCardHandModalProps> = ({
       return { canPlay: false, reason: 'Only one Guard per turn' };
     }
 
-    // For Free Upgrade, would need to check if player has settlements (handled in game logic)
-    // For now, allow it if it passes the above checks
+    // Road Construction requires valid road placement
+    if (card.name === 'Road Construction' && !hasValidRoadPlacement) {
+      return { canPlay: false, reason: 'No valid road placement locations' };
+    }
+
+    // Closed Market requires other players to have resources
+    if (card.name === 'Closed Market' && !otherPlayersHaveResources) {
+      return { canPlay: false, reason: 'All other players have 0 resources' };
+    }
+
+    // Resource Swap requires other players to have resources
+    if (card.name === 'Resource Swap' && !otherPlayersHaveResources) {
+      return { canPlay: false, reason: 'All other players have 0 resources' };
+    }
+
+    // Free Upgrade requires player to have villages
+    if (card.name === 'Free Upgrade' && !hasVillagesToUpgrade) {
+      return { canPlay: false, reason: 'No villages to upgrade' };
+    }
+
+    // Expert Negotiator can only be played once per turn
+    if (card.name === 'Expert Negotiator' && expertNegotiatorPlayedThisTurn) {
+      return { canPlay: false, reason: 'Only one Expert Negotiator per turn' };
+    }
+
     return { canPlay: true };
   };
 
