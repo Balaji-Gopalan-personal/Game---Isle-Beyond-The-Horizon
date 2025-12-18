@@ -693,7 +693,7 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
                 </button>
               </div>
               
-              <div className="grid grid-cols-3 gap-2 max-h-96 overflow-y-auto">
+              <div className="grid grid-cols-4 gap-1.5 max-h-96 overflow-y-auto">
                 {playerOrder.map((orderPosition, index) => {
                   const isHuman = orderPosition === 1;
                   const aiIndex = orderPosition - 2;
@@ -701,28 +701,28 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
                   const aiColor = isHuman ? null : aiColors[aiIndex];
                   const playerColorObj = availableColors.find(c => c.value === playerColor);
                   const aiColorObj = aiColor ? availableColors.find(c => c.value === aiColor) : null;
-                  
+
                   return orderPosition <= aiPlayerCount + 1 ? (
-                    <div key={orderPosition} className="bg-gray-50 p-2 rounded border text-center">
+                    <div key={orderPosition} className="bg-gray-50 p-1.5 rounded border text-center">
                       {isHuman ? (
                         <div>
-                          <div 
-                            className="text-xs font-semibold mb-1"
+                          <div
+                            className="text-[10px] font-semibold mb-0.5"
                             style={{ color: playerColorObj?.color }}
                           >
                             P{index + 1} {playerName || 'Player'}
                           </div>
-                          <div className="text-xs text-gray-600">Human</div>
+                          <div className="text-[9px] text-gray-600">Human</div>
                         </div>
                       ) : (
                         <div>
                           <div
-                            className="text-xs font-semibold mb-1"
+                            className="text-[10px] font-semibold mb-0.5"
                             style={{ color: aiColorObj?.color }}
                           >
                             P{index + 1} {aiCharacter?.name}
                           </div>
-                          <div className="text-[10px] text-gray-500 mb-1 line-clamp-1">
+                          <div className="text-[8px] text-gray-500 mb-0.5 line-clamp-1">
                             {aiCharacter?.cartoon}
                           </div>
                           <CharacterAvatar

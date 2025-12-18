@@ -450,8 +450,8 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
           )}
 
           {gameState.turnState.step === 'move_robber' && canPlayerAct && eligibleStealTargets.length > 0 && (
-            <div className="space-y-1">
-              <div className="text-sm font-medium text-gray-700 text-center">
+            <div className="space-y-0.5">
+              <div className="text-xs font-medium text-gray-700 text-center mb-0.5">
                 Steal from a Player
               </div>
 
@@ -460,7 +460,6 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
                 selectedPlayerId={selectedStealTarget}
                 onSelectPlayer={(playerId) => onSelectStealTarget?.(playerId)}
                 showResourceCount={true}
-                title="Select opponent to steal from"
               />
 
               {selectedStealTarget && (

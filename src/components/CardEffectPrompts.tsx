@@ -33,7 +33,7 @@ export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
 
   if (compact) {
     return (
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         {title && (
           <div className="text-xs text-gray-600 text-center">
             {title}
@@ -49,7 +49,7 @@ export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
               }`}
               title={showResourceCount ? `${player.name}: ${player.resources.clay}C ${player.resources.lumber}L ${player.resources.grain}G ${player.resources.fabric}F ${player.resources.mineral}M (${player.resources.total} total)` : player.name}
             >
-              <div className={`relative w-6 h-11 rounded-full overflow-hidden ${selectedPlayerId === player.id ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}>
+              <div className={`relative w-6 h-10 rounded-full overflow-hidden ${selectedPlayerId === player.id ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}>
                 {player.isHuman ? (
                   <div
                     className="w-full h-full flex items-center justify-center text-white font-bold text-[9px]"
@@ -64,11 +64,11 @@ export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
                         character={player.character}
                         color={player.color}
                         size="lg"
-                        className="w-9 h-9 scale-125"
+                        className="w-8 h-8 scale-125"
                       />
                     </div>
                     <div
-                      className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full flex items-center justify-center text-white font-bold text-[6px] border border-white"
+                      className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full flex items-center justify-center text-white font-bold text-[6px] border border-white"
                       style={{ backgroundColor: getPlayerColorHex(player.color) }}
                     >
                       P{player.order}
@@ -295,16 +295,10 @@ export const ResourceSwapPrompt: React.FC<ResourceSwapPromptProps> = ({
   const currentPlayer = players.find(p => p.id === currentPlayerId);
 
   return (
-    <div className="space-y-1.5">
-      <div className="text-sm font-medium text-gray-700 text-center">
-        Resource Swap
-      </div>
-
+    <div className="space-y-0.5">
       {currentPlayer && (
-        <div className="bg-gray-50 rounded p-1 border border-gray-200">
-          <div className="text-[9px] text-gray-600 text-center">
-            Your Hold: <span className="font-semibold">{currentPlayer.resources.clay}C {currentPlayer.resources.lumber}L {currentPlayer.resources.grain}G {currentPlayer.resources.fabric}F {currentPlayer.resources.mineral}M</span>
-          </div>
+        <div className="text-[10px] text-gray-700 text-center mb-1">
+          You have <span className="font-bold">{currentPlayer.resources.total}</span> resources. Select Resource Swap target
         </div>
       )}
 
@@ -313,19 +307,18 @@ export const ResourceSwapPrompt: React.FC<ResourceSwapPromptProps> = ({
         selectedPlayerId={selectedPlayerId}
         onSelectPlayer={onSelectPlayer}
         showResourceCount={true}
-        title="Select player to swap resources with"
         compact={true}
       />
 
       {selectedPlayer && (
-        <div className="p-1 bg-blue-50 border border-blue-200 rounded">
+        <div className="p-1 bg-blue-50 border border-blue-200 rounded mt-1">
           <div className="text-[9px] text-blue-800 text-center">
             You get: <span className="font-semibold">{selectedPlayer.resources.clay}C {selectedPlayer.resources.lumber}L {selectedPlayer.resources.grain}G {selectedPlayer.resources.fabric}F {selectedPlayer.resources.mineral}M</span>
           </div>
         </div>
       )}
 
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5 pt-1">
         {selectedPlayerId && onConfirm && (
           <button
             onClick={onConfirm}
