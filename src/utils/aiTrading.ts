@@ -168,8 +168,8 @@ export function generatePlayerTradeProposal(
       continue;
     }
 
-    const offerAmount = Math.min(2, player.resources[offeringResource] - 1);
-    if (offerAmount > 0) {
+    const offerAmount = 1;
+    if (player.resources[offeringResource] > 1) {
       const offeredResources = {
         clay: 0,
         lumber: 0,
