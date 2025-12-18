@@ -775,21 +775,23 @@ function App() {
         playerVillages.forEach(v => playerVertices.add(v.vertexId));
 
         let hasValidRoadPlacement = false;
-        for (const vertexId of playerVertices) {
-          const G = loadBoardGraph(boardSize);
-          const neighbors = G.vertices.find(v => v.id === vertexId)?.neighbors || [];
+        if (gameConfig) {
+          for (const vertexId of playerVertices) {
+            const G = loadBoardGraph(gameConfig.selectedBoardSize);
+            const neighbors = G.vertices.find(v => v.id === vertexId)?.neighbors || [];
 
-          for (const neighborId of neighbors) {
-            const edgeExists = gameState.roads.some(
-              r => (r.from === vertexId && r.to === neighborId) ||
-                   (r.from === neighborId && r.to === vertexId)
-            );
-            if (!edgeExists) {
-              hasValidRoadPlacement = true;
-              break;
+            for (const neighborId of neighbors) {
+              const edgeExists = gameState.roads.some(
+                r => (r.from === vertexId && r.to === neighborId) ||
+                     (r.from === neighborId && r.to === vertexId)
+              );
+              if (!edgeExists) {
+                hasValidRoadPlacement = true;
+                break;
+              }
             }
+            if (hasValidRoadPlacement) break;
           }
-          if (hasValidRoadPlacement) break;
         }
 
         const expertNegotiatorPlayedThisTurn = gameState.turnState.expertNegotiatorActive || false;
