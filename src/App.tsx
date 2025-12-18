@@ -12,6 +12,7 @@ import { DiscardModal } from './components/DiscardModal';
 import { DevelopmentCardsModal } from './components/DevelopmentCardsModal';
 import { CardDrawnModal } from './components/CardDrawnModal';
 import { DevCardHandModal } from './components/DevCardHandModal';
+import { CardValidationErrorModal } from './components/CardValidationErrorModal';
 import { VictoryModal } from './components/VictoryModal';
 import { TradingModal } from './components/TradingModal';
 import { TradeResponseModal } from './components/TradeResponseModal';
@@ -116,7 +117,9 @@ function App() {
     drawnCardForModal,
     setDrawnCardForModal,
     playedCardForModal,
-    setPlayedCardForModal
+    setPlayedCardForModal,
+    cardValidationError,
+    clearCardValidationError
   } = gameEngine;
 
   const handleStartWithConfig = async (
@@ -763,6 +766,13 @@ function App() {
           />
         );
       })()}
+
+      {/* Card Validation Error Modal */}
+      <CardValidationErrorModal
+        isVisible={!!cardValidationError}
+        errorMessage={cardValidationError || ''}
+        onClose={clearCardValidationError}
+      />
 
       {/* Victory Modal */}
       {gameState.phase === 'ended' && !isVictoryModalMinimized && (() => {

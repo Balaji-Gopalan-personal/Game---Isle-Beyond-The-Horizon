@@ -137,6 +137,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     playerNumber: number;
     playerColor: string;
   } | null>(null);
+  const [cardValidationError, setCardValidationError] = useState<string | null>(null);
 
   // Helper function to add log messages
   const addToLog = useCallback((message: string) => {
@@ -814,23 +815,75 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
   }, [gameState.phase, gameState.currentPlayer, gameState.players, gameState.turnState.step, gameState.turnState.currentPlayerId, diceRoll, isRollingDice, waitingForConfirmation, rollDice]);
 
+  // Comprehensive validation function for development cards
+  const validateDevCardPlay = useCallback((card: DevelopmentCard, currentPlayer: Player): string | null => {
+    // 1. Extra Point cannot be played manually
+    if (card.name === 'Extra Point') {
+      return 'Extra Point cards are automatic and cannot be played manually.';
+    }
+
+    // 2. Cannot play cards drawn this turn
+    if (card.turnDrawn === currentPlayer.currentTurn) {
+      return 'Cannot play a card drawn this turn.';
+    }
+
+    // 3. Guard - only one per turn
+    if (card.name === 'Guard' && currentPlayer.guardsPlayedThisTurn > 0) {
+      return 'You can only play one Guard card per turn.';
+    }
+
+    // 4. Expert Negotiator - only one per turn
+    if (card.name === 'Expert Negotiator' && gameState.turnState.expertNegotiatorActive) {
+      return 'You have already played Expert Negotiator this turn.';
+    }
+
+    // 5. Road Construction - need at least 2 valid road placement locations
+    if (card.name === 'Road Construction') {
+      const validRoadPlacements = getValidRoadPlacements(
+        gameState.boardGraph,
+        gameState.edgesOccupiedBy,
+        gameState.verticesOccupiedBy,
+        currentPlayer.id
+      );
+      if (validRoadPlacements.length < 1) {
+        return 'You need at least one valid road placement location to play Road Construction.';
+      }
+    }
+
+    // 6. Resource Swap - at least one opponent must have resources
+    if (card.name === 'Resource Swap') {
+      const opponents = gameState.players.filter(p => p.id !== currentPlayer.id);
+      const hasOpponentWithResources = opponents.some(opp =>
+        opp.resources.clay > 0 || opp.resources.lumber > 0 ||
+        opp.resources.grain > 0 || opp.resources.fabric > 0 ||
+        opp.resources.mineral > 0
+      );
+      if (!hasOpponentWithResources) {
+        return 'No opponents have any resources to swap with.';
+      }
+    }
+
+    // 7. Free Upgrade - player must have at least one village
+    if (card.name === 'Free Upgrade') {
+      const playerVillages = gameState.villages.filter(
+        v => v.playerId === currentPlayer.id && v.type === 'settlement'
+      );
+      if (playerVillages.length === 0) {
+        return 'You must have at least one Village to play Free Upgrade.';
+      }
+    }
+
+    return null; // Card is valid to play
+  }, [gameState, getValidRoadPlacements]);
+
   // Helper: Get playable dev cards for a player
   const getPlayableDevCards = useCallback((player: Player) => {
     return player.developmentCardsInHand.filter(card => {
-      // Extra Point is automatic
-      if (card.name === 'Extra Point') return false;
-      // Can't play cards drawn this turn
-      if (card.turnDrawn === player.currentTurn) return false;
-      // Guard limit per turn
-      if (card.name === 'Guard' && player.guardsPlayedThisTurn > 0) return false;
-      // Free Upgrade needs a village
-      if (card.name === 'Free Upgrade') {
-        const playerVillages = gameState.villages.filter(v => v.playerId === player.id && v.type === 'settlement');
-        if (playerVillages.length === 0) return false;
-      }
-      return true;
+      // Use comprehensive validation function
+      const validationError = validateDevCardPlay(card, player);
+      return validationError === null;
     });
-  }, [gameState.villages]);
+  }, [validateDevCardPlay]);
 
   // Helper: AI decides whether to play a dev card (random)
   const aiDecidePlayDevCard = useCallback((player: Player): DevelopmentCard | null => {
@@ -2438,12 +2491,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       return;
     }
 
-    // Validate card can be played
-    if (card.name === 'Extra Point') {
-      addToLog('Extra Point cards are automatic and cannot be played manually');
+    // Validate card can be played using comprehensive validation
+    const validationError = validateDevCardPlay(card, currentPlayer);
+    if (validationError) {
+      console.log('DEBUG: Card validation failed:', validationError);
+      setCardValidationError(validationError);
       return;
     }
 
+    // Handle Expert Negotiator
     if (card.name === 'Expert Negotiator') {
       const playerColor = getPlayerColorStyle(currentPlayer.color);
       const playMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> played Expert Negotiator - 2:1 trading available this turn!`;
@@ -2475,26 +2531,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         playerColor: currentPlayer.color
       });
       return;
-    }
-
-    if (card.turnDrawn === currentPlayer.currentTurn) {
-      addToLog('Cannot play a card drawn this turn');
-      return;
-    }
-
-    // Check if trying to play a Guard when one has already been played this turn
-    // This check is now shown on the card itself in DevCardHandModal
-    if (card.name === 'Guard' && currentPlayer.guardsPlayedThisTurn > 0) {
-      return;
-    }
-
-    // For Free Upgrade, check if player has any villages
-    if (card.name === 'Free Upgrade') {
-      const playerVillages = gameState.villages.filter(v => v.playerId === currentPlayer.id && v.type === 'settlement');
-      if (playerVillages.length === 0) {
-        addToLog('You must have at least one Village to play Free Upgrade');
-        return;
-      }
     }
 
     // For Guard card, handle immediately with card removal
@@ -4486,6 +4522,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     setDrawnCardForModal,
     playedCardForModal,
     setPlayedCardForModal,
+    cardValidationError,
+    clearCardValidationError: () => setCardValidationError(null),
     handleExecuteBankTrade,
     handleProposePlayerTrade
   };
