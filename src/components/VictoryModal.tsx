@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Minimize2, Home, Route, Shield, Star, Building2 } from 'lucide-react';
+import { Trophy, Minimize2, Home, Route, Shield, Star } from 'lucide-react';
 import { PlayerVictoryStats } from '../utils/victoryDetection';
 import { CharacterAvatar } from './CharacterAvatar';
 import { useAssets } from '../contexts/AssetsContext';
@@ -203,13 +203,13 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
 
                   <div className="flex items-center justify-start gap-6 text-sm flex-wrap">
                     <div className="flex items-center gap-1.5">
-                      <Home className="w-4 h-4 text-blue-600" />
+                      <span className="text-blue-600 text-lg">⌂</span>
                       <span className="text-gray-600">Villages:</span>
                       <span className="font-semibold text-gray-800">{player.villageCount}</span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <Building2 className="w-4 h-4 text-purple-600" />
+                      <span className="text-purple-600 text-lg">⛫</span>
                       <span className="text-gray-600">Estates (x2):</span>
                       <span className="font-semibold text-gray-800">{player.cityCount}</span>
                     </div>
