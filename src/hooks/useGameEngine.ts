@@ -14,7 +14,7 @@ import { checkVictoryCondition } from '../utils/victoryDetection';
 import { generateTradingPorts } from '../utils/tradingPortUtils';
 import { getPlayerTradingPorts, canExecuteBankTrade, canProposePlayerTrade, getTradeRateDisplay, getBestTradeRateForResource } from '../utils/tradingUtils';
 import { getPlayerColorHex } from '../utils/playerColors';
-import { shouldAttemptBankTrade, selectBankTradeResources, shouldAttemptPlayerTrade, generatePlayerTradeProposal } from '../utils/aiTrading';
+import { shouldAttemptBankTrade, selectBankTradeResources, shouldAttemptPlayerTrade, generatePlayerTradeProposal, getTradeProposalKey } from '../utils/aiTrading';
 
 const DEFAULT_GAME_SETTINGS: GameSettings = {
   pointsToWin: 10,
@@ -4600,7 +4600,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             }
 
             if (currentProposal.proposerIsAI) {
-              const { getTradeProposalKey } = require('../utils/aiTrading');
               const proposalKey = getTradeProposalKey(currentProposal.offeredResources, currentProposal.requestedResources);
               const failedProposals = prev.turnState.aiFailedTradeProposalsThisTurn || new Set<string>();
               failedProposals.add(proposalKey);
@@ -4736,7 +4735,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
 
         if (currentProposal.proposerIsAI) {
-          const { getTradeProposalKey } = require('../utils/aiTrading');
           const proposalKey = getTradeProposalKey(currentProposal.offeredResources, currentProposal.requestedResources);
           const failedProposals = prev.turnState.aiFailedTradeProposalsThisTurn || new Set<string>();
           failedProposals.add(proposalKey);
