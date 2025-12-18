@@ -12,8 +12,9 @@ import { findDesertCentre, isValidRobberDestination, getPlayersWithAdjacentBuild
 import { createInitialDeck, shuffleDeck } from '../data/developmentCards';
 import { checkVictoryCondition } from '../utils/victoryDetection';
 import { generateTradingPorts } from '../utils/tradingPortUtils';
-import { getPlayerTradingPorts } from '../utils/tradingUtils';
+import { getPlayerTradingPorts, canExecuteBankTrade, canProposePlayerTrade, getTradeRateDisplay, getBestTradeRateForResource } from '../utils/tradingUtils';
 import { getPlayerColorHex } from '../utils/playerColors';
+import { shouldAttemptBankTrade, selectBankTradeResources, shouldAttemptPlayerTrade, generatePlayerTradeProposal } from '../utils/aiTrading';
 
 const DEFAULT_GAME_SETTINGS: GameSettings = {
   pointsToWin: 10,
@@ -3782,8 +3783,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const player = gameState.players.find(p => p.id === playerId);
     if (!player) return false;
 
-    const { shouldAttemptBankTrade, selectBankTradeResources } = require('../utils/aiTrading');
-
     const attemptsThisTurn = gameState.turnState.aiTradeAttemptsThisTurn || 0;
 
     if (!shouldAttemptBankTrade(player, gameState, attemptsThisTurn)) {
@@ -3795,7 +3794,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       return false;
     }
 
-    const { canExecuteBankTrade } = require('../utils/tradingUtils');
     const validation = canExecuteBankTrade(
       playerId,
       tradeDecision.offeringResource,
@@ -3810,7 +3808,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
 
     const playerColor = getPlayerColorStyle(player.color);
-    const { getTradeRateDisplay, getBestTradeRateForResource } = require('../utils/tradingUtils');
     const tradeRate = getBestTradeRateForResource(playerId, tradeDecision.offeringResource, gameState);
     const rateDisplay = getTradeRateDisplay(tradeRate);
 
@@ -3848,8 +3845,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const player = gameState.players.find(p => p.id === playerId);
     if (!player) return false;
 
-    const { shouldAttemptPlayerTrade, generatePlayerTradeProposal, getTradeProposalKey } = require('../utils/aiTrading');
-
     const attemptsThisTurn = gameState.turnState.aiTradeAttemptsThisTurn || 0;
 
     if (!shouldAttemptPlayerTrade(player, gameState, attemptsThisTurn)) {
@@ -3863,7 +3858,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       return false;
     }
 
-    const { canProposePlayerTrade } = require('../utils/tradingUtils');
     const validation = canProposePlayerTrade(
       playerId,
       proposal.offeredResources,
