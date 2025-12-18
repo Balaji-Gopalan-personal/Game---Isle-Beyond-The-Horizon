@@ -76,6 +76,15 @@ export interface DiscardState {
   isProcessing: boolean;
 }
 
+export interface TradeProposal {
+  proposingPlayerId: string;
+  offeredResources: { clay: number; lumber: number; grain: number; fabric: number; mineral: number };
+  requestedResources: { clay: number; lumber: number; grain: number; fabric: number; mineral: number };
+  respondingPlayers: string[];
+  responses: Record<string, 'accepted' | 'rejected' | 'pending'>;
+  proposerIsAI?: boolean;
+}
+
 export interface TurnState {
   currentPlayerId: string;
   step: TurnStep;
@@ -87,6 +96,10 @@ export interface TurnState {
     pendingCardId?: string;
   };
   lock: boolean;
+  tradeProposal?: TradeProposal;
+  expertNegotiatorActive?: boolean;
+  aiTradeAttemptsThisTurn?: number;
+  aiFailedTradeProposalsThisTurn?: Set<string>;
 }
 
 export interface Edge {

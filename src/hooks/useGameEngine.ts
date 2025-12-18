@@ -3795,6 +3795,29 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
 
     const timer = setTimeout(() => {
+      // Check if AI wants to attempt a trade before building
+      const tradeAttempts = gameState.turnState.aiTradeAttemptsThisTurn || 0;
+
+      if (tradeAttempts < 3 && Math.random() < 0.4) {
+        if (Math.random() < 0.6) {
+          console.log('DEBUG: AI attempting bank trade');
+          const tradeSuccess = handleAIBankTrade(currentPlayer.id);
+          if (tradeSuccess) {
+            console.log('DEBUG: AI bank trade successful');
+            setAiActionLoopIterations(prev => prev + 1);
+            return;
+          }
+        } else {
+          console.log('DEBUG: AI attempting player trade');
+          const tradeSuccess = handleAIPlayerTrade(currentPlayer.id);
+          if (tradeSuccess) {
+            console.log('DEBUG: AI player trade initiated');
+            setAiActionLoopIterations(prev => prev + 1);
+            return;
+          }
+        }
+      }
+
       // First, check if AI wants to buy a development card
       const canAffordDevCard = currentPlayer.resources.grain >= 1 &&
                                 currentPlayer.resources.fabric >= 1 &&
@@ -3855,7 +3878,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [aiActionLoopActive, aiActionLoopIterations, gameState, boardSize, handleAIBuildRoad, handleAIBuildVillage, handleAIBuildEstate, handleBuyDevelopmentCard, advanceToNextPlayer]);
+  }, [aiActionLoopActive, aiActionLoopIterations, gameState, boardSize, handleAIBuildRoad, handleAIBuildVillage, handleAIBuildEstate, handleBuyDevelopmentCard, handleAIBankTrade, handleAIPlayerTrade, advanceToNextPlayer]);
 
   // Complete discard phase and transition to move_robber
   const completeDiscardPhase = useCallback(() => {
@@ -4262,6 +4285,148 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
   }, [gameState.phase, gameState.turnState.step, gameState.players, gameState.currentPlayer, gameState.robberPosition, gameState.gameSettings, boardCenters, addToLog, getPlayerColorStyle]);
 
+  // AI Trading handlers
+  const handleAIBankTrade = useCallback((playerId: string): boolean => {
+    const player = gameState.players.find(p => p.id === playerId);
+    if (!player) return false;
+
+    const { shouldAttemptBankTrade, selectBankTradeResources } = require('../utils/aiTrading');
+
+    const attemptsThisTurn = gameState.turnState.aiTradeAttemptsThisTurn || 0;
+
+    if (!shouldAttemptBankTrade(player, gameState, attemptsThisTurn)) {
+      return false;
+    }
+
+    const tradeDecision = selectBankTradeResources(player, gameState);
+    if (!tradeDecision) {
+      return false;
+    }
+
+    const { canExecuteBankTrade } = require('../utils/tradingUtils');
+    const validation = canExecuteBankTrade(
+      playerId,
+      tradeDecision.offeringResource,
+      tradeDecision.offeringAmount,
+      tradeDecision.requestedResource,
+      1,
+      gameState
+    );
+
+    if (!validation.valid) {
+      return false;
+    }
+
+    const playerColor = getPlayerColorStyle(player.color);
+    const { getTradeRateDisplay, getBestTradeRateForResource } = require('../utils/tradingUtils');
+    const tradeRate = getBestTradeRateForResource(playerId, tradeDecision.offeringResource, gameState);
+    const rateDisplay = getTradeRateDisplay(tradeRate);
+
+    const message = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> traded ${tradeDecision.offeringAmount} ${tradeDecision.offeringResource} for 1 ${tradeDecision.requestedResource} with the bank (${rateDisplay})`;
+    addToLog(message);
+
+    setGameState(prev => {
+      const newPlayers = prev.players.map(p => {
+        if (p.id === playerId) {
+          const newResources = {
+            ...p.resources,
+            [tradeDecision.offeringResource]: p.resources[tradeDecision.offeringResource] - tradeDecision.offeringAmount,
+            [tradeDecision.requestedResource]: p.resources[tradeDecision.requestedResource] + 1
+          };
+          newResources.total = newResources.clay + newResources.lumber + newResources.grain + newResources.fabric + newResources.mineral;
+          return { ...p, resources: newResources };
+        }
+        return p;
+      });
+
+      return {
+        ...prev,
+        players: newPlayers,
+        turnState: {
+          ...prev.turnState,
+          aiTradeAttemptsThisTurn: (prev.turnState.aiTradeAttemptsThisTurn || 0) + 1
+        }
+      };
+    });
+
+    return true;
+  }, [gameState, getPlayerColorStyle, addToLog]);
+
+  const handleAIPlayerTrade = useCallback((playerId: string): boolean => {
+    const player = gameState.players.find(p => p.id === playerId);
+    if (!player) return false;
+
+    const { shouldAttemptPlayerTrade, generatePlayerTradeProposal, getTradeProposalKey } = require('../utils/aiTrading');
+
+    const attemptsThisTurn = gameState.turnState.aiTradeAttemptsThisTurn || 0;
+
+    if (!shouldAttemptPlayerTrade(player, gameState, attemptsThisTurn)) {
+      return false;
+    }
+
+    const failedProposals = gameState.turnState.aiFailedTradeProposalsThisTurn || new Set<string>();
+    const proposal = generatePlayerTradeProposal(player, gameState, failedProposals);
+
+    if (!proposal) {
+      return false;
+    }
+
+    const { canProposePlayerTrade } = require('../utils/tradingUtils');
+    const validation = canProposePlayerTrade(
+      playerId,
+      proposal.offeredResources,
+      proposal.requestedResources,
+      gameState
+    );
+
+    if (!validation.valid) {
+      return false;
+    }
+
+    const otherPlayers = gameState.players.filter(p => p.id !== playerId);
+
+    const tradeProposal = {
+      proposingPlayerId: playerId,
+      offeredResources: proposal.offeredResources,
+      requestedResources: proposal.requestedResources,
+      respondingPlayers: otherPlayers.map(p => p.id),
+      responses: {} as Record<string, 'accepted' | 'rejected' | 'pending'>,
+      proposerIsAI: true
+    };
+
+    otherPlayers.forEach(p => {
+      tradeProposal.responses[p.id] = 'pending';
+    });
+
+    setGameState(prev => ({
+      ...prev,
+      turnState: {
+        ...prev.turnState,
+        tradeProposal,
+        aiTradeAttemptsThisTurn: (prev.turnState.aiTradeAttemptsThisTurn || 0) + 1
+      }
+    }));
+
+    const playerColor = getPlayerColorStyle(player.color);
+    const offeredList = Object.entries(proposal.offeredResources)
+      .filter(([_, amount]) => (amount as number) > 0)
+      .map(([resource, amount]) => `${amount} ${resource}`)
+      .join(', ');
+    const requestedList = Object.entries(proposal.requestedResources)
+      .filter(([_, amount]) => (amount as number) > 0)
+      .map(([resource, amount]) => `${amount} ${resource}`)
+      .join(', ');
+
+    const message = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> proposed trade: offering ${offeredList} for ${requestedList}`;
+    addToLog(message);
+
+    setTimeout(() => {
+      processAITradeResponses(tradeProposal, player);
+    }, 1500);
+
+    return true;
+  }, [gameState, getPlayerColorStyle, addToLog]);
+
   // Trading handlers
   const handleExecuteBankTrade = useCallback((offeringResource: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral', offeringAmount: number, requestedResource: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral') => {
     const currentPlayer = getCurrentPlayer();
@@ -4335,6 +4500,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
   const processAITradeResponses = useCallback((tradeProposal: any, proposingPlayer: any) => {
     const aiPlayers = gameState.players.filter(p => p.id !== proposingPlayer.id && !p.isHuman);
+    const humanPlayers = gameState.players.filter(p => p.id !== proposingPlayer.id && p.isHuman);
 
     let acceptingPlayerId: string | null = null;
 
@@ -4424,9 +4590,38 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           newResponses[p.id] = 'rejected';
         });
 
+        if (humanPlayers.length > 0) {
+          return {
+            ...prev,
+            turnState: {
+              ...prev.turnState,
+              tradeProposal: {
+                ...tradeProposal,
+                responses: newResponses
+              }
+            }
+          };
+        }
+
         const proposingColor = getPlayerColorStyle(proposingPlayer.color);
         const message = `<span style="color: ${proposingColor}; font-weight: bold;">${proposingPlayer.name}</span>'s trade was rejected by all players`;
         addToLog(message);
+
+        if (tradeProposal.proposerIsAI) {
+          const { getTradeProposalKey } = require('../utils/aiTrading');
+          const proposalKey = getTradeProposalKey(tradeProposal.offeredResources, tradeProposal.requestedResources);
+          const failedProposals = prev.turnState.aiFailedTradeProposalsThisTurn || new Set<string>();
+          failedProposals.add(proposalKey);
+
+          return {
+            ...prev,
+            turnState: {
+              ...prev.turnState,
+              tradeProposal: undefined,
+              aiFailedTradeProposalsThisTurn: failedProposals
+            }
+          };
+        }
 
         return {
           ...prev,
@@ -4443,6 +4638,108 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       return prev;
     });
   }, [gameState.players, getPlayerColorStyle, addToLog]);
+
+  const handleHumanAcceptAITrade = useCallback(() => {
+    const tradeProposal = gameState.turnState.tradeProposal;
+    if (!tradeProposal) return;
+
+    const humanPlayer = gameState.players.find(p => p.isHuman);
+    if (!humanPlayer) return;
+
+    const proposingPlayer = gameState.players.find(p => p.id === tradeProposal.proposingPlayerId);
+    if (!proposingPlayer) return;
+
+    const hasEnoughResources = Object.entries(tradeProposal.requestedResources).every(
+      ([resource, amount]) => humanPlayer.resources[resource as keyof typeof humanPlayer.resources] >= (amount as number)
+    );
+
+    if (!hasEnoughResources) return;
+
+    const proposingColor = getPlayerColorStyle(proposingPlayer.color);
+    const acceptingColor = getPlayerColorStyle(humanPlayer.color);
+
+    const offeredList = Object.entries(tradeProposal.offeredResources)
+      .filter(([_, amount]) => (amount as number) > 0)
+      .map(([resource, amount]) => `${amount} ${resource}`)
+      .join(', ');
+    const requestedList = Object.entries(tradeProposal.requestedResources)
+      .filter(([_, amount]) => (amount as number) > 0)
+      .map(([resource, amount]) => `${amount} ${resource}`)
+      .join(', ');
+
+    const message = `<span style="color: ${proposingColor}; font-weight: bold;">${proposingPlayer.name}</span> traded ${offeredList} with <span style="color: ${acceptingColor}; font-weight: bold;">${humanPlayer.name}</span> for ${requestedList}`;
+    addToLog(message);
+
+    setGameState(prev => {
+      const newPlayers = prev.players.map(p => {
+        if (p.id === proposingPlayer.id) {
+          const newResources = { ...p.resources };
+          Object.entries(tradeProposal.offeredResources).forEach(([resource, amount]) => {
+            newResources[resource as keyof typeof newResources] = (newResources[resource as keyof typeof newResources] as number) - (amount as number);
+          });
+          Object.entries(tradeProposal.requestedResources).forEach(([resource, amount]) => {
+            newResources[resource as keyof typeof newResources] = (newResources[resource as keyof typeof newResources] as number) + (amount as number);
+          });
+          newResources.total = newResources.clay + newResources.lumber + newResources.grain + newResources.fabric + newResources.mineral;
+          return { ...p, resources: newResources };
+        }
+
+        if (p.id === humanPlayer.id) {
+          const newResources = { ...p.resources };
+          Object.entries(tradeProposal.offeredResources).forEach(([resource, amount]) => {
+            newResources[resource as keyof typeof newResources] = (newResources[resource as keyof typeof newResources] as number) + (amount as number);
+          });
+          Object.entries(tradeProposal.requestedResources).forEach(([resource, amount]) => {
+            newResources[resource as keyof typeof newResources] = (newResources[resource as keyof typeof newResources] as number) - (amount as number);
+          });
+          newResources.total = newResources.clay + newResources.lumber + newResources.grain + newResources.fabric + newResources.mineral;
+          return { ...p, resources: newResources };
+        }
+
+        return p;
+      });
+
+      return {
+        ...prev,
+        players: newPlayers,
+        turnState: {
+          ...prev.turnState,
+          tradeProposal: undefined
+        }
+      };
+    });
+  }, [gameState, getPlayerColorStyle, addToLog]);
+
+  const handleHumanRejectAITrade = useCallback(() => {
+    const tradeProposal = gameState.turnState.tradeProposal;
+    if (!tradeProposal) return;
+
+    const humanPlayer = gameState.players.find(p => p.isHuman);
+    if (!humanPlayer) return;
+
+    const proposingPlayer = gameState.players.find(p => p.id === tradeProposal.proposingPlayerId);
+    if (!proposingPlayer) return;
+
+    const proposingColor = getPlayerColorStyle(proposingPlayer.color);
+    const message = `<span style="color: ${proposingColor}; font-weight: bold;">${proposingPlayer.name}</span>'s trade was rejected by all players`;
+    addToLog(message);
+
+    setGameState(prev => {
+      const { getTradeProposalKey } = require('../utils/aiTrading');
+      const proposalKey = getTradeProposalKey(tradeProposal.offeredResources, tradeProposal.requestedResources);
+      const failedProposals = prev.turnState.aiFailedTradeProposalsThisTurn || new Set<string>();
+      failedProposals.add(proposalKey);
+
+      return {
+        ...prev,
+        turnState: {
+          ...prev.turnState,
+          tradeProposal: undefined,
+          aiFailedTradeProposalsThisTurn: failedProposals
+        }
+      };
+    });
+  }, [gameState, getPlayerColorStyle, addToLog]);
 
   return {
     gameState,
@@ -4525,6 +4822,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     cardValidationError,
     clearCardValidationError: () => setCardValidationError(null),
     handleExecuteBankTrade,
-    handleProposePlayerTrade
+    handleProposePlayerTrade,
+    handleHumanAcceptAITrade,
+    handleHumanRejectAITrade
   };
 };

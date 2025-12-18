@@ -16,6 +16,7 @@ import { CardValidationErrorModal } from './components/CardValidationErrorModal'
 import { VictoryModal } from './components/VictoryModal';
 import { TradingModal } from './components/TradingModal';
 import { TradeResponseModal } from './components/TradeResponseModal';
+import { HumanTradeAcceptModal } from './components/HumanTradeAcceptModal';
 import { LoadingScreen } from './components/LoadingScreen';
 import { Gamepad2 } from 'lucide-react';
 import { BoardSize } from './data/boardConfigs';
@@ -827,6 +828,31 @@ function App() {
               }}
             />
           )}
+
+          {gameState.turnState.tradeProposal &&
+           gameState.turnState.tradeProposal.proposerIsAI &&
+           (() => {
+             const humanPlayer = gameState.players.find(p => p.isHuman);
+             const proposingPlayer = gameState.players.find(p => p.id === gameState.turnState.tradeProposal?.proposingPlayerId);
+
+             if (!humanPlayer || !proposingPlayer || !gameState.turnState.tradeProposal) return null;
+
+             const humanResponse = gameState.turnState.tradeProposal.responses[humanPlayer.id];
+
+             if (humanResponse !== 'pending') return null;
+
+             return (
+               <HumanTradeAcceptModal
+                 isOpen={true}
+                 tradeProposal={gameState.turnState.tradeProposal}
+                 proposingPlayer={proposingPlayer}
+                 humanPlayer={humanPlayer}
+                 onAccept={gameEngine.handleHumanAcceptAITrade}
+                 onReject={gameEngine.handleHumanRejectAITrade}
+               />
+             );
+           })()
+          }
         </>
       )}
     </div>
