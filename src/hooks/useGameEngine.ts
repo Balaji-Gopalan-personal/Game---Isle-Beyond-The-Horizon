@@ -4592,10 +4592,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
           if (newIndex >= currentProposal.respondingPlayerOrder.length) {
             const proposingPlayer = prev.players.find(p => p.id === currentProposal.proposingPlayerId);
+            let newGameLog = prev.gameLog;
+
             if (proposingPlayer) {
               const proposingColor = getPlayerColorStyle(proposingPlayer.color);
               const message = `<span style="color: ${proposingColor}; font-weight: bold;">${proposingPlayer.name}</span>'s trade was rejected by all players`;
-              addToLog(message);
+              const timestamp = new Date().toLocaleTimeString();
+              newGameLog = [...prev.gameLog, { message, timestamp }];
             }
 
             if (currentProposal.proposerIsAI) {
@@ -4605,6 +4608,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
               return {
                 ...prev,
+                gameLog: newGameLog,
                 turnState: {
                   ...prev.turnState,
                   tradeProposal: undefined,
@@ -4615,6 +4619,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
             return {
               ...prev,
+              gameLog: newGameLog,
               turnState: {
                 ...prev.turnState,
                 tradeProposal: undefined
@@ -4638,7 +4643,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [gameState.turnState.tradeProposal, gameState.players, getPlayerColorStyle, addToLog]);
+  }, [gameState.turnState.tradeProposal, gameState.players, getPlayerColorStyle]);
 
   const handleHumanAcceptAITrade = useCallback(() => {
     const tradeProposal = gameState.turnState.tradeProposal;
@@ -4727,10 +4732,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
       if (newIndex >= currentProposal.respondingPlayerOrder.length) {
         const proposingPlayer = prev.players.find(p => p.id === currentProposal.proposingPlayerId);
+        let newGameLog = prev.gameLog;
+
         if (proposingPlayer) {
           const proposingColor = getPlayerColorStyle(proposingPlayer.color);
           const message = `<span style="color: ${proposingColor}; font-weight: bold;">${proposingPlayer.name}</span>'s trade was rejected by all players`;
-          addToLog(message);
+          const timestamp = new Date().toLocaleTimeString();
+          newGameLog = [...prev.gameLog, { message, timestamp }];
         }
 
         if (currentProposal.proposerIsAI) {
@@ -4740,6 +4748,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
           return {
             ...prev,
+            gameLog: newGameLog,
             turnState: {
               ...prev.turnState,
               tradeProposal: undefined,
@@ -4750,6 +4759,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
         return {
           ...prev,
+          gameLog: newGameLog,
           turnState: {
             ...prev.turnState,
             tradeProposal: undefined
@@ -4769,7 +4779,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
-  }, [gameState, getPlayerColorStyle, addToLog]);
+  }, [gameState, getPlayerColorStyle]);
 
   return {
     gameState,
