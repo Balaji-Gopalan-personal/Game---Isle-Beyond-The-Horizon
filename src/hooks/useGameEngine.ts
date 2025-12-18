@@ -3933,6 +3933,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       return;
     }
 
+    // Check if there's an active trade proposal - if so, pause the AI loop
+    if (gameState.turnState.tradeProposal) {
+      console.log('DEBUG: AI action loop paused - active trade proposal detected');
+      return;
+    }
+
     if (aiActionLoopIterations > 20) {
       console.log('DEBUG: AI action loop max iterations reached, ending turn');
       setAiActionLoopActive(false);
