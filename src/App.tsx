@@ -837,14 +837,19 @@ function App() {
 
              if (!humanPlayer || !proposingPlayer || !gameState.turnState.tradeProposal) return null;
 
-             const humanResponse = gameState.turnState.tradeProposal.responses[humanPlayer.id];
+             const tradeProposal = gameState.turnState.tradeProposal;
+             const humanResponse = tradeProposal.responses[humanPlayer.id];
 
              if (humanResponse !== 'pending') return null;
+
+             // Only show modal when it's actually the human player's turn to respond
+             const currentResponderId = tradeProposal.respondingPlayerOrder[tradeProposal.currentRespondingPlayerIndex];
+             if (currentResponderId !== humanPlayer.id) return null;
 
              return (
                <HumanTradeAcceptModal
                  isOpen={true}
-                 tradeProposal={gameState.turnState.tradeProposal}
+                 tradeProposal={tradeProposal}
                  proposingPlayer={proposingPlayer}
                  humanPlayer={humanPlayer}
                  onAccept={gameEngine.handleHumanAcceptAITrade}

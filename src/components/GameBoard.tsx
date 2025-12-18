@@ -378,13 +378,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             
             const fromPos = getVertexPosition(fromVertex);
             const toPos = getVertexPosition(toVertex);
-            
-            console.log(`DEBUG: Rendering road for ${roadPlayer.name}: ${road.from} -> ${road.to}`, {
-              fromPos,
-              toPos,
-              color: roadPlayer.color,
-              roadId: road.id
-            });
+
             return (
               <line
                 key={road.id}

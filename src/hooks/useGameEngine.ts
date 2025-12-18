@@ -439,7 +439,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         // Check each vertex around this center
         center.vertices.forEach(vertexId => {
           const village = newState.villages.find(v => v.vertexId === vertexId);
-          console.log(`DEBUG: Vertex ${vertexId} - village found:`, !!village, village?.playerId);
 
           if (village) {
             const player = newState.players.find(p => p.id === village.playerId);
@@ -688,17 +687,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return false;
       }
       const matchesVertex = port.vertices.includes(vertexId);
-      console.log(`DEBUG: Checking port at vertices [${port.vertices.join(', ')}] for player vertex ${vertexId}: ${matchesVertex ? 'MATCH' : 'no match'}`);
       return matchesVertex;
-    });
-
-    console.log('DEBUG: Found ports for vertex:', {
-      playerId,
-      playerName,
-      isHuman,
-      vertexId,
-      newPorts,
-      portsCount: newPorts.length
     });
 
     const messages: Array<{message: string, playerId: string}> = [];
@@ -717,21 +706,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
 
         const message = `${formattedPlayerName} gained access to a ${portDescription}`;
-        console.log(`DEBUG: Creating trading port message for ${isHuman ? 'HUMAN' : 'AI'} player:`, {
-          playerId,
-          playerName,
-          message,
-          portDescription
-        });
         messages.push({
           message,
           playerId
         });
       });
-    } else {
-      console.log(`DEBUG: NO ports found at vertex ${vertexId} for player ${playerName} (${isHuman ? 'HUMAN' : 'AI'})`);
     }
-    console.log(`DEBUG: Returning ${messages.length} trading port messages for player ${playerName}`);
     return messages;
   }, [boardSize, boardGraph, getPlayerColorStyle]);
 
