@@ -2121,6 +2121,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const loadedBoardCenters = boardData.centers;
       console.log('DEBUG: Loaded board centers directly for initialization:', loadedBoardCenters.length);
 
+      // Initialize robber position to desert centre
+      const initialRobberPosition = findDesertCentre(loadedBoardCenters as CentreData[]);
+      if (initialRobberPosition !== null) {
+        console.log('DEBUG: Initializing robber position to desert centre:', initialRobberPosition);
+      } else {
+        console.warn('WARNING: No desert centre found for robber initialization');
+      }
+
       // Generate trading ports synchronously during initialization
       let initialTradingPorts: any[] = [];
       if (config.gameSettings.tradingPortsEnabled && loadedBoardCenters.length > 0) {
@@ -2180,6 +2188,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           { message: `Setup Phase 1 begins`, timestamp: new Date().toLocaleTimeString() },
           { message: `${formattedFirstPlayerName} goes first`, timestamp: new Date().toLocaleTimeString() }
         ],
+        robberPosition: initialRobberPosition !== null ? initialRobberPosition : undefined,
         gameSettings: { ...config.gameSettings, boardSize: config.boardSize },
         stepHistory: [],
         villages: [],
