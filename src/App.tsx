@@ -18,6 +18,7 @@ import { TradingModal } from './components/TradingModal';
 import { TradeResponseModal } from './components/TradeResponseModal';
 import { HumanTradeAcceptModal } from './components/HumanTradeAcceptModal';
 import { LoadingScreen } from './components/LoadingScreen';
+import { QuitGameModal } from './components/QuitGameModal';
 import { Gamepad2 } from 'lucide-react';
 import { BoardSize } from './data/boardConfigs';
 import { AICharacter } from './data/aiCharacters';
@@ -56,6 +57,8 @@ function App() {
   const [isTradeResponseModalOpen, setIsTradeResponseModalOpen] = useState(false);
   const [lastTradeMode, setLastTradeMode] = useState<'bank' | 'player'>('bank');
   const [lastPlayerName, setLastPlayerName] = useState<string>('');
+  const [isQuitModalOpen, setIsQuitModalOpen] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [gameConfig, setGameConfig] = useState<{
     aiCount: number;
     selectedBoardSize: BoardSize;
@@ -178,6 +181,22 @@ function App() {
     setIsDiscardModalOpen(false);
     setIsDiscardModalMinimized(false);
     setIsDevCardsModalOpen(false);
+    setIsQuitModalOpen(false);
+    setIsPaused(false);
+  };
+
+  const handleQuitGame = () => {
+    setIsPaused(true);
+    setIsQuitModalOpen(true);
+  };
+
+  const handleConfirmQuit = () => {
+    handleNewGame();
+  };
+
+  const handleCancelQuit = () => {
+    setIsQuitModalOpen(false);
+    setIsPaused(false);
   };
 
   useEffect(() => {
@@ -590,6 +609,7 @@ function App() {
               currentPlayerId={gameState.currentPlayer}
               gameState={gameState}
               onOpenDevCardInventory={() => setIsDevCardsModalOpen(true)}
+              onQuitGame={handleQuitGame}
             />
           </div>
 
@@ -905,6 +925,13 @@ function App() {
           }
         </>
       )}
+
+      {/* Quit Game Modal */}
+      <QuitGameModal
+        isVisible={isQuitModalOpen}
+        onConfirm={handleConfirmQuit}
+        onCancel={handleCancelQuit}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { GameState, Player } from '../types/game';
-import { Coins, Package, Shield, Route, Wheat, Hammer, TreePine, Shirt, Mountain } from 'lucide-react';
+import { Coins, Package, Shield, Route, Wheat, Hammer, TreePine, Shirt, Mountain, LogOut } from 'lucide-react';
 import { CharacterAvatar } from './CharacterAvatar';
 import { getPlayerColorHex } from '../utils/playerColors';
 
@@ -9,13 +9,15 @@ interface PlayerDashboardProps {
   currentPlayerId: string;
   gameState: GameState;
   onOpenDevCardInventory?: () => void;
+  onQuitGame?: () => void;
 }
 
 export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({
   players,
   currentPlayerId,
   gameState,
-  onOpenDevCardInventory
+  onOpenDevCardInventory,
+  onQuitGame
 }) => {
   console.log('=== PLAYER DASHBOARD DEBUG ===');
   console.log('Players received:', players.map(p => ({ 
@@ -53,10 +55,10 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-2 h-[calc(100vh-120px)] overflow-y-auto w-full">
+    <div className="bg-white rounded-xl shadow-lg p-2 h-[calc(100vh-120px)] flex flex-col w-full">
       <h2 className="text-lg font-bold text-gray-800 mb-3 text-center">Players</h2>
-      
-      <div className="grid grid-cols-2 gap-2">
+
+      <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto">
         {/* All Players in Order */}
         {sortedPlayers.map((player) => (
           <div
@@ -205,6 +207,18 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({
           </div>
         ))}
       </div>
+
+      {onQuitGame && (
+        <div className="mt-3 pt-3 border-t border-gray-200">
+          <button
+            onClick={onQuitGame}
+            className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+          >
+            <LogOut className="w-4 h-4" />
+            Quit Game
+          </button>
+        </div>
+      )}
     </div>
   );
 };
