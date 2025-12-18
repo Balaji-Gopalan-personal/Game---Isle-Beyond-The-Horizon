@@ -1971,6 +1971,34 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     return nextPlayerId;
   }, [gameState.players, gameState.currentPlayer, gameState.turn, gameState.phase, gameState.currentStep, addToLog]);
 
+  // Track previous config to detect new game
+  const prevConfigRef = React.useRef<GameConfig | undefined>(undefined);
+  const prevInitializedRef = React.useRef<boolean>(false);
+
+  // Reset initialized flag when starting a new game
+  useEffect(() => {
+    const prevConfig = prevConfigRef.current;
+    const prevInitialized = prevInitializedRef.current;
+
+    prevConfigRef.current = config;
+    prevInitializedRef.current = initialized;
+
+    if (config && initialized) {
+      const wasUndefined = !prevConfig;
+      const configChanged = prevConfig && (
+        prevConfig.playerName !== config.playerName ||
+        prevConfig.boardSize !== config.boardSize ||
+        prevConfig.playerOrder.length !== config.playerOrder.length
+      );
+
+      if ((wasUndefined && prevInitialized) || configChanged) {
+        console.log("Resetting game for new session", { wasUndefined, configChanged });
+        setInitialized(false);
+        setGameState(DEFAULT_GAME_STATE);
+      }
+    }
+  }, [config, initialized]);
+
   // Initialize game state when config is available
   useEffect(() => {
     if (config && !initialized) {
