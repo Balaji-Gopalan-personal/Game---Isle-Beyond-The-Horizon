@@ -821,10 +821,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     // 5. Road Construction - need at least 2 valid road placement locations
     if (card.name === 'Road Construction') {
       const validRoadPlacements = getValidRoadPlacements(
-        gameState.boardGraph,
-        gameState.edgesOccupiedBy,
-        gameState.verticesOccupiedBy,
-        currentPlayer.id
+        currentPlayer.id,
+        gameState,
+        gameState.boardSize
       );
       if (validRoadPlacements.length < 1) {
         return 'You need at least one valid road placement location to play Road Construction.';
