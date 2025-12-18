@@ -11,6 +11,7 @@ interface OpponentSelectorProps {
   onSelectPlayer: (playerId: string) => void;
   showResourceCount?: boolean;
   title?: string;
+  compact?: boolean;
 }
 
 export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
@@ -18,7 +19,8 @@ export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
   selectedPlayerId,
   onSelectPlayer,
   showResourceCount = true,
-  title
+  title,
+  compact = false
 }) => {
   const getPlayerInitials = (name: string): string => {
     return name
@@ -28,6 +30,63 @@ export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
       .toUpperCase()
       .slice(0, 2);
   };
+
+  if (compact) {
+    return (
+      <div className="space-y-1">
+        {title && (
+          <div className="text-xs text-gray-600 text-center">
+            {title}
+          </div>
+        )}
+        <div className="flex gap-1 justify-center flex-wrap">
+          {opponents.map(player => (
+            <button
+              key={player.id}
+              onClick={() => onSelectPlayer(player.id)}
+              className={`relative flex flex-col items-center transition-all duration-200 ${
+                selectedPlayerId === player.id ? 'opacity-100' : 'opacity-70 hover:opacity-90'
+              }`}
+              title={showResourceCount ? `${player.name}: ${player.resources.clay}C ${player.resources.lumber}L ${player.resources.grain}G ${player.resources.fabric}F ${player.resources.mineral}M (${player.resources.total} total)` : player.name}
+            >
+              <div className={`relative w-8 h-12 rounded-full overflow-hidden ${selectedPlayerId === player.id ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}>
+                {player.isHuman ? (
+                  <div
+                    className="w-full h-full flex items-center justify-center text-white font-bold text-[10px]"
+                    style={{ backgroundColor: getPlayerColorHex(player.color) }}
+                  >
+                    {getPlayerInitials(player.name)}
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                      <CharacterAvatar
+                        character={player.character}
+                        color={player.color}
+                        size="lg"
+                        className="w-10 h-10 scale-125"
+                      />
+                    </div>
+                    <div
+                      className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center text-white font-bold text-[7px] border border-white"
+                      style={{ backgroundColor: getPlayerColorHex(player.color) }}
+                    >
+                      P{player.order}
+                    </div>
+                  </>
+                )}
+              </div>
+              {showResourceCount && (
+                <div className="text-[8px] font-medium text-gray-700 mt-0.5">
+                  {player.resources.total}
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-1">
@@ -255,6 +314,7 @@ export const ResourceSwapPrompt: React.FC<ResourceSwapPromptProps> = ({
         onSelectPlayer={onSelectPlayer}
         showResourceCount={true}
         title="Select player to swap resources with"
+        compact={true}
       />
 
       {selectedPlayer && (
