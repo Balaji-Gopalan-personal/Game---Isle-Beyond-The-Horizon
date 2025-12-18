@@ -776,9 +776,9 @@ function App() {
 
         let hasValidRoadPlacement = false;
         if (gameConfig) {
+          const G = loadBoardGraph(gameConfig.selectedBoardSize);
           for (const vertexId of playerVertices) {
-            const G = loadBoardGraph(gameConfig.selectedBoardSize);
-            const neighbors = G.vertices.find(v => v.id === vertexId)?.neighbors || [];
+            const neighbors = G.neighbors?.[vertexId] || [];
 
             for (const neighborId of neighbors) {
               const edgeExists = gameState.roads.some(
