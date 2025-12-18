@@ -2130,7 +2130,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             currentTurn: p.id === firstPlayer.id ? 1 : 0
           }))
         }));
-        addToLog(`${firstPlayer.name} begins Turn 1`);
+        const playerColor = getPlayerColorStyle(firstPlayer.color);
+        const turnMessage = `<span style="color: ${playerColor}; font-weight: bold;">${firstPlayer.name}</span> begins Turn 1`;
+        addToLog(turnMessage);
         beginTurn(firstPlayer.id);
       }, 500);
       
@@ -2201,7 +2203,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           }))
         }));
         addToLog('=== Setup Phase 2 Begins ===');
-        addToLog(`${firstPlayer.name} begins Turn 2`);
+        const playerColor = getPlayerColorStyle(firstPlayer.color);
+        const turnMessage = `<span style="color: ${playerColor}; font-weight: bold;">${firstPlayer.name}</span> begins Turn 2`;
+        addToLog(turnMessage);
       }
     } else if (gameState?.phase === 'setup-phase-2' && gameState.players.length > 0) {
       // Check if all players have completed Setup Phase 2 (placed 2 villages and 2 roads each)

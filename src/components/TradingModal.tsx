@@ -220,15 +220,15 @@ export const TradingModal: React.FC<TradingModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       />
 
-      <div className="relative bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl mx-4 z-10 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
+      <div className="relative bg-white rounded-xl shadow-2xl p-4 w-full max-w-2xl mx-4 z-10 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-gray-800">Trading</h2>
+            <h2 className="text-lg font-bold text-gray-800">Trading</h2>
             {expertNegotiatorActive && (
-              <div className="flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-lg">
-                <Sparkles className="w-4 h-4" />
-                <span>Expert Negotiator Active - 2:1 Trades!</span>
-                <Sparkles className="w-4 h-4" />
+              <div className="flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-white px-2 py-0.5 rounded-full text-xs font-semibold shadow-lg">
+                <Sparkles className="w-3 h-3" />
+                <span>Expert Negotiator - 2:1!</span>
+                <Sparkles className="w-3 h-3" />
               </div>
             )}
           </div>
@@ -237,53 +237,53 @@ export const TradingModal: React.FC<TradingModalProps> = ({
             className="text-gray-500 hover:text-gray-700 p-1 rounded hover:bg-gray-100 transition-colors"
             title="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-3">
           <button
             onClick={() => setTradeMode('bank')}
-            className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2 px-3 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 text-sm ${
               tradeMode === 'bank'
                 ? 'bg-blue-600 text-white shadow-md'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            <Building2 className="w-5 h-5" />
-            Trade with Bank
+            <Building2 className="w-4 h-4" />
+            Bank
           </button>
           <button
             onClick={() => setTradeMode('player')}
-            className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2 px-3 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 text-sm ${
               tradeMode === 'player'
                 ? 'bg-green-600 text-white shadow-md'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            <Users className="w-5 h-5" />
-            Trade with Players
+            <Users className="w-4 h-4" />
+            Players
           </button>
         </div>
 
         {tradeMode === 'player' && (
-          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <div className="text-sm font-semibold text-blue-800 mb-2">Opponent Players:</div>
-            <div className="grid grid-cols-2 gap-2">
+          <div className="mb-3 bg-blue-50 border border-blue-200 rounded-lg p-2">
+            <div className="text-xs font-semibold text-blue-800 mb-1.5">Opponents:</div>
+            <div className="grid grid-cols-2 gap-1.5">
               {opponentPlayers.map(player => (
                 <div
                   key={player.id}
-                  className="flex items-center justify-between bg-white rounded px-3 py-2 border border-gray-200"
+                  className="flex items-center justify-between bg-white rounded px-2 py-1.5 border border-gray-200"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <div
-                      className="w-3 h-3 rounded-full"
+                      className="w-2.5 h-2.5 rounded-full"
                       style={{ backgroundColor: getPlayerColorStyle(player.color) }}
                     />
-                    <span className="text-sm font-semibold text-gray-800">{player.name}</span>
+                    <span className="text-xs font-semibold text-gray-800">{player.name}</span>
                   </div>
-                  <div className="text-sm text-gray-600">
-                    {player.resources.total} resources
+                  <div className="text-xs text-gray-600">
+                    {player.resources.total}
                   </div>
                 </div>
               ))}
@@ -291,18 +291,18 @@ export const TradingModal: React.FC<TradingModalProps> = ({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
-            <h3 className="text-sm font-bold text-gray-800 mb-3">You Offer:</h3>
-            <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="border border-gray-300 rounded-lg p-2 bg-gray-50">
+            <h3 className="text-xs font-bold text-gray-800 mb-2">You Offer:</h3>
+            <div className="space-y-1.5">
               {(['clay', 'lumber', 'grain', 'fabric', 'mineral'] as const).map((resource) => (
                 <div
                   key={resource}
-                  className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200"
+                  className="flex items-center justify-between bg-white rounded p-1.5 border border-gray-200"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <div
-                      className="w-8 h-8 rounded border border-gray-300 overflow-hidden flex-shrink-0"
+                      className="w-6 h-6 rounded border border-gray-300 overflow-hidden flex-shrink-0"
                       title={resourceLabels[resource]}
                     >
                       <img
@@ -311,54 +311,54 @@ export const TradingModal: React.FC<TradingModalProps> = ({
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    <div className="text-xs">
+                    <div className="text-[10px] leading-tight">
                       <div className="font-semibold text-gray-800">{resourceLabels[resource]}</div>
-                      <div className="text-gray-600">Have: {currentPlayer.resources[resource]}</div>
+                      <div className="text-gray-600">{currentPlayer.resources[resource]}</div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5">
                     <button
                       onClick={() => handleDecrement(resource, true)}
                       disabled={offeredResources[resource] === 0}
-                      className="px-2 h-6 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="px-1.5 h-5 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       title="Decrease"
                     >
-                      <Minus className="w-3 h-3 text-gray-700" />
+                      <Minus className="w-2.5 h-2.5 text-gray-700" />
                     </button>
 
-                    <div className="w-8 text-center font-bold text-gray-800 text-sm">
+                    <div className="w-6 text-center font-bold text-gray-800 text-xs">
                       {offeredResources[resource]}
                     </div>
 
                     <button
                       onClick={() => handleIncrement(resource, true)}
                       disabled={offeredResources[resource] >= currentPlayer.resources[resource]}
-                      className="px-2 h-6 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="px-1.5 h-5 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       title="Increase"
                     >
-                      <Plus className="w-3 h-3 text-gray-700" />
+                      <Plus className="w-2.5 h-2.5 text-gray-700" />
                     </button>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="mt-3 text-center">
-              <span className="text-sm font-semibold text-gray-700">Total: {totalOffered}</span>
+            <div className="mt-2 text-center">
+              <span className="text-xs font-semibold text-gray-700">Total: {totalOffered}</span>
             </div>
           </div>
 
-          <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
-            <h3 className="text-sm font-bold text-gray-800 mb-3">You Request:</h3>
-            <div className="space-y-2">
+          <div className="border border-gray-300 rounded-lg p-2 bg-gray-50">
+            <h3 className="text-xs font-bold text-gray-800 mb-2">You Request:</h3>
+            <div className="space-y-1.5">
               {(['clay', 'lumber', 'grain', 'fabric', 'mineral'] as const).map((resource) => (
                 <div
                   key={resource}
-                  className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200"
+                  className="flex items-center justify-between bg-white rounded p-1.5 border border-gray-200"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <div
-                      className="w-8 h-8 rounded border border-gray-300 overflow-hidden flex-shrink-0"
+                      className="w-6 h-6 rounded border border-gray-300 overflow-hidden flex-shrink-0"
                       title={resourceLabels[resource]}
                     >
                       <img
@@ -367,66 +367,66 @@ export const TradingModal: React.FC<TradingModalProps> = ({
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    <div className="text-xs">
+                    <div className="text-[10px] leading-tight">
                       <div className="font-semibold text-gray-800">{resourceLabels[resource]}</div>
                       {tradeMode === 'bank' && tradeRates[resource] && (
-                        <div className="text-gray-600 text-[10px]">
+                        <div className="text-gray-600 text-[9px]">
                           {getTradeRateDisplay(tradeRates[resource])}
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5">
                     <button
                       onClick={() => handleDecrement(resource, false)}
                       disabled={requestedResources[resource] === 0}
-                      className="px-2 h-6 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="px-1.5 h-5 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       title="Decrease"
                     >
-                      <Minus className="w-3 h-3 text-gray-700" />
+                      <Minus className="w-2.5 h-2.5 text-gray-700" />
                     </button>
 
-                    <div className="w-8 text-center font-bold text-gray-800 text-sm">
+                    <div className="w-6 text-center font-bold text-gray-800 text-xs">
                       {requestedResources[resource]}
                     </div>
 
                     <button
                       onClick={() => handleIncrement(resource, false)}
-                      className="px-2 h-6 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="px-1.5 h-5 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       title="Increase"
                     >
-                      <Plus className="w-3 h-3 text-gray-700" />
+                      <Plus className="w-2.5 h-2.5 text-gray-700" />
                     </button>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="mt-3 text-center">
-              <span className="text-sm font-semibold text-gray-700">Total: {totalRequested}</span>
+            <div className="mt-2 text-center">
+              <span className="text-xs font-semibold text-gray-700">Total: {totalRequested}</span>
             </div>
           </div>
         </div>
 
         {(bankValidationError || playerValidationError) && (
-          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
-            <div className="text-sm text-red-700 font-semibold">
+          <div className="mb-3 bg-red-50 border border-red-200 rounded-lg p-2">
+            <div className="text-xs text-red-700 font-semibold">
               {tradeMode === 'bank' ? bankValidationError : playerValidationError}
             </div>
           </div>
         )}
 
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <button
             onClick={onClose}
-            className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+            className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-3 rounded-lg transition-colors text-sm"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirmTrade}
             disabled={!canConfirm}
-            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600"
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600 text-sm"
           >
             {tradeMode === 'bank' ? 'Trade with Bank' : 'Propose Trade'}
           </button>
