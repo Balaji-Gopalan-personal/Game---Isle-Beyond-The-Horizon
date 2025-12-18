@@ -1270,7 +1270,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       }));
 
       // Add to activity log with parsed vertices
-      addToLog(`${playerName} placed a road between vertices ${fromVertex} and ${toVertex}.`);
+      addColoredLog(`${playerName} placed a road between vertices ${fromVertex} and ${toVertex}.`, playerId);
 
       // Log longest road achievement after state update
       if (longestRoadUpdate?.shouldAward) {
@@ -1288,7 +1288,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       if (mutableState.turnState.currentPlayerId !== playerId) {
         const nextPlayer = gameState.players.find(p => p.id === mutableState.turnState.currentPlayerId);
         if (nextPlayer) {
-          addToLog(`${nextPlayer.name} begins their turn.`);
+          addColoredLog(`${nextPlayer.name} begins their turn.`, nextPlayer.id);
         }
       }
 
@@ -2050,7 +2050,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       
       // Find first player
       const firstPlayer = players[0];
-      
+
       // Initialize and shuffle development card deck
       const initialDeck = createInitialDeck(config.gameSettings.developmentCardDeck);
       const shuffledDeck = shuffleDeck(initialDeck);
@@ -2104,6 +2104,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         console.log('DEBUG: Board centers not loaded, ports will be empty');
       }
 
+      // Format first player name with HTML for the game log
+      const firstPlayerColor = getPlayerColorStyle(firstPlayer.color);
+      const formattedFirstPlayerName = `<span style="color: ${firstPlayerColor}; font-weight: bold;">${firstPlayer.name}</span>`;
+
       setGameState({
         currentPlayer: firstPlayer.id,
         currentStep: 'place-village',
@@ -2113,7 +2117,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         gameLog: [
           { message: `Game initialized with ${players.length} players`, timestamp: new Date().toLocaleTimeString() },
           { message: `Setup Phase 1 begins`, timestamp: new Date().toLocaleTimeString() },
-          { message: `${firstPlayer.name} goes first`, timestamp: new Date().toLocaleTimeString() }
+          { message: `${formattedFirstPlayerName} goes first`, timestamp: new Date().toLocaleTimeString() }
         ],
         gameSettings: { ...config.gameSettings, boardSize: config.boardSize },
         stepHistory: [],
