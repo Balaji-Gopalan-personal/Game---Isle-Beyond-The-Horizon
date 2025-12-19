@@ -314,6 +314,11 @@ export const TradingModal: React.FC<TradingModalProps> = ({
                     <div className="text-[10px] leading-tight">
                       <div className="font-semibold text-gray-800">{resourceLabels[resource]}</div>
                       <div className="text-gray-600">{currentPlayer.resources[resource]}</div>
+                      {tradeMode === 'bank' && tradeRates[resource] && (
+                        <div className="text-gray-600 text-[9px]">
+                          {getTradeRateDisplay(tradeRates[resource])}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -369,11 +374,6 @@ export const TradingModal: React.FC<TradingModalProps> = ({
                     </div>
                     <div className="text-[10px] leading-tight">
                       <div className="font-semibold text-gray-800">{resourceLabels[resource]}</div>
-                      {tradeMode === 'bank' && tradeRates[resource] && (
-                        <div className="text-gray-600 text-[9px]">
-                          {getTradeRateDisplay(tradeRates[resource])}
-                        </div>
-                      )}
                     </div>
                   </div>
 
