@@ -657,66 +657,72 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
             </div>
           )}
 
-          {gameState.turnState.step === 'place_road_gameplay' && canPlayerAct && (
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-gray-700">
-                Place Road
-              </div>
-              {roadPlacementError && (
-                <div className="text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded p-2">
-                  {roadPlacementError}
+          {gameState.turnState.step === 'place_road_gameplay' && canPlayerAct && (() => {
+            const freeRoadsRemaining = gameState.turnState.placementContext.freeRoadsRemaining ?? 0;
+            const isFreeRoad = freeRoadsRemaining > 0;
+            const roadNumber = isFreeRoad ? (3 - freeRoadsRemaining) : 0;
+
+            return (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-gray-700">
+                  {isFreeRoad ? `Place Free Road (${roadNumber} of 2)` : 'Place Road'}
                 </div>
-              )}
-              {!firstRoadVertex ? (
-                <div className="space-y-1">
-                  <div className="text-xs font-semibold text-gray-700">
-                    Step 1: Select Starting Vertex
+                {roadPlacementError && (
+                  <div className="text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded p-2">
+                    {roadPlacementError}
                   </div>
-                  <div className="text-xs text-gray-600">
-                    Click on a vertex you own (road endpoint or village)
+                )}
+                {!firstRoadVertex ? (
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-gray-700">
+                      Step 1: Select Starting Vertex
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      Click on a vertex you own (road endpoint or village)
+                    </div>
                   </div>
-                </div>
-              ) : !selectedVertex ? (
-                <div className="space-y-1">
-                  <div className="text-xs font-semibold text-gray-700">
-                    Step 2: Select Ending Vertex
-                  </div>
-                  <div className="text-xs text-gray-700">
-                    From Vertex {firstRoadVertex}
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    Click on an empty adjacent vertex
-                  </div>
-                  <button
-                    onClick={onCancelSelection}
-                    className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200 w-full"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  <div className="text-xs text-gray-700">
-                    From Vertex {firstRoadVertex} to Vertex {selectedVertex}
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={onConfirmRoad}
-                      className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200"
-                    >
-                      Confirm
-                    </button>
+                ) : !selectedVertex ? (
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-gray-700">
+                      Step 2: Select Ending Vertex
+                    </div>
+                    <div className="text-xs text-gray-700">
+                      From Vertex {firstRoadVertex}
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      Click on an empty adjacent vertex
+                    </div>
                     <button
                       onClick={onCancelSelection}
-                      className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200"
+                      className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200 w-full"
                     >
                       Cancel
                     </button>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                ) : (
+                  <div className="space-y-1">
+                    <div className="text-xs text-gray-700">
+                      From Vertex {firstRoadVertex} to Vertex {selectedVertex}
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={onConfirmRoad}
+                        className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        onClick={onCancelSelection}
+                        className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {gameState.turnState.step === 'place_village_gameplay' && canPlayerAct && (
             <div className="space-y-2">
