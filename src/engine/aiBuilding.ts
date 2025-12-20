@@ -2,13 +2,15 @@ import { GameState, Player, Resources } from '../types/game';
 import { BoardSize } from '../data/boardStructure';
 import { getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages } from './gameplayActions';
 import { loadBoardForSize } from '../graph/loadBoard';
+import { calculateBuildingPriority, evaluateVertex } from './aiStrategicEval';
 
-export type BuildingType = 'road' | 'village' | 'estate';
+export type BuildingType = 'road' | 'village' | 'estate' | 'dev_card';
 
 export interface BuildingOption {
   type: BuildingType;
   canAfford: boolean;
   hasValidLocation: boolean;
+  priority: number;
 }
 
 export interface AIBuildDecision {
@@ -43,6 +45,12 @@ export function checkBuildingAvailability(
   const player = gameState.players.find(p => p.id === playerId);
   if (!player) return [];
 
+  const priorities = calculateBuildingPriority(player, gameState);
+  const priorityMap: Record<string, number> = {};
+  priorities.forEach(p => {
+    priorityMap[p.type] = p.priority;
+  });
+
   const options: BuildingOption[] = [];
 
   const canAffordRoadRes = canAffordRoad(player.resources);
@@ -50,7 +58,8 @@ export function checkBuildingAvailability(
   options.push({
     type: 'road',
     canAfford: canAffordRoadRes,
-    hasValidLocation: validRoadLocations.length > 0
+    hasValidLocation: validRoadLocations.length > 0,
+    priority: priorityMap['road'] || 1
   });
 
   const canAffordVillageRes = canAffordVillage(player.resources);
@@ -58,7 +67,8 @@ export function checkBuildingAvailability(
   options.push({
     type: 'village',
     canAfford: canAffordVillageRes,
-    hasValidLocation: validVillageLocations.length > 0
+    hasValidLocation: validVillageLocations.length > 0,
+    priority: priorityMap['village'] || 1
   });
 
   const canAffordEstateRes = canAffordEstate(player.resources);
@@ -66,7 +76,17 @@ export function checkBuildingAvailability(
   options.push({
     type: 'estate',
     canAfford: canAffordEstateRes,
-    hasValidLocation: upgradableVillages.length > 0
+    hasValidLocation: upgradableVillages.length > 0,
+    priority: priorityMap['estate'] || 1
+  });
+
+  const canAffordDevCardRes = canAffordDevelopmentCard(player.resources);
+  const hasDevCardsAvailable = gameState.developmentCardDeck.length > 0;
+  options.push({
+    type: 'dev_card',
+    canAfford: canAffordDevCardRes,
+    hasValidLocation: hasDevCardsAvailable,
+    priority: 5
   });
 
   return options;
@@ -89,9 +109,10 @@ export function makeRandomBuildDecision(
   boardSize: BoardSize,
   actionCount: number = 0
 ): AIBuildDecision {
-  const availableTypes = getAvailableBuildingTypes(playerId, gameState, boardSize);
+  const options = checkBuildingAvailability(playerId, gameState, boardSize);
+  const availableOptions = options.filter(opt => opt.canAfford && opt.hasValidLocation);
 
-  if (availableTypes.length === 0) {
+  if (availableOptions.length === 0) {
     return { shouldBuild: false };
   }
 
@@ -102,11 +123,70 @@ export function makeRandomBuildDecision(
     return { shouldBuild: false };
   }
 
-  const randomIndex = Math.floor(Math.random() * availableTypes.length);
+  availableOptions.sort((a, b) => b.priority - a.priority);
+  const topOptions = availableOptions.slice(0, Math.max(2, Math.ceil(availableOptions.length * 0.5)));
+
+  const randomIndex = Math.floor(Math.random() * topOptions.length);
   return {
     shouldBuild: true,
-    buildingType: availableTypes[randomIndex]
+    buildingType: topOptions[randomIndex].type
   };
+}
+
+export function makeStrategicBuildDecision(
+  playerId: string,
+  gameState: GameState,
+  boardSize: BoardSize,
+  actionCount: number = 0,
+  difficulty: 'easy' | 'normal' | 'hard' = 'normal'
+): AIBuildDecision {
+  const options = checkBuildingAvailability(playerId, gameState, boardSize);
+  const availableOptions = options.filter(opt => opt.canAfford && opt.hasValidLocation);
+
+  if (availableOptions.length === 0) {
+    return { shouldBuild: false };
+  }
+
+  const player = gameState.players.find(p => p.id === playerId);
+  if (!player) return { shouldBuild: false };
+
+  const pointsToWin = gameState.gameSettings.pointsToWin;
+  const pointsAway = pointsToWin - (player.score + player.secretPoints);
+
+  let buildProbability = 0.7;
+  if (pointsAway <= 2) {
+    buildProbability = 0.95;
+  } else if (pointsAway <= 4) {
+    buildProbability = 0.85;
+  }
+
+  buildProbability = Math.max(0.4, buildProbability - (actionCount * 0.15));
+
+  if (Math.random() > buildProbability) {
+    return { shouldBuild: false };
+  }
+
+  availableOptions.sort((a, b) => b.priority - a.priority);
+
+  if (difficulty === 'hard') {
+    return {
+      shouldBuild: true,
+      buildingType: availableOptions[0].type
+    };
+  } else if (difficulty === 'normal') {
+    const topOptions = availableOptions.slice(0, Math.max(2, Math.ceil(availableOptions.length * 0.4)));
+    const randomIndex = Math.floor(Math.random() * topOptions.length);
+    return {
+      shouldBuild: true,
+      buildingType: topOptions[randomIndex].type
+    };
+  } else {
+    const randomIndex = Math.floor(Math.random() * availableOptions.length);
+    return {
+      shouldBuild: true,
+      buildingType: availableOptions[randomIndex].type
+    };
+  }
 }
 
 export function selectRandomRoadLocation(

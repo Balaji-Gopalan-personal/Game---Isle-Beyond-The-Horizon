@@ -1,0 +1,180 @@
+import { GameState, Player } from '../types/game';
+import { BoardSize } from '../data/boardConfigs';
+import { shouldPlayDevCardBeforeRoll, shouldPlayDevCardAfterRoll } from './aiDevCardStrategy';
+import { evaluateTradeOpportunity } from './aiTradingStrategy';
+import { makeStrategicBuildDecision } from './aiBuilding';
+
+export interface TurnAction {
+  type: 'play_dev_card' | 'trade_bank' | 'trade_player' | 'build' | 'end_turn';
+  priority: number;
+  data?: any;
+}
+
+export interface TurnPlan {
+  actions: TurnAction[];
+  reasoning: string;
+}
+
+export function createTurnPlan(
+  player: Player,
+  gameState: GameState,
+  boardSize: BoardSize,
+  difficulty: 'easy' | 'normal' | 'hard'
+): TurnPlan {
+  const actions: TurnAction[] = [];
+
+  const devCardDecision = shouldPlayDevCardAfterRoll(player, gameState, boardSize, difficulty);
+  if (devCardDecision.shouldPlay && devCardDecision.cardId) {
+    actions.push({
+      type: 'play_dev_card',
+      priority: 10,
+      data: { cardId: devCardDecision.cardId }
+    });
+  }
+
+  const tradeEval = evaluateTradeOpportunity(player, gameState);
+  if (tradeEval.shouldTrade) {
+    const tradePriority = calculateTradePriority(player, gameState);
+    actions.push({
+      type: tradeEval.tradeType === 'bank' ? 'trade_bank' : 'trade_player',
+      priority: tradePriority,
+      data: tradeEval
+    });
+  }
+
+  const buildDecision = makeStrategicBuildDecision(player.id, gameState, boardSize, 0, difficulty);
+  if (buildDecision.shouldBuild && buildDecision.buildingType) {
+    const buildPriority = calculateBuildPriority(player, gameState, buildDecision.buildingType);
+    actions.push({
+      type: 'build',
+      priority: buildPriority,
+      data: { buildingType: buildDecision.buildingType }
+    });
+  }
+
+  actions.sort((a, b) => b.priority - a.priority);
+
+  return {
+    actions,
+    reasoning: `Turn plan with ${actions.length} actions`
+  };
+}
+
+function calculateTradePriority(player: Player, gameState: GameState): number {
+  const pointsToWin = gameState.gameSettings.pointsToWin;
+  const pointsAway = pointsToWin - (player.score + player.secretPoints);
+
+  if (pointsAway <= 2) {
+    return 9;
+  } else if (pointsAway <= 4) {
+    return 7;
+  }
+
+  return 5;
+}
+
+function calculateBuildPriority(
+  player: Player,
+  gameState: GameState,
+  buildingType: 'road' | 'village' | 'estate' | 'dev_card'
+): number {
+  const pointsToWin = gameState.gameSettings.pointsToWin;
+  const pointsAway = pointsToWin - (player.score + player.secretPoints);
+
+  let basePriority = 8;
+
+  switch (buildingType) {
+    case 'village':
+      basePriority = 9;
+      break;
+    case 'estate':
+      basePriority = 10;
+      break;
+    case 'road':
+      basePriority = 6;
+      break;
+    case 'dev_card':
+      basePriority = 7;
+      break;
+  }
+
+  if (pointsAway <= 2) {
+    basePriority += 3;
+  } else if (pointsAway <= 4) {
+    basePriority += 1;
+  }
+
+  return basePriority;
+}
+
+export function shouldContinueTurn(
+  player: Player,
+  gameState: GameState,
+  boardSize: BoardSize,
+  actionsTaken: number,
+  difficulty: 'easy' | 'normal' | 'hard'
+): boolean {
+  if (actionsTaken >= 5) {
+    return false;
+  }
+
+  const pointsToWin = gameState.gameSettings.pointsToWin;
+  const pointsAway = pointsToWin - (player.score + player.secretPoints);
+
+  if (pointsAway <= 1) {
+    return actionsTaken < 8;
+  } else if (pointsAway <= 3) {
+    return actionsTaken < 6;
+  }
+
+  const buildDecision = makeStrategicBuildDecision(player.id, gameState, boardSize, actionsTaken, difficulty);
+  if (buildDecision.shouldBuild) {
+    return true;
+  }
+
+  const tradeEval = evaluateTradeOpportunity(player, gameState);
+  if (tradeEval.shouldTrade && actionsTaken < 3) {
+    return true;
+  }
+
+  return false;
+}
+
+export function optimizeActionOrder(
+  actions: TurnAction[],
+  player: Player,
+  gameState: GameState
+): TurnAction[] {
+  const orderedActions: TurnAction[] = [];
+
+  const devCardActions = actions.filter(a => a.type === 'play_dev_card');
+  orderedActions.push(...devCardActions);
+
+  const tradeActions = actions.filter(a => a.type === 'trade_bank' || a.type === 'trade_player');
+
+  const buildActions = actions.filter(a => a.type === 'build');
+
+  const pointsToWin = gameState.gameSettings.pointsToWin;
+  const pointsAway = pointsToWin - (player.score + player.secretPoints);
+
+  if (pointsAway <= 2) {
+    orderedActions.push(...buildActions);
+    orderedActions.push(...tradeActions);
+  } else {
+    orderedActions.push(...tradeActions);
+    orderedActions.push(...buildActions);
+  }
+
+  return orderedActions;
+}
+
+export function evaluateTurnEfficiency(
+  actionsTaken: number,
+  resourcesSpent: number,
+  pointsGained: number
+): number {
+  if (actionsTaken === 0) return 0;
+
+  const efficiency = (pointsGained * 10 + resourcesSpent) / actionsTaken;
+  return efficiency;
+}

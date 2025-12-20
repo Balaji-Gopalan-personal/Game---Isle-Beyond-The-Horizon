@@ -6,6 +6,8 @@ import {
   getPlayerOwnedVertices,
   getBoardData
 } from './boardService';
+import { evaluateVertex, evaluateRoadEdge } from './aiStrategicEval';
+import { evaluateSetupVertex, evaluateSetupRoad } from './aiSetupStrategy';
 
 export interface AIDecision {
   action: 'place_village' | 'place_road' | 'end_turn' | 'none';
@@ -98,9 +100,14 @@ export class AIEngine {
       return this.selectRandomVertex(validVertices);
     }
 
+    const isSetupPhase = gameState.phase === 'setup-phase-1' || gameState.phase === 'setup-phase-2';
+    const isPhase2 = gameState.phase === 'setup-phase-2';
+
     const scoredVertices = validVertices.map(vertexId => ({
       vertexId,
-      score: this.scoreVillageLocation(vertexId, player, gameState)
+      score: isSetupPhase
+        ? evaluateSetupVertex(vertexId, gameState, this.boardSize, player, isPhase2)
+        : this.scoreVillageLocation(vertexId, player, gameState)
     }));
 
     scoredVertices.sort((a, b) => b.score - a.score);
@@ -123,9 +130,14 @@ export class AIEngine {
       return this.selectRandomEdge(validEdges);
     }
 
+    const isSetupPhase = gameState.phase === 'setup-phase-1' || gameState.phase === 'setup-phase-2';
+    const isPhase2 = gameState.phase === 'setup-phase-2';
+
     const scoredEdges = validEdges.map(edgeId => ({
       edgeId,
-      score: this.scoreRoadLocation(edgeId, fromVertex, player, gameState)
+      score: isSetupPhase
+        ? evaluateSetupRoad(edgeId, fromVertex, gameState, this.boardSize, player, isPhase2)
+        : this.scoreRoadLocation(edgeId, fromVertex, player, gameState)
     }));
 
     scoredEdges.sort((a, b) => b.score - a.score);
@@ -139,15 +151,8 @@ export class AIEngine {
   }
 
   private scoreVillageLocation(vertexId: number, player: Player, gameState: GameState): number {
-    let score = 0;
-
-    score += Math.random() * 10;
-
-    const boardData = getBoardData(this.boardSize);
-    const adjacentCount = boardData.adjacencyMap[vertexId]?.length || 0;
-    score += adjacentCount * 2;
-
-    return score;
+    const evaluation = evaluateVertex(vertexId, gameState, this.boardSize, player);
+    return evaluation.totalScore;
   }
 
   private scoreRoadLocation(
@@ -156,18 +161,8 @@ export class AIEngine {
     player: Player,
     gameState: GameState
   ): number {
-    let score = 0;
-
-    score += Math.random() * 10;
-
-    const [v1, v2] = edgeId.split('__').map(Number);
-    const targetVertex = v1 === fromVertex ? v2 : v1;
-
-    const boardData = getBoardData(this.boardSize);
-    const adjacentCount = boardData.adjacencyMap[targetVertex]?.length || 0;
-    score += adjacentCount * 2;
-
-    return score;
+    const evaluation = evaluateRoadEdge(edgeId, fromVertex, gameState, this.boardSize, player);
+    return evaluation.totalScore;
   }
 
   private selectRandomVertex(vertices: number[]): number {

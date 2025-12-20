@@ -1,5 +1,6 @@
 import { GameState, Player, Resources } from '../types/game';
 import { ResourceType, getBestTradeRateForResource } from './tradingUtils';
+import { evaluateTradeOpportunity, evaluatePlayerTradeProposal, shouldInitiatePlayerTrade } from '../engine/aiTradingStrategy';
 
 export interface ResourcePriority {
   resource: ResourceType;
@@ -7,7 +8,7 @@ export interface ResourcePriority {
   deficit: number;
 }
 
-const BASE_BANK_TRADE_PROBABILITY = 0.4;
+const BASE_BANK_TRADE_PROBABILITY = 0.5;
 const PROBABILITY_DECAY_PER_ATTEMPT = 0.15;
 const MAX_TRADE_ATTEMPTS_PER_TURN = 3;
 
@@ -21,6 +22,11 @@ export function shouldAttemptBankTrade(
 ): boolean {
   if (attemptsThisTurn >= MAX_TRADE_ATTEMPTS_PER_TURN) {
     return false;
+  }
+
+  const tradeEval = evaluateTradeOpportunity(player, gameState);
+  if (tradeEval.shouldTrade && tradeEval.tradeType === 'bank') {
+    return true;
   }
 
   const adjustedProbability = BASE_BANK_TRADE_PROBABILITY - (attemptsThisTurn * PROBABILITY_DECAY_PER_ATTEMPT);
@@ -37,7 +43,7 @@ export function shouldAttemptPlayerTrade(
     return false;
   }
 
-  return Math.random() < BASE_PLAYER_TRADE_PROBABILITY;
+  return shouldInitiatePlayerTrade(player, gameState, attemptsThisTurn);
 }
 
 export function assessResourceNeeds(player: Player): ResourcePriority[] {
@@ -119,6 +125,16 @@ export function selectBankTradeResources(
   player: Player,
   gameState: GameState
 ): { offeringResource: ResourceType; offeringAmount: number; requestedResource: ResourceType } | null {
+  const tradeEval = evaluateTradeOpportunity(player, gameState);
+
+  if (tradeEval.shouldTrade && tradeEval.tradeType === 'bank' && tradeEval.offering && tradeEval.requesting && tradeEval.offeringAmount) {
+    return {
+      offeringResource: tradeEval.offering,
+      offeringAmount: tradeEval.offeringAmount,
+      requestedResource: tradeEval.requesting
+    };
+  }
+
   const priorities = assessResourceNeeds(player);
   if (priorities.length === 0) return null;
 
