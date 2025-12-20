@@ -307,7 +307,11 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
       <div className="absolute inset-0 bg-white bg-opacity-85 rounded-xl"></div>
       <div className="relative z-10">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-gray-800">Settle the Island - Setup</h2>
+        <img
+          src="/images/chatgpt_image_dec_20,_2025,_11_59_13_am.png"
+          alt="Isle Beyond the Horizon"
+          className="h-16 object-contain"
+        />
         <div className="flex items-center gap-4">
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
             <input

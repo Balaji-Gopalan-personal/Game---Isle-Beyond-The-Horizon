@@ -595,9 +595,11 @@ function App() {
       <div className="w-full">
         <header className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-2">
-            <span className="text-2xl">⌂</span>
-            <h1 className="text-3xl font-bold text-gray-800">Settle the Island</h1>
-            <span className="text-2xl">⛫</span>
+            <img
+              src="/images/chatgpt_image_dec_20,_2025,_11_59_13_am.png"
+              alt="Isle Beyond the Horizon"
+              className="h-20 object-contain mx-auto"
+            />
           </div>
         </header>
 
