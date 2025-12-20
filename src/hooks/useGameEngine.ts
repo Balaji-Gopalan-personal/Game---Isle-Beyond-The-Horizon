@@ -7,8 +7,11 @@ import { loadBoardGraph, loadBoardForSize } from '../graph/loadBoard';
 import { canPlaceVillage, legalRoadEdgesFrom, edgeTouchesVertex, whyNotVillage, initializeValidators } from '../engine/validators';
 import { placeVillage_P1, placeRoad_P1_byEdgeId, aiTakeTurn_P1 } from '../engine/phase1';
 import { calculateLongestRoadPath, getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages } from '../engine/gameplayActions';
-import { makeRandomBuildDecision, selectRandomRoadLocation, selectRandomVillageLocation, selectRandomEstateLocation, getAvailableBuildingTypes } from '../engine/aiBuilding';
+import { makeRandomBuildDecision, makeStrategicBuildDecision, selectRandomRoadLocation, selectRandomVillageLocation, selectRandomEstateLocation, getAvailableBuildingTypes } from '../engine/aiBuilding';
 import { findDesertCentre, isValidRobberDestination, getPlayersWithAdjacentBuildings, selectRandomRobberDestination, stealRandomResource, selectRandomStealTarget, CentreData } from '../engine/robberActions';
+import { selectRobberPlacement } from '../engine/aiRobberStrategy';
+import { shouldPlayDevCardAfterRoll } from '../engine/aiDevCardStrategy';
+import { evaluateTradeOpportunity } from '../engine/aiTradingStrategy';
 import { createInitialDeck, shuffleDeck } from '../data/developmentCards';
 import { checkVictoryCondition } from '../utils/victoryDetection';
 import { generateTradingPorts } from '../utils/tradingPortUtils';
@@ -865,18 +868,21 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     });
   }, [validateDevCardPlay]);
 
-  // Helper: AI decides whether to play a dev card (random)
+  // Helper: AI decides whether to play a dev card (strategic with difficulty)
   const aiDecidePlayDevCard = useCallback((player: Player): DevelopmentCard | null => {
-    const playableCards = getPlayableDevCards(player);
-    if (playableCards.length === 0) return null;
+    const decision = shouldPlayDevCardAfterRoll(
+      player,
+      gameState,
+      boardSize,
+      player.difficulty || 'normal'
+    );
 
-    // 40% chance to play a card if available
-    if (Math.random() < 0.4) {
-      const randomIndex = Math.floor(Math.random() * playableCards.length);
-      return playableCards[randomIndex];
+    if (decision.shouldPlay && decision.cardId) {
+      const card = player.developmentCardsInHand.find(c => c.id === decision.cardId);
+      return card || null;
     }
     return null;
-  }, [getPlayableDevCards]);
+  }, [gameState, boardSize]);
 
   // Helper to start AI action loop
   const startAIActionLoop = useCallback((playerId: string) => {
@@ -3967,25 +3973,34 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
 
     const timer = setTimeout(() => {
-      // Check if AI wants to attempt a trade before building
+      // Strategic trade evaluation before building
       const tradeAttempts = gameState.turnState.aiTradeAttemptsThisTurn || 0;
 
-      if (tradeAttempts < 3 && Math.random() < 0.4) {
-        if (Math.random() < 0.6) {
-          console.log('DEBUG: AI attempting bank trade');
-          const tradeSuccess = handleAIBankTrade(currentPlayer.id);
-          if (tradeSuccess) {
-            console.log('DEBUG: AI bank trade successful');
-            setAiActionLoopIterations(prev => prev + 1);
-            return;
-          }
-        } else {
-          console.log('DEBUG: AI attempting player trade');
-          const tradeSuccess = handleAIPlayerTrade(currentPlayer.id);
-          if (tradeSuccess) {
-            console.log('DEBUG: AI player trade initiated');
-            setAiActionLoopIterations(prev => prev + 1);
-            return;
+      if (tradeAttempts < 3) {
+        const tradeEval = evaluateTradeOpportunity(currentPlayer, gameState);
+
+        if (tradeEval.shouldTrade) {
+          const difficultyThreshold = currentPlayer.difficulty === 'easy' ? 0.3 :
+                                      currentPlayer.difficulty === 'hard' ? 0.9 : 0.6;
+
+          if (Math.random() < difficultyThreshold) {
+            if (tradeEval.tradeType === 'bank') {
+              console.log('DEBUG: AI attempting strategic bank trade');
+              const tradeSuccess = handleAIBankTrade(currentPlayer.id);
+              if (tradeSuccess) {
+                console.log('DEBUG: AI bank trade successful');
+                setAiActionLoopIterations(prev => prev + 1);
+                return;
+              }
+            } else {
+              console.log('DEBUG: AI attempting strategic player trade');
+              const tradeSuccess = handleAIPlayerTrade(currentPlayer.id);
+              if (tradeSuccess) {
+                console.log('DEBUG: AI player trade initiated');
+                setAiActionLoopIterations(prev => prev + 1);
+                return;
+              }
+            }
           }
         }
       }
@@ -4016,7 +4031,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return;
       }
 
-      const decision = makeRandomBuildDecision(currentPlayer.id, gameState, boardSize, aiActionLoopIterations);
+      const decision = makeStrategicBuildDecision(currentPlayer.id, gameState, boardSize, aiActionLoopIterations, currentPlayer.difficulty || 'normal');
 
       if (!decision.shouldBuild) {
         console.log('DEBUG: AI decided to end turn');
@@ -4331,14 +4346,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         setRobberMovementInitiated(true);
 
         setTimeout(() => {
-          const robberCanReturnToDesert = gameState.gameSettings?.robberCanReturnToDesert || false;
-          const newCentreId = selectRandomRobberDestination(
-            boardCenters as CentreData[],
-            gameState.robberPosition,
-            robberCanReturnToDesert
+          const robberPlacement = selectRobberPlacement(
+            currentPlayer,
+            gameState,
+            boardSize,
+            currentPlayer.difficulty || 'normal'
           );
 
-          if (newCentreId !== null) {
+          if (robberPlacement && robberPlacement.hexId !== null) {
+            const newCentreId = robberPlacement.hexId;
+
             // Move robber
             const oldPosition = gameState.robberPosition;
             setGameState(prev => ({
@@ -4360,9 +4377,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             );
 
             if (eligibleTargets.length > 0) {
-              // AI steals from random target
+              // AI steals from strategically selected target
               setTimeout(() => {
-                const targetPlayer = selectRandomStealTarget(eligibleTargets);
+                const targetPlayerId = robberPlacement.targetPlayerId || selectRandomStealTarget(eligibleTargets)?.id;
+                const targetPlayer = targetPlayerId ? gameState.players.find(p => p.id === targetPlayerId) : null;
 
                 if (targetPlayer) {
                   const stealResult = stealRandomResource(targetPlayer, currentPlayer);
