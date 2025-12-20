@@ -311,6 +311,7 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
           src="/images/logo.png"
           alt="Isle Beyond the Horizon"
           className="h-16 object-contain"
+          style={{ mixBlendMode: 'multiply' }}
         />
         <div className="flex items-center gap-4">
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
