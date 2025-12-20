@@ -308,7 +308,7 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
       <div className="relative z-10">
       <div className="flex justify-between items-center mb-4">
         <img
-          src="/images/chatgpt_image_dec_20,_2025,_11_59_13_am.png"
+          src="/images/logo.png"
           alt="Isle Beyond the Horizon"
           className="h-16 object-contain"
         />

@@ -596,7 +596,7 @@ function App() {
         <header className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-2">
             <img
-              src="/images/chatgpt_image_dec_20,_2025,_11_59_13_am.png"
+              src="/images/logo.png"
               alt="Isle Beyond the Horizon"
               className="h-20 object-contain mx-auto"
             />
