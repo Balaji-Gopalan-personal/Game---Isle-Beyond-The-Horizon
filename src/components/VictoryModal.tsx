@@ -109,10 +109,6 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
                 src="/images/logo.png"
                 alt="Settle Island"
                 className="h-16 w-auto"
-                style={{
-                  mixBlendMode: 'multiply',
-                  filter: 'contrast(1.1) brightness(0.95)'
-                }}
               />
             </div>
             <div className="flex gap-4 justify-center">
@@ -261,10 +257,6 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
               src="/images/logo.png"
               alt="Settle Island"
               className="h-16 w-auto"
-              style={{
-                mixBlendMode: 'multiply',
-                filter: 'contrast(1.1) brightness(0.95)'
-              }}
             />
           </div>
           <div className="flex gap-4 justify-center">
