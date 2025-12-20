@@ -20,6 +20,7 @@ import { getPlayerColorHex } from '../utils/playerColors';
 import { shouldAttemptBankTrade, selectBankTradeResources, shouldAttemptPlayerTrade, generatePlayerTradeProposal, getTradeProposalKey } from '../utils/aiTrading';
 
 const DEFAULT_GAME_SETTINGS: GameSettings = {
+  boardSize: 'standard',
   pointsToWin: 10,
   longestRoadEnabled: true,
   longestRoadSize: 5,
@@ -31,7 +32,8 @@ const DEFAULT_GAME_SETTINGS: GameSettings = {
   robberCanReturnToDesert: false,
   tradingPortsEnabled: true,
   numberOfTradingPorts: 9,
-  developmentCardDeck: 'standard'
+  developmentCardDeck: 'standard',
+  testingMode: false
 };
 
 const DEFAULT_STEPS: GameStep[] = [
@@ -4379,7 +4381,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             if (eligibleTargets.length > 0) {
               // AI steals from strategically selected target
               setTimeout(() => {
-                const targetPlayerId = robberPlacement.targetPlayerId || selectRandomStealTarget(eligibleTargets)?.id;
+                let targetPlayerId = robberPlacement.targetPlayerId;
+
+                // Validate that targetPlayerId is actually in eligibleTargets
+                if (targetPlayerId && !eligibleTargets.some(t => t.id === targetPlayerId)) {
+                  console.warn(`AI selected invalid steal target ${targetPlayerId}, not in eligible list. Selecting random target instead.`);
+                  targetPlayerId = selectRandomStealTarget(eligibleTargets)?.id;
+                } else if (!targetPlayerId) {
+                  targetPlayerId = selectRandomStealTarget(eligibleTargets)?.id;
+                }
+
                 const targetPlayer = targetPlayerId ? gameState.players.find(p => p.id === targetPlayerId) : null;
 
                 if (targetPlayer) {

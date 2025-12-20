@@ -22,7 +22,7 @@ export function selectRobberPlacement(
 
   if (difficulty === 'easy') {
     const randomHex = validHexes[Math.floor(Math.random() * validHexes.length)];
-    const targetPlayer = selectStealTarget(randomHex.id, gameState, player.id);
+    const targetPlayer = selectStealTarget(randomHex.id, gameState, player.id, boardSize);
     return {
       hexId: randomHex.id,
       targetPlayerId: targetPlayer,
@@ -33,7 +33,7 @@ export function selectRobberPlacement(
 
   const scoredPlacements = validHexes.map(hex => {
     const score = scoreRobberPlacement(hex.id, player, gameState, boardSize);
-    const targetPlayer = selectStealTarget(hex.id, gameState, player.id);
+    const targetPlayer = selectStealTarget(hex.id, gameState, player.id, boardSize);
 
     return {
       hexId: hex.id,
@@ -74,7 +74,7 @@ function scoreRobberPlacement(
   const productionValue = getHexProductionValue(hex.value);
   score += productionValue * 10;
 
-  const playersOnHex = getPlayersOnHex(hexId, gameState);
+  const playersOnHex = getPlayersOnHex(hexId, gameState, boardSize);
 
   const leader = getGameLeader(gameState, player.id);
   const secondPlace = getSecondPlacePlayer(gameState, player.id);
@@ -129,8 +129,8 @@ function getHexProductionValue(pipValue: number): number {
   return probabilities[pipValue] || 0;
 }
 
-function getPlayersOnHex(hexId: number, gameState: GameState): string[] {
-  const boardData = loadBoardForSize(gameState.gameSettings.testingMode ? 'tiny' : 'standard');
+function getPlayersOnHex(hexId: number, gameState: GameState, boardSize: BoardSize): string[] {
+  const boardData = loadBoardForSize(boardSize);
   const hex = boardData.centers.find(c => c.id === hexId);
 
   if (!hex) return [];
@@ -174,9 +174,10 @@ function getSecondPlacePlayer(gameState: GameState, excludePlayerId: string): Pl
 function selectStealTarget(
   hexId: number,
   gameState: GameState,
-  currentPlayerId: string
+  currentPlayerId: string,
+  boardSize: BoardSize
 ): string | undefined {
-  const playersOnHex = getPlayersOnHex(hexId, gameState).filter(
+  const playersOnHex = getPlayersOnHex(hexId, gameState, boardSize).filter(
     pid => pid !== currentPlayerId
   );
 

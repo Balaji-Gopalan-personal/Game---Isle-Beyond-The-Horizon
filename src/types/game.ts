@@ -45,6 +45,7 @@ export interface DevelopmentCard {
 }
 
 export interface GameSettings {
+  boardSize: 'tiny' | 'small' | 'standard' | 'large' | 'huge';
   pointsToWin: number;
   longestRoadEnabled: boolean;
   longestRoadSize: number;
