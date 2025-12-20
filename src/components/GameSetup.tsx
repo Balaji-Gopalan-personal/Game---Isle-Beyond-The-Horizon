@@ -310,7 +310,7 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
         <img
           src="/images/chatgpt_image_dec_20,_2025,_11_59_13_am.png"
           alt="Isle Beyond the Horizon"
-          className="h-40 object-contain"
+          className="h-16 object-contain"
         />
         <div className="flex items-center gap-4">
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
