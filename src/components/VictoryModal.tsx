@@ -103,21 +103,34 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
             </div>
           </div>
 
-          <div className="border-t p-6 flex gap-4 justify-center">
-            <button
-              onClick={onMinimize}
-              className="flex items-center gap-2 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition-colors"
-            >
-              <Minimize2 className="w-5 h-5" />
-              Minimize
-            </button>
-            <button
-              onClick={onNewGame}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
-            >
-              <Home className="w-5 h-5" />
-              New Game
-            </button>
+          <div className="border-t p-6">
+            <div className="flex justify-center mb-4">
+              <img
+                src="/images/logo.png"
+                alt="Settle Island"
+                className="h-16 w-auto"
+                style={{
+                  mixBlendMode: 'multiply',
+                  filter: 'contrast(1.1) brightness(0.95)'
+                }}
+              />
+            </div>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={onMinimize}
+                className="flex items-center gap-2 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition-colors"
+              >
+                <Minimize2 className="w-5 h-5" />
+                Minimize
+              </button>
+              <button
+                onClick={onNewGame}
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+              >
+                <Home className="w-5 h-5" />
+                New Game
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -242,22 +255,35 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
           </div>
         </div>
 
-        <div className="border-t p-6 flex gap-4 justify-center">
-          <button
-            onClick={onMinimize}
-            className="flex items-center gap-2 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition-colors"
-          >
-            <Minimize2 className="w-5 h-5" />
-            Minimize
-          </button>
+        <div className="border-t p-6">
+          <div className="flex justify-center mb-4">
+            <img
+              src="/images/logo.png"
+              alt="Settle Island"
+              className="h-16 w-auto"
+              style={{
+                mixBlendMode: 'multiply',
+                filter: 'contrast(1.1) brightness(0.95)'
+              }}
+            />
+          </div>
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={onMinimize}
+              className="flex items-center gap-2 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition-colors"
+            >
+              <Minimize2 className="w-5 h-5" />
+              Minimize
+            </button>
 
-          <button
-            onClick={onNewGame}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
-          >
-            <Home className="w-5 h-5" />
-            New Game
-          </button>
+            <button
+              onClick={onNewGame}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+            >
+              <Home className="w-5 h-5" />
+              New Game
+            </button>
+          </div>
         </div>
       </div>
     </div>
