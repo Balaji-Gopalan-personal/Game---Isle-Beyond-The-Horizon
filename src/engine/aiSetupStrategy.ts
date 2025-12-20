@@ -41,7 +41,7 @@ export function evaluateSetupVertex(
     evaluation.expansionPotential * weights.expansion;
 
   if (isPhase2) {
-    score += evaluateComplementaryResources(vertexId, player, boardSize);
+    score += evaluateComplementaryResources(vertexId, player, boardSize, gameState);
   }
 
   return score;
@@ -50,14 +50,15 @@ export function evaluateSetupVertex(
 function evaluateComplementaryResources(
   vertexId: number,
   player: Player,
-  boardSize: BoardSize
+  boardSize: BoardSize,
+  gameState: GameState
 ): number {
   const boardData = loadBoardForSize(boardSize);
   const adjacentCenters = boardData.centers.filter(center =>
     center.vertices.includes(vertexId)
   );
 
-  const currentResources = getResourceProduction(player, boardData.centers);
+  const currentResources = getResourceProduction(player, boardData.centers, gameState);
   const newResources = adjacentCenters
     .filter(c => c.resourceType !== 'desert')
     .map(c => c.resourceType);
@@ -81,7 +82,8 @@ function evaluateComplementaryResources(
 
 function getResourceProduction(
   player: Player,
-  allCenters: Array<{ id: number; vertices: number[]; resourceType: string; value: number }>
+  allCenters: Array<{ id: number; vertices: number[]; resourceType: string; value: number }>,
+  gameState: GameState
 ): Record<string, number> {
   const production: Record<string, number> = {
     clay: 0,
@@ -90,6 +92,20 @@ function getResourceProduction(
     fabric: 0,
     mineral: 0,
   };
+
+  const playerVillages = gameState.villages.filter(v => v.playerId === player.id);
+
+  for (const village of playerVillages) {
+    const adjacentCenters = allCenters.filter(center =>
+      center.vertices.includes(village.vertexId)
+    );
+
+    for (const center of adjacentCenters) {
+      if (center.resourceType !== 'desert') {
+        production[center.resourceType] = (production[center.resourceType] || 0) + 1;
+      }
+    }
+  }
 
   return production;
 }

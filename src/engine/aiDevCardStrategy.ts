@@ -155,10 +155,17 @@ function scoreCardPlayTiming(
       return 6;
 
     case 'Expert Negotiator':
-      if (pointsAway <= 4) {
-        return 13;
+      const hasSurplusResources = checkSurplusResources(player);
+      if (!hasSurplusResources) {
+        return 0;
       }
-      return 8;
+
+      if (pointsAway <= 4 && hasSurplusResources) {
+        return 13;
+      } else if (hasSurplusResources) {
+        return 8;
+      }
+      return 0;
 
     case 'Closed Market':
       const leader2 = getGameLeader(gameState);
@@ -200,6 +207,20 @@ function checkResourceImbalance(player: Player): boolean {
   const min = Math.min(...resources);
 
   return max - min >= 3;
+}
+
+function checkSurplusResources(player: Player): boolean {
+  const keepThreshold = 2;
+
+  const resourceTypes = [
+    player.resources.clay,
+    player.resources.lumber,
+    player.resources.grain,
+    player.resources.fabric,
+    player.resources.mineral
+  ];
+
+  return resourceTypes.some(amount => amount > keepThreshold);
 }
 
 export function shouldPlayDevCardBeforeRoll(
