@@ -598,7 +598,7 @@ function App() {
             <img
               src="/images/logo.png"
               alt="Isle Beyond the Horizon"
-              className="h-20 object-contain mx-auto"
+              className="h-16 object-contain mx-auto"
               style={{ mixBlendMode: 'multiply' }}
             />
           </div>
