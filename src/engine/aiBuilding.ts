@@ -150,22 +150,6 @@ export function makeStrategicBuildDecision(
   const player = gameState.players.find(p => p.id === playerId);
   if (!player) return { shouldBuild: false };
 
-  const pointsToWin = gameState.gameSettings.pointsToWin;
-  const pointsAway = pointsToWin - (player.score + player.secretPoints);
-
-  let buildProbability = 0.7;
-  if (pointsAway <= 2) {
-    buildProbability = 0.95;
-  } else if (pointsAway <= 4) {
-    buildProbability = 0.85;
-  }
-
-  buildProbability = Math.max(0.4, buildProbability - (actionCount * 0.15));
-
-  if (Math.random() > buildProbability) {
-    return { shouldBuild: false };
-  }
-
   availableOptions.sort((a, b) => b.priority - a.priority);
 
   if (difficulty === 'hard') {

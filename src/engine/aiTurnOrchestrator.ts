@@ -21,10 +21,16 @@ export function createTurnPlan(
   boardSize: BoardSize,
   difficulty: 'easy' | 'normal' | 'hard'
 ): TurnPlan {
+  const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
+  console.log(`\n🎯 [${player.name}] CREATING TURN PLAN`);
+  console.log(`   Points to win: ${pointsAway} | Score: ${player.score} | Secret: ${player.secretPoints}`);
+  console.log(`   Resources: Clay=${player.resources.clay} Lumber=${player.resources.lumber} Grain=${player.resources.grain} Fabric=${player.resources.fabric} Mineral=${player.resources.mineral}`);
+
   const actions: TurnAction[] = [];
 
   const devCardDecision = shouldPlayDevCardAfterRoll(player, gameState, boardSize, difficulty);
   if (devCardDecision.shouldPlay && devCardDecision.cardId) {
+    console.log(`   ✓ Adding dev card play to plan (priority 10)`);
     actions.push({
       type: 'play_dev_card',
       priority: 10,
@@ -35,6 +41,8 @@ export function createTurnPlan(
   const tradeEval = evaluateTradeOpportunity(player, gameState);
   if (tradeEval.shouldTrade) {
     const tradePriority = calculateTradePriority(player, gameState);
+    console.log(`   ✓ Adding ${tradeEval.tradeType} trade to plan (priority ${tradePriority})`);
+    console.log(`     Reason: ${tradeEval.reasoning}`);
     actions.push({
       type: tradeEval.tradeType === 'bank' ? 'trade_bank' : 'trade_player',
       priority: tradePriority,
@@ -45,6 +53,7 @@ export function createTurnPlan(
   const buildDecision = makeStrategicBuildDecision(player.id, gameState, boardSize, 0, difficulty);
   if (buildDecision.shouldBuild && buildDecision.buildingType) {
     const buildPriority = calculateBuildPriority(player, gameState, buildDecision.buildingType);
+    console.log(`   ✓ Adding ${buildDecision.buildingType} build to plan (priority ${buildPriority})`);
     actions.push({
       type: 'build',
       priority: buildPriority,
@@ -54,9 +63,12 @@ export function createTurnPlan(
 
   actions.sort((a, b) => b.priority - a.priority);
 
+  const actionSummary = actions.map(a => a.type).join(' → ');
+  console.log(`   📋 Final plan (${actions.length} actions): ${actionSummary || 'No actions'}`);
+
   return {
     actions,
-    reasoning: `Turn plan with ${actions.length} actions`
+    reasoning: `${player.name} turn plan with ${actions.length} actions: ${actionSummary}`
   };
 }
 
@@ -114,7 +126,10 @@ export function shouldContinueTurn(
   actionsTaken: number,
   difficulty: 'easy' | 'normal' | 'hard'
 ): boolean {
+  console.log(`\n🔄 [${player.name}] Checking if should continue turn (${actionsTaken} actions taken)`);
+
   if (actionsTaken >= 5) {
+    console.log(`   ✗ Max actions reached (5)`);
     return false;
   }
 
@@ -122,21 +137,28 @@ export function shouldContinueTurn(
   const pointsAway = pointsToWin - (player.score + player.secretPoints);
 
   if (pointsAway <= 1) {
-    return actionsTaken < 8;
+    const shouldContinue = actionsTaken < 8;
+    console.log(`   ${shouldContinue ? '✓' : '✗'} Close to winning (${pointsAway} away), max 8 actions`);
+    return shouldContinue;
   } else if (pointsAway <= 3) {
-    return actionsTaken < 6;
+    const shouldContinue = actionsTaken < 6;
+    console.log(`   ${shouldContinue ? '✓' : '✗'} Approaching win (${pointsAway} away), max 6 actions`);
+    return shouldContinue;
   }
 
   const buildDecision = makeStrategicBuildDecision(player.id, gameState, boardSize, actionsTaken, difficulty);
   if (buildDecision.shouldBuild) {
+    console.log(`   ✓ Can still build: ${buildDecision.buildingType}`);
     return true;
   }
 
   const tradeEval = evaluateTradeOpportunity(player, gameState);
   if (tradeEval.shouldTrade && actionsTaken < 3) {
+    console.log(`   ✓ Can still trade: ${tradeEval.reasoning}`);
     return true;
   }
 
+  console.log(`   ✗ No more beneficial actions available`);
   return false;
 }
 

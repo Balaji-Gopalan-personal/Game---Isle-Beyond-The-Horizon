@@ -21,19 +21,28 @@ export function evaluateTradeOpportunity(
   player: Player,
   gameState: GameState
 ): TradeEvaluation {
+  console.log(`\n💱 [${player.name}] EVALUATING TRADE OPPORTUNITIES`);
+
   const goals = identifyTradeGoals(player, gameState);
 
   if (goals.length === 0) {
+    console.log(`   ✗ No trade goals identified`);
     return { shouldTrade: false, tradeType: 'bank', reasoning: 'No immediate building goals' };
   }
 
   const topGoal = goals[0];
+  console.log(`   Top goal: ${topGoal.targetBuilding} (priority ${topGoal.priority})`);
+  const neededList = Object.entries(topGoal.neededResources).map(([r, amt]) => `${amt} ${r}`).join(', ');
+  console.log(`   Needs: ${neededList}`);
 
   const bestBankTrade = findBestBankTrade(player, gameState, topGoal);
   if (bestBankTrade) {
+    console.log(`   ✓ Found bank trade: ${bestBankTrade.offeringAmount}x ${bestBankTrade.offering} → ${bestBankTrade.requesting}`);
+    console.log(`   Reason: ${bestBankTrade.reasoning}`);
     return bestBankTrade;
   }
 
+  console.log(`   ✗ No beneficial trades available`);
   return { shouldTrade: false, tradeType: 'bank', reasoning: 'No beneficial trades available' };
 }
 

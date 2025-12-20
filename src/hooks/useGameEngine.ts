@@ -12,6 +12,7 @@ import { findDesertCentre, isValidRobberDestination, getPlayersWithAdjacentBuild
 import { selectRobberPlacement } from '../engine/aiRobberStrategy';
 import { shouldPlayDevCardAfterRoll } from '../engine/aiDevCardStrategy';
 import { evaluateTradeOpportunity } from '../engine/aiTradingStrategy';
+import { createTurnPlan, shouldContinueTurn } from '../engine/aiTurnOrchestrator';
 import { createInitialDeck, shuffleDeck } from '../data/developmentCards';
 import { checkVictoryCondition } from '../utils/victoryDetection';
 import { generateTradingPorts } from '../utils/tradingPortUtils';
@@ -3975,94 +3976,103 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
 
     const timer = setTimeout(() => {
-      // Strategic trade evaluation before building
-      const tradeAttempts = gameState.turnState.aiTradeAttemptsThisTurn || 0;
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`🤖 AI TURN - ${currentPlayer.name} (Iteration ${aiActionLoopIterations + 1})`);
+      console.log(`${'='.repeat(60)}`);
 
-      if (tradeAttempts < 3) {
-        const tradeEval = evaluateTradeOpportunity(currentPlayer, gameState);
+      // Check if we should continue the turn
+      const shouldContinue = shouldContinueTurn(
+        currentPlayer,
+        gameState,
+        boardSize,
+        aiActionLoopIterations,
+        currentPlayer.difficulty || 'normal'
+      );
 
-        if (tradeEval.shouldTrade) {
-          const difficultyThreshold = currentPlayer.difficulty === 'easy' ? 0.3 :
-                                      currentPlayer.difficulty === 'hard' ? 0.9 : 0.6;
+      if (!shouldContinue) {
+        console.log('✗ Turn complete - no more beneficial actions');
+        setAiActionLoopActive(false);
+        setTimeout(() => advanceToNextPlayer(gameState), 500);
+        return;
+      }
 
-          if (Math.random() < difficultyThreshold) {
-            if (tradeEval.tradeType === 'bank') {
-              console.log('DEBUG: AI attempting strategic bank trade');
-              const tradeSuccess = handleAIBankTrade(currentPlayer.id);
-              if (tradeSuccess) {
-                console.log('DEBUG: AI bank trade successful');
-                setAiActionLoopIterations(prev => prev + 1);
-                return;
-              }
-            } else {
-              console.log('DEBUG: AI attempting strategic player trade');
-              const tradeSuccess = handleAIPlayerTrade(currentPlayer.id);
-              if (tradeSuccess) {
-                console.log('DEBUG: AI player trade initiated');
-                setAiActionLoopIterations(prev => prev + 1);
-                return;
-              }
-            }
+      // Create turn plan
+      const turnPlan = createTurnPlan(
+        currentPlayer,
+        gameState,
+        boardSize,
+        currentPlayer.difficulty || 'normal'
+      );
+
+      if (turnPlan.actions.length === 0) {
+        console.log('✗ No actions in turn plan - ending turn');
+        setAiActionLoopActive(false);
+        setTimeout(() => advanceToNextPlayer(gameState), 500);
+        return;
+      }
+
+      // Execute the highest priority action
+      const nextAction = turnPlan.actions[0];
+      console.log(`\n⚡ Executing action: ${nextAction.type} (priority ${nextAction.priority})`);
+
+      let actionSuccess = false;
+
+      switch (nextAction.type) {
+        case 'play_dev_card':
+          console.log('   Playing development card...');
+          // Dev card playing would be handled here
+          break;
+
+        case 'trade_bank':
+          console.log('   Attempting bank trade...');
+          const tradeAttempts = gameState.turnState.aiTradeAttemptsThisTurn || 0;
+          if (tradeAttempts < 3) {
+            actionSuccess = handleAIBankTrade(currentPlayer.id);
+            console.log(`   ${actionSuccess ? '✓' : '✗'} Bank trade ${actionSuccess ? 'successful' : 'failed'}`);
           }
-        }
-      }
+          break;
 
-      // First, check if AI wants to buy a development card
-      const canAffordDevCard = currentPlayer.resources.grain >= 1 &&
-                                currentPlayer.resources.fabric >= 1 &&
-                                currentPlayer.resources.mineral >= 1;
-      const hasCardsAvailable = gameState.developmentCardDeck.length > 0;
+        case 'trade_player':
+          console.log('   Attempting player trade...');
+          const playerTradeAttempts = gameState.turnState.aiTradeAttemptsThisTurn || 0;
+          if (playerTradeAttempts < 3) {
+            actionSuccess = handleAIPlayerTrade(currentPlayer.id);
+            console.log(`   ${actionSuccess ? '✓' : '✗'} Player trade ${actionSuccess ? 'initiated' : 'failed'}`);
+          }
+          break;
 
-      // 30% chance to buy a dev card if affordable and available
-      if (canAffordDevCard && hasCardsAvailable && Math.random() < 0.3) {
-        console.log('DEBUG: AI decided to buy a development card');
-        const success = handleBuyDevelopmentCard(currentPlayer.id);
-        if (success) {
-          console.log('DEBUG: AI bought development card successfully');
-          setAiActionLoopIterations(prev => prev + 1);
+        case 'build':
+          const buildingType = nextAction.data?.buildingType;
+          console.log(`   Building ${buildingType}...`);
+
+          switch (buildingType) {
+            case 'road':
+              actionSuccess = handleAIBuildRoad(currentPlayer.id);
+              break;
+            case 'village':
+              actionSuccess = handleAIBuildVillage(currentPlayer.id);
+              break;
+            case 'estate':
+              actionSuccess = handleAIBuildEstate(currentPlayer.id);
+              break;
+            case 'dev_card':
+              actionSuccess = handleBuyDevelopmentCard(currentPlayer.id);
+              break;
+          }
+
+          console.log(`   ${actionSuccess ? '✓' : '✗'} Build ${actionSuccess ? 'successful' : 'failed'}`);
+          break;
+
+        case 'end_turn':
+          console.log('   Ending turn...');
+          setAiActionLoopActive(false);
+          setTimeout(() => advanceToNextPlayer(gameState), 500);
           return;
-        }
       }
 
-      const availableTypes = getAvailableBuildingTypes(currentPlayer.id, gameState, boardSize);
+      console.log(`${'='.repeat(60)}\n`);
 
-      if (availableTypes.length === 0) {
-        console.log('DEBUG: AI cannot build anything, ending turn');
-        setAiActionLoopActive(false);
-        setTimeout(() => advanceToNextPlayer(gameState), 500);
-        return;
-      }
-
-      const decision = makeStrategicBuildDecision(currentPlayer.id, gameState, boardSize, aiActionLoopIterations, currentPlayer.difficulty || 'normal');
-
-      if (!decision.shouldBuild) {
-        console.log('DEBUG: AI decided to end turn');
-        setAiActionLoopActive(false);
-        setTimeout(() => advanceToNextPlayer(gameState), 500);
-        return;
-      }
-
-      console.log('DEBUG: AI decided to build', decision.buildingType);
-
-      let buildSuccess = false;
-      switch (decision.buildingType) {
-        case 'road':
-          buildSuccess = handleAIBuildRoad(currentPlayer.id);
-          break;
-        case 'village':
-          buildSuccess = handleAIBuildVillage(currentPlayer.id);
-          break;
-        case 'estate':
-          buildSuccess = handleAIBuildEstate(currentPlayer.id);
-          break;
-      }
-
-      if (buildSuccess) {
-        console.log('DEBUG: AI build successful, continuing loop');
-      } else {
-        console.log('DEBUG: AI build failed, retrying');
-      }
-
+      // Continue to next iteration
       setAiActionLoopIterations(prev => prev + 1);
     }, 1500);
 

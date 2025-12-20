@@ -15,6 +15,8 @@ export function selectRobberPlacement(
   boardSize: BoardSize,
   difficulty: 'easy' | 'normal' | 'hard'
 ): RobberPlacement {
+  console.log(`\n🎲 [${player.name}] SELECTING ROBBER PLACEMENT (${difficulty} difficulty)`);
+
   const boardData = loadBoardForSize(boardSize);
   const validHexes = boardData.centers.filter(center =>
     center.id !== gameState.robberPosition
@@ -23,6 +25,11 @@ export function selectRobberPlacement(
   if (difficulty === 'easy') {
     const randomHex = validHexes[Math.floor(Math.random() * validHexes.length)];
     const targetPlayer = selectStealTarget(randomHex.id, gameState, player.id, boardSize);
+    console.log(`   ✓ Random selection: Hex ${randomHex.id}`);
+    if (targetPlayer) {
+      const target = gameState.players.find(p => p.id === targetPlayer);
+      console.log(`   Target: ${target?.name}`);
+    }
     return {
       hexId: randomHex.id,
       targetPlayerId: targetPlayer,
@@ -45,12 +52,21 @@ export function selectRobberPlacement(
 
   scoredPlacements.sort((a, b) => b.score - a.score);
 
+  console.log(`   Top 3 placements:`);
+  scoredPlacements.slice(0, 3).forEach((p, i) => {
+    const hex = boardData.centers.find(c => c.id === p.hexId);
+    const target = p.targetPlayerId ? gameState.players.find(pl => pl.id === p.targetPlayerId) : null;
+    console.log(`     ${i + 1}. Hex ${p.hexId} (${hex?.resourceType} ${hex?.value}) - Score: ${p.score.toFixed(1)} ${target ? `→ ${target.name}` : ''}`);
+  });
+
   if (difficulty === 'normal') {
     const topPlacements = scoredPlacements.slice(0, Math.max(3, Math.ceil(scoredPlacements.length * 0.2)));
     const selected = topPlacements[Math.floor(Math.random() * topPlacements.length)];
+    console.log(`   ✓ Selected from top ${topPlacements.length}: Hex ${selected.hexId}`);
     return selected;
   }
 
+  console.log(`   ✓ Selected best: Hex ${scoredPlacements[0].hexId}`);
   return scoredPlacements[0];
 }
 
