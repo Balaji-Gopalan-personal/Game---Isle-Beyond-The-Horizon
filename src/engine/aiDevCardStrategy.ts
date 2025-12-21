@@ -38,11 +38,11 @@ export function evaluateDevCardPlay(
   }
 
   const playableCards = player.developmentCardsInHand.filter(
-    card => card.turnDrawn !== gameState.turn
+    card => card.turnDrawn !== gameState.turn && card.name !== 'Extra Point'
   );
 
   if (playableCards.length === 0) {
-    return { shouldPlay: false, reasoning: 'No playable cards (all drawn this turn)' };
+    return { shouldPlay: false, reasoning: 'No playable cards (all drawn this turn or Extra Point cards)' };
   }
 
   const scoredCards = playableCards.map(card => ({
