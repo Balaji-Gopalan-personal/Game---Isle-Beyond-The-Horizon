@@ -297,12 +297,12 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
 
           {!diceRoll && !isRollingDice && !waitingForConfirmation && gameState.turnState.step === 'awaiting_dice_roll' && !canPlayerAct && currentPlayer && !currentPlayer.isHuman && (
             <div className="mb-3">
-              <div className="flex items-center justify-center gap-2 mb-2">
+              <div className="flex items-center justify-center gap-3 mb-2">
                 {currentPlayer.character && (
                   <CharacterAvatar
                     character={currentPlayer.character}
                     color={currentPlayer.color}
-                    size="sm"
+                    size="lg"
                   />
                 )}
                 <div className="flex gap-2">
@@ -927,12 +927,12 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
 
           {!canPlayerAct && currentPlayer && !currentPlayer.isHuman && (
             <div className="flex flex-col items-center space-y-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 {currentPlayer.character && (
                   <CharacterAvatar
                     character={currentPlayer.character}
                     color={currentPlayer.color}
-                    size="sm"
+                    size="lg"
                   />
                 )}
                 <div className="flex flex-col">
