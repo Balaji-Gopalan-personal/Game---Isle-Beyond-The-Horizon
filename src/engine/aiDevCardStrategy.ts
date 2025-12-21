@@ -148,11 +148,34 @@ function scoreCardPlayTiming(
       return 7;
 
     case 'Resource Swap':
-      const hasImbalance = checkResourceImbalance(player);
-      if (hasImbalance) {
-        return 10;
+      let swapScore = 6;
+
+      const atDiscardRisk = player.resources.total > gameState.gameSettings.maxResourceHold;
+      const nearDiscardRisk = player.resources.total >= gameState.gameSettings.maxResourceHold - 1;
+
+      if (atDiscardRisk) {
+        swapScore += 12;
+      } else if (nearDiscardRisk) {
+        swapScore += 6;
       }
-      return 6;
+
+      const hasImbalance = checkResourceImbalance(player);
+      const hasUselessSurplus = checkUselessResourceSurplus(player);
+
+      if (hasUselessSurplus) {
+        swapScore += 8;
+      } else if (hasImbalance) {
+        swapScore += 4;
+      }
+
+      const richestOpponent = getRichestOpponent(player, gameState);
+      const isResourcePoor = player.resources.total <= 3;
+
+      if (isResourcePoor && richestOpponent && richestOpponent.resources.total >= player.resources.total + 4) {
+        swapScore += 10;
+      }
+
+      return swapScore;
 
     case 'Expert Negotiator':
       const hasSurplusResources = checkSurplusResources(player);
@@ -221,6 +244,45 @@ function checkSurplusResources(player: Player): boolean {
   ];
 
   return resourceTypes.some(amount => amount > keepThreshold);
+}
+
+function checkUselessResourceSurplus(player: Player): boolean {
+  const nearVillage = player.resources.clay >= 1 && player.resources.lumber >= 1 &&
+                       player.resources.grain >= 1 && player.resources.fabric >= 1;
+  const nearEstate = player.resources.grain >= 2 && player.resources.mineral >= 3;
+
+  if (nearVillage || nearEstate) {
+    return false;
+  }
+
+  const resourceCounts = [
+    player.resources.clay,
+    player.resources.lumber,
+    player.resources.grain,
+    player.resources.fabric,
+    player.resources.mineral
+  ];
+
+  const maxCount = Math.max(...resourceCounts);
+  const minCount = Math.min(...resourceCounts);
+
+  return maxCount >= 4 && minCount === 0;
+}
+
+function getRichestOpponent(player: Player, gameState: GameState): Player | null {
+  let richest: Player | null = null;
+  let maxResources = -1;
+
+  for (const opponent of gameState.players) {
+    if (opponent.id === player.id) continue;
+
+    if (opponent.resources.total > maxResources) {
+      maxResources = opponent.resources.total;
+      richest = opponent;
+    }
+  }
+
+  return richest;
 }
 
 export function shouldPlayDevCardBeforeRoll(
