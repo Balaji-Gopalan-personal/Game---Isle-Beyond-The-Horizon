@@ -19,64 +19,65 @@ const sizeMap = {
   xl: 'w-20 h-20 text-xl',
 };
 
-// Per-character scale adjustments based on how centered the face is in the original image
+// Per-character scale adjustments - images are circular badges with faces in center
+// Need aggressive scaling (2.5-4x) to zoom past badge borders and show just faces
 const characterScaleMap: Record<string, number> = {
-  'astro-boy': 1.5,
-  'barbapapa': 1.3,
-  'batman': 1.4,
-  'bert': 1.6,
-  'bravestarr': 1.4,
-  'buggy': 1.5,
-  'bunny': 1.5,
-  'casper': 1.4,
-  'caveman': 1.4,
-  'chip': 1.5,
-  'chipmunk': 1.5,
-  'dynomutt': 1.4,
-  'flintstone': 1.4,
-  'gadget': 1.4,
-  'garfield': 1.5,
-  'ghost': 1.4,
-  'gijoe': 1.4,
-  'gobot': 1.3,
-  'he-man': 1.4,
-  'heathcliff': 1.5,
-  'jem': 1.4,
-  'jetson': 1.4,
-  'josie': 1.4,
-  'kermit': 1.5,
-  'lion-o': 1.4,
-  'mark': 1.4,
-  'mouse': 1.6,
-  'optimus': 1.3,
-  'panther': 1.4,
-  'puppy': 1.5,
-  'racer': 1.4,
-  'rainbow': 1.4,
-  'ranger': 1.4,
-  'scooby': 1.4,
-  'scrooge': 1.5,
-  'she-ra': 1.4,
-  'smurf': 1.5,
-  'snork': 1.5,
-  'spidey': 1.4,
-  'teddy': 1.5,
-  'tenderheart': 1.4,
-  'thundarr': 1.4,
-  'tmnt': 1.4,
-  'tom': 1.5,
-  'trakker': 1.4,
-  'voltron': 1.3,
-  'woody': 1.5,
-  'wuzzle': 1.5,
-  'yogi': 1.4,
-  'zummi': 1.5,
+  'astro-boy': 3.2,
+  'barbapapa': 2.8,
+  'batman': 3.0,
+  'bert': 3.5,
+  'bravestarr': 3.0,
+  'buggy': 3.2,
+  'bunny': 3.2,
+  'casper': 3.0,
+  'caveman': 3.0,
+  'chip': 3.2,
+  'chipmunk': 3.2,
+  'dynomutt': 3.0,
+  'flintstone': 3.0,
+  'gadget': 3.0,
+  'garfield': 3.2,
+  'ghost': 3.0,
+  'gijoe': 3.0,
+  'gobot': 2.8,
+  'he-man': 3.0,
+  'heathcliff': 3.2,
+  'jem': 3.0,
+  'jetson': 3.0,
+  'josie': 3.0,
+  'kermit': 3.2,
+  'lion-o': 3.0,
+  'mark': 3.0,
+  'mouse': 3.5,
+  'optimus': 2.8,
+  'panther': 3.0,
+  'puppy': 3.2,
+  'racer': 3.0,
+  'rainbow': 3.0,
+  'ranger': 3.0,
+  'scooby': 3.0,
+  'scrooge': 3.2,
+  'she-ra': 3.0,
+  'smurf': 3.2,
+  'snork': 3.2,
+  'spidey': 3.0,
+  'teddy': 3.2,
+  'tenderheart': 3.0,
+  'thundarr': 3.0,
+  'tmnt': 3.0,
+  'tom': 3.2,
+  'trakker': 3.0,
+  'voltron': 2.8,
+  'woody': 3.2,
+  'wuzzle': 3.2,
+  'yogi': 3.0,
+  'zummi': 3.2,
 };
 
 export function CharacterAvatar({ character, color, name, size = 'md', className = '' }: CharacterAvatarProps) {
   const { assets } = useAssets();
   const [imageError, setImageError] = useState(false);
-  const [imageScale, setImageScale] = useState(1.4);
+  const [imageScale, setImageScale] = useState(3.0);
   const imgRef = useRef<HTMLImageElement>(null);
 
   const getInitials = (displayName: string) => {
@@ -95,10 +96,10 @@ export function CharacterAvatar({ character, color, name, size = 'md', className
   useEffect(() => {
     if (character?.filename) {
       const filename = character.filename.toLowerCase();
-      const scale = characterScaleMap[filename] || 1.4;
+      const scale = characterScaleMap[filename] || 3.0;
       setImageScale(scale);
     } else {
-      setImageScale(1.4);
+      setImageScale(3.0);
     }
   }, [character]);
 
@@ -115,7 +116,7 @@ export function CharacterAvatar({ character, color, name, size = 'md', className
 
     if (character?.filename) {
       const filename = character.filename.toLowerCase();
-      let baseScale = characterScaleMap[filename] || 1.4;
+      let baseScale = characterScaleMap[filename] || 3.0;
 
       // Adjust based on aspect ratio if needed
       if (aspectRatio > 1.2) {
