@@ -10,30 +10,30 @@ export interface DifficultySettings {
 
 export const DIFFICULTY_PRESETS: Record<'easy' | 'normal' | 'hard', DifficultySettings> = {
   easy: {
-    selectionTopPercent: 0.5,
-    randomnessWeight: 0.4,
-    tradeFrequency: 0.3,
-    buildingAggression: 0.5,
-    devCardPlayRate: 0.4,
-    robberOptimality: 0.3,
+    selectionTopPercent: 0.6,
+    randomnessWeight: 0.35,
+    tradeFrequency: 0.5,
+    buildingAggression: 0.75,
+    devCardPlayRate: 0.5,
+    robberOptimality: 0.5,
     planningHorizon: 1
   },
   normal: {
     selectionTopPercent: 0.3,
     randomnessWeight: 0.15,
-    tradeFrequency: 0.5,
-    buildingAggression: 0.7,
-    devCardPlayRate: 0.6,
-    robberOptimality: 0.6,
+    tradeFrequency: 0.7,
+    buildingAggression: 0.9,
+    devCardPlayRate: 0.7,
+    robberOptimality: 0.7,
     planningHorizon: 2
   },
   hard: {
-    selectionTopPercent: 0.15,
-    randomnessWeight: 0.05,
-    tradeFrequency: 0.7,
-    buildingAggression: 0.85,
-    devCardPlayRate: 0.8,
-    robberOptimality: 0.9,
+    selectionTopPercent: 0.1,
+    randomnessWeight: 0.03,
+    tradeFrequency: 0.85,
+    buildingAggression: 1.0,
+    devCardPlayRate: 0.9,
+    robberOptimality: 0.95,
     planningHorizon: 3
   }
 };
@@ -117,9 +117,9 @@ export function shouldMakeSuboptimalChoice(
   difficulty: 'easy' | 'normal' | 'hard'
 ): boolean {
   const suboptimalRates = {
-    easy: 0.35,
-    normal: 0.15,
-    hard: 0.05
+    easy: 0.25,
+    normal: 0.10,
+    hard: 0.02
   };
 
   return Math.random() < suboptimalRates[difficulty];
@@ -128,11 +128,11 @@ export function shouldMakeSuboptimalChoice(
 export function calculateMistakeRate(difficulty: 'easy' | 'normal' | 'hard'): number {
   switch (difficulty) {
     case 'easy':
-      return 0.25;
+      return 0.15;
     case 'normal':
-      return 0.10;
+      return 0.05;
     case 'hard':
-      return 0.03;
+      return 0.01;
   }
 }
 

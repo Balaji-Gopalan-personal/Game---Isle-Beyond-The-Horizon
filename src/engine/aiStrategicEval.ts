@@ -264,13 +264,26 @@ export function calculateBuildingPriority(
   const cityCount = gameState.villages.filter(v => v.playerId === player.id && v.type === 'city').length;
   const roadCount = gameState.roads.filter(r => r.playerId === player.id).length;
 
-  const villagePriority = (10 - villageCount) * 2;
-  priorities.push({ type: 'village', priority: Math.max(villagePriority, 1) });
+  const villageResourcesNeeded =
+    (player.resources.clay >= 1 ? 0 : 1) +
+    (player.resources.lumber >= 1 ? 0 : 1) +
+    (player.resources.grain >= 1 ? 0 : 1) +
+    (player.resources.fabric >= 1 ? 0 : 1);
 
-  const estatePriority = (5 - cityCount) * 3;
+  const estateResourcesNeeded =
+    (player.resources.grain >= 2 ? 0 : 2 - player.resources.grain) +
+    (player.resources.mineral >= 3 ? 0 : 3 - player.resources.mineral);
+
+  let villagePriority = (10 - villageCount) * 2.5;
+  villagePriority -= villageResourcesNeeded * 3;
+
+  let estatePriority = villageCount > 0 ? (5 - cityCount) * 2.5 : 0;
+  estatePriority -= estateResourcesNeeded * 3;
+
+  priorities.push({ type: 'village', priority: Math.max(villagePriority, 1) });
   priorities.push({ type: 'estate', priority: Math.max(estatePriority, 1) });
 
-  const roadPriority = Math.max(8 - roadCount, 2);
+  const roadPriority = Math.max(8 - roadCount, 3);
   priorities.push({ type: 'road', priority: roadPriority });
 
   priorities.sort((a, b) => b.priority - a.priority);

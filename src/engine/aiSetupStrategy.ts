@@ -11,16 +11,16 @@ export interface SetupPhaseWeights {
 }
 
 export const PHASE_1_WEIGHTS: SetupPhaseWeights = {
-  production: 3.5,
-  diversity: 2.5,
+  production: 5.0,
+  diversity: 2.0,
   portAccess: 1.0,
   expansion: 1.5,
 };
 
 export const PHASE_2_WEIGHTS: SetupPhaseWeights = {
-  production: 3.0,
+  production: 4.0,
   diversity: 3.5,
-  portAccess: 2.0,
+  portAccess: 1.5,
   expansion: 1.0,
 };
 
@@ -40,11 +40,63 @@ export function evaluateSetupVertex(
     evaluation.portAccess * weights.portAccess +
     evaluation.expansionPotential * weights.expansion;
 
+  const pipBonus = calculatePipCountBonus(vertexId, boardSize);
+  score += pipBonus;
+
+  const centerCountPenalty = calculateCenterCountBonus(vertexId, boardSize);
+  score += centerCountPenalty;
+
   if (isPhase2) {
     score += evaluateComplementaryResources(vertexId, player, boardSize, gameState);
   }
 
   return score;
+}
+
+function calculatePipCountBonus(vertexId: number, boardSize: BoardSize): number {
+  const boardData = loadBoardForSize(boardSize);
+  const adjacentCenters = boardData.centers.filter(center =>
+    center.vertices.includes(vertexId)
+  );
+
+  let pipBonus = 0;
+
+  for (const center of adjacentCenters) {
+    if (center.resourceType === 'desert') continue;
+
+    if (center.value === 6 || center.value === 8) {
+      pipBonus += 15.0;
+    } else if (center.value === 5 || center.value === 9) {
+      pipBonus += 10.0;
+    } else if (center.value === 4 || center.value === 10) {
+      pipBonus += 6.0;
+    } else if (center.value === 3 || center.value === 11) {
+      pipBonus += 3.0;
+    } else if (center.value === 2 || center.value === 12) {
+      pipBonus += 1.0;
+    }
+  }
+
+  return pipBonus;
+}
+
+function calculateCenterCountBonus(vertexId: number, boardSize: BoardSize): number {
+  const boardData = loadBoardForSize(boardSize);
+  const adjacentCenters = boardData.centers.filter(center =>
+    center.vertices.includes(vertexId)
+  );
+
+  const nonDesertCenters = adjacentCenters.filter(c => c.resourceType !== 'desert').length;
+
+  if (nonDesertCenters === 3) {
+    return 12.0;
+  } else if (nonDesertCenters === 2) {
+    return 5.0;
+  } else if (nonDesertCenters === 1) {
+    return -8.0;
+  }
+
+  return 0;
 }
 
 function evaluateComplementaryResources(

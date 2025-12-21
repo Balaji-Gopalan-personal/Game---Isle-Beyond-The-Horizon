@@ -96,10 +96,6 @@ export class AIEngine {
     player: Player,
     gameState: GameState
   ): number {
-    if (this.difficulty === 'easy') {
-      return this.selectRandomVertex(validVertices);
-    }
-
     const isSetupPhase = gameState.phase === 'setup-phase-1' || gameState.phase === 'setup-phase-2';
     const isPhase2 = gameState.phase === 'setup-phase-2';
 
@@ -112,7 +108,10 @@ export class AIEngine {
 
     scoredVertices.sort((a, b) => b.score - a.score);
 
-    if (this.difficulty === 'normal') {
+    if (this.difficulty === 'easy') {
+      const topCandidates = scoredVertices.slice(0, Math.ceil(scoredVertices.length * 0.6));
+      return this.selectRandomVertex(topCandidates.map(v => v.vertexId));
+    } else if (this.difficulty === 'normal') {
       const topCandidates = scoredVertices.slice(0, Math.ceil(scoredVertices.length * 0.3));
       return this.selectRandomVertex(topCandidates.map(v => v.vertexId));
     }

@@ -116,13 +116,6 @@ export function makeRandomBuildDecision(
     return { shouldBuild: false };
   }
 
-  const probability = Math.max(0.5, 1.0 - (actionCount * 0.1));
-  const shouldBuild = Math.random() < probability;
-
-  if (!shouldBuild) {
-    return { shouldBuild: false };
-  }
-
   availableOptions.sort((a, b) => b.priority - a.priority);
   const topOptions = availableOptions.slice(0, Math.max(2, Math.ceil(availableOptions.length * 0.5)));
 

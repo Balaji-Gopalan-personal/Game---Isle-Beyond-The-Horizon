@@ -90,10 +90,17 @@ function scoreRobberPlacement(
   const productionValue = getHexProductionValue(hex.value);
   score += productionValue * 10;
 
+  if (hex.value === 6 || hex.value === 8) {
+    score += 20;
+  } else if (hex.value === 5 || hex.value === 9) {
+    score += 10;
+  }
+
   const playersOnHex = getPlayersOnHex(hexId, gameState, boardSize);
 
   const leader = getGameLeader(gameState, player.id);
   const secondPlace = getSecondPlacePlayer(gameState, player.id);
+  const pointsToWin = gameState.gameSettings.pointsToWin;
 
   for (const playerId of playersOnHex) {
     if (playerId === player.id) {
@@ -104,7 +111,13 @@ function scoreRobberPlacement(
     const targetPlayer = gameState.players.find(p => p.id === playerId);
     if (!targetPlayer) continue;
 
-    if (leader && playerId === leader.id) {
+    const pointsAway = pointsToWin - (targetPlayer.score + targetPlayer.secretPoints);
+
+    if (pointsAway <= 2) {
+      score += 60;
+    } else if (pointsAway <= 4) {
+      score += 40;
+    } else if (leader && playerId === leader.id) {
       score += 30;
     } else if (secondPlace && playerId === secondPlace.id) {
       score += 20;
