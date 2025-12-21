@@ -50,13 +50,13 @@ export function CharacterAvatar({ character, color, name, size = 'md', className
 
   return (
     <div
-      className={`${sizeClasses} rounded-full overflow-hidden border-2 ${className}`}
+      className={`${sizeClasses} rounded-full overflow-hidden border-2 shadow-md ${className}`}
       style={{ borderColor: color }}
     >
       <img
         src={avatarSrc}
         alt={displayName}
-        className="w-full h-full object-contain object-center"
+        className="w-full h-full object-cover object-center"
         onError={() => setImageError(true)}
       />
     </div>
