@@ -29,9 +29,20 @@ export function shouldAttemptBankTrade(
     return true;
   }
 
-  const adjustedProbability = BASE_BANK_TRADE_PROBABILITY - (attemptsThisTurn * PROBABILITY_DECAY_PER_ATTEMPT);
+  const totalResources = player.resources.total;
+  const discardRiskThreshold = 7;
+  if (totalResources >= discardRiskThreshold) {
+    const hasExcessResources = Object.entries(player.resources)
+      .filter(([key]) => key !== 'total')
+      .some(([_, amount]) => (amount as number) > 3);
 
-  return Math.random() < adjustedProbability;
+    if (hasExcessResources) {
+      const adjustedProbability = 0.7 - (attemptsThisTurn * PROBABILITY_DECAY_PER_ATTEMPT);
+      return Math.random() < adjustedProbability;
+    }
+  }
+
+  return false;
 }
 
 export function shouldAttemptPlayerTrade(
@@ -135,33 +146,41 @@ export function selectBankTradeResources(
     };
   }
 
-  const priorities = assessResourceNeeds(player);
-  if (priorities.length === 0) return null;
+  const totalResources = player.resources.total;
+  const discardRiskThreshold = 7;
+  if (totalResources >= discardRiskThreshold) {
+    const availableResources = getResourcesAvailableForTrade(player);
+    if (availableResources.length === 0) return null;
 
-  const mostNeededResource = priorities[0].resource;
+    let excessResource: ResourceType | null = null;
+    let maxAmount = 0;
 
-  const availableResources = getResourcesAvailableForTrade(player);
-  if (availableResources.length === 0) return null;
+    (['lumber', 'clay', 'grain', 'fabric', 'mineral'] as ResourceType[]).forEach(resource => {
+      if (player.resources[resource] > maxAmount) {
+        maxAmount = player.resources[resource];
+        excessResource = resource;
+      }
+    });
 
-  let bestTrade: { offeringResource: ResourceType; offeringAmount: number; requestedResource: ResourceType } | null = null;
-  let bestRateValue = Infinity;
+    if (excessResource && maxAmount > 3) {
+      const tradeRate = getBestTradeRateForResource(player.id, excessResource, gameState);
 
-  for (const offeringResource of availableResources) {
-    const tradeRate = getBestTradeRateForResource(player.id, offeringResource, gameState);
+      const priorities = assessResourceNeeds(player);
+      const targetResource = priorities.length > 0 ? priorities[0].resource :
+        (['lumber', 'clay', 'grain', 'fabric', 'mineral'] as ResourceType[]).find(r => player.resources[r] === 0) ||
+        'grain';
 
-    if (player.resources[offeringResource] >= tradeRate.rate) {
-      if (tradeRate.rate < bestRateValue) {
-        bestRateValue = tradeRate.rate;
-        bestTrade = {
-          offeringResource,
+      if (player.resources[excessResource] >= tradeRate.rate) {
+        return {
+          offeringResource: excessResource,
           offeringAmount: tradeRate.rate,
-          requestedResource: mostNeededResource
+          requestedResource: targetResource
         };
       }
     }
   }
 
-  return bestTrade;
+  return null;
 }
 
 export function generatePlayerTradeProposal(
