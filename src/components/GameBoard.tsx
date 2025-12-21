@@ -660,7 +660,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               canPlaceVillage(vertex.id, gameState.verticesOccupiedBy || {}, boardSize);
             
             // Check if this vertex is valid for road placement
-            const isValidForRoad = validRoadVertices.includes(vertex.id);
+            const isValidForRoad = validRoadVertices.includes(vertex.id) && gameState.turnState.step !== 'free_upgrade_selection';
 
             // Check if this vertex is valid for estate upgrade
             const isValidForEstate = currentPlayer?.isHuman &&
@@ -669,6 +669,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               village &&
               village.playerId === currentPlayer.id &&
               village.type === 'settlement';
+
+            // Check if this vertex is valid for free upgrade
+            const isValidForFreeUpgrade = currentPlayer?.isHuman &&
+              gameState.turnState.step === 'free_upgrade_selection' &&
+              validRoadVertices.includes(vertex.id);
 
             // Check if this vertex is currently selected
             const isSelected = selectedVertex === vertex.id;
@@ -684,7 +689,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             return (
               <g key={`vertex-${vertex.id || index}`}>
                 {/* Click area - invisible but larger for easier clicking */}
-                {(isValidForVillage || (isValidForRoad && onVertexClick) || (isValidForEstate && onVertexClick)) && (
+                {(isValidForVillage || (isValidForRoad && onVertexClick) || (isValidForEstate && onVertexClick) || (isValidForFreeUpgrade && onVertexClick)) && (
                   <circle
                     cx={pos.x}
                     cy={pos.y}
@@ -692,7 +697,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     fill="transparent"
                     style={{ cursor: 'pointer' }}
                     onClick={(e) => {
-                      console.log('DEBUG: Click area clicked for vertex:', vertex.id, 'isValidForVillage:', isValidForVillage, 'isValidForRoad:', isValidForRoad, 'isValidForEstate:', isValidForEstate);
+                      console.log('DEBUG: Click area clicked for vertex:', vertex.id, 'isValidForVillage:', isValidForVillage, 'isValidForRoad:', isValidForRoad, 'isValidForEstate:', isValidForEstate, 'isValidForFreeUpgrade:', isValidForFreeUpgrade);
                       console.log('DEBUG: onVertexClick exists:', !!onVertexClick);
                       console.log('DEBUG: Current turn step:', gameState?.turnState?.step);
                       e.stopPropagation();
@@ -828,6 +833,42 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   />
                 )}
 
+                {/* Visible click area for free upgrade villages */}
+                {isValidForFreeUpgrade && currentPlayer && onVertexClick && (
+                  <circle
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={Math.max(35, vertexRadius * 2.2)}
+                    fill="rgba(251, 191, 36, 0.2)"
+                    stroke={getPlayerColorHex(currentPlayer.color)}
+                    strokeWidth="3"
+                    style={{ cursor: 'pointer' }}
+                    opacity="0.8"
+                    onClick={(e) => {
+                      console.log('DEBUG: Free upgrade click area clicked for vertex:', vertex.id);
+                      console.log('DEBUG: onVertexClick exists:', !!onVertexClick);
+                      console.log('DEBUG: Current turn step:', gameState?.turnState?.step);
+                      e.stopPropagation();
+                      onVertexClick?.(vertex.id);
+                    }}
+                  />
+                )}
+
+                {/* Highlight ring for free upgrade villages */}
+                {isValidForFreeUpgrade && currentPlayer && (
+                  <circle
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={vertexRadius * 2.5}
+                    fill="none"
+                    stroke="rgba(251, 191, 36, 1.0)"
+                    strokeWidth="4"
+                    strokeDasharray="8,4"
+                    opacity="0.9"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                )}
+
                 {/* First road vertex highlight (starting point) */}
                 {firstRoadVertex === vertex.id && (
                   <circle
@@ -862,9 +903,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   fill={isValidForVillage ? "rgba(144, 238, 144, 0.8)" : "rgba(255, 255, 255, 0.9)"}
                   stroke={isValidForVillage ? "rgba(0, 128, 0, 1.0)" : "rgba(0, 0, 0, 0.5)"}
                   strokeWidth="1"
-                  style={(isValidForVillage || isValidForRoad || isValidForEstate) && onVertexClick ? { cursor: 'pointer' } : {}}
-                  onClick={(isValidForVillage || isValidForRoad || isValidForEstate) && onVertexClick ? (e) => {
-                    console.log('DEBUG: Base vertex circle clicked for vertex:', vertex.id, 'isValidForVillage:', isValidForVillage, 'isValidForRoad:', isValidForRoad, 'isValidForEstate:', isValidForEstate);
+                  style={(isValidForVillage || isValidForRoad || isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? { cursor: 'pointer' } : {}}
+                  onClick={(isValidForVillage || isValidForRoad || isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? (e) => {
+                    console.log('DEBUG: Base vertex circle clicked for vertex:', vertex.id, 'isValidForVillage:', isValidForVillage, 'isValidForRoad:', isValidForRoad, 'isValidForEstate:', isValidForEstate, 'isValidForFreeUpgrade:', isValidForFreeUpgrade);
                     e.stopPropagation();
                     onVertexClick(vertex.id);
                   } : undefined}
@@ -881,8 +922,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     fontWeight="bold"
                     stroke={getPlayerColorHex(villagePlayer.color)}
                     strokeWidth="3"
-                    style={isValidForEstate && onVertexClick ? { cursor: 'pointer', pointerEvents: 'auto' } : { pointerEvents: 'none' }}
-                    onClick={isValidForEstate && onVertexClick ? (e) => {
+                    style={(isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? { cursor: 'pointer', pointerEvents: 'auto' } : { pointerEvents: 'none' }}
+                    onClick={(isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? (e) => {
                       console.log('DEBUG: Village icon clicked for vertex:', vertex.id);
                       e.stopPropagation();
                       onVertexClick(vertex.id);
@@ -903,8 +944,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   stroke="#FFFFFF"
                   strokeWidth="3"
                   paintOrder="stroke fill"
-                  style={isValidForEstate && onVertexClick ? { cursor: 'pointer', pointerEvents: 'auto', userSelect: 'none' } : { pointerEvents: 'none', userSelect: 'none' }}
-                  onClick={isValidForEstate && onVertexClick ? (e) => {
+                  style={(isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? { cursor: 'pointer', pointerEvents: 'auto', userSelect: 'none' } : { pointerEvents: 'none', userSelect: 'none' }}
+                  onClick={(isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? (e) => {
                     console.log('DEBUG: Vertex number clicked for vertex:', vertex.id);
                     e.stopPropagation();
                     onVertexClick(vertex.id);

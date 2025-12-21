@@ -56,6 +56,7 @@ interface ActionPromptProps {
   isVictoryModalMinimized?: boolean;
   onShowVictoryModal?: () => void;
   onOpenTradeModal?: () => void;
+  onConfirmFreeUpgrade?: () => void;
 }
 
 export const ActionPrompt: React.FC<ActionPromptProps> = ({
@@ -105,7 +106,8 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
   onCancelCardEffect,
   isVictoryModalMinimized = false,
   onShowVictoryModal,
-  onOpenTradeModal
+  onOpenTradeModal,
+  onConfirmFreeUpgrade
 }) => {
   const G = loadBoardGraph(boardSize);
   const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
@@ -561,9 +563,44 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
           )}
 
           {gameState.turnState.step === 'free_upgrade_selection' && canPlayerAct && (
-            <FreeUpgradePrompt
-              onCancel={onCancelCardEffect}
-            />
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-gray-700">
+                Free Upgrade
+              </div>
+              {selectedVertex ? (
+                <div className="space-y-1">
+                  <div className="text-xs text-gray-700">
+                    Upgrade village at Vertex {selectedVertex}
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={onConfirmFreeUpgrade}
+                      className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={onCancelSelection}
+                      className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="text-xs text-gray-600">
+                    Click on one of your villages to upgrade it to an estate for free
+                  </div>
+                  <button
+                    onClick={onCancelCardEffect}
+                    className="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {!waitingForConfirmation && !isRollingDice && !aiActionLoopActive && gameState.turnState.step === 'main' && canPlayerAct && (

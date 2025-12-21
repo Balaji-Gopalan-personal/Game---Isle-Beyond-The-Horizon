@@ -362,8 +362,9 @@ function App() {
         console.log('DEBUG: Second road vertex set to:', vertexId);
       }
     } else if (gameState?.turnState?.step === 'free_upgrade_selection') {
-      // For free upgrade, directly call the handler
-      handleConfirmFreeUpgrade(vertexId);
+      // For free upgrade, select the village first (don't immediately upgrade)
+      setSelectedVertex(vertexId);
+      console.log('DEBUG: selectedVertex set to:', vertexId);
     } else {
       // For all other cases, use single vertex selection
       setSelectedVertex(vertexId);
@@ -438,9 +439,9 @@ function App() {
     }
   };
 
-  const handleConfirmFreeUpgrade = (vertexId: number) => {
-    if (handleFreeUpgradeVillageSelection) {
-      handleFreeUpgradeVillageSelection(vertexId);
+  const handleConfirmFreeUpgradeSelection = () => {
+    if (selectedVertex && handleFreeUpgradeVillageSelection) {
+      handleFreeUpgradeVillageSelection(selectedVertex);
       setSelectedVertex(null);
     }
   };
@@ -702,6 +703,7 @@ function App() {
                   isVictoryModalMinimized={isVictoryModalMinimized}
                   onShowVictoryModal={() => setIsVictoryModalMinimized(false)}
                   onOpenTradeModal={() => setIsTradingModalOpen(true)}
+                  onConfirmFreeUpgrade={handleConfirmFreeUpgradeSelection}
                 />
               )}
             </div>
