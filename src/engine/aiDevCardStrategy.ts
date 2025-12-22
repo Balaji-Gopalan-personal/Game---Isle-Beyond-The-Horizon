@@ -18,13 +18,36 @@ export function shouldBuyDevelopmentCard(
   const pointsToWin = gameState.gameSettings.pointsToWin;
   const pointsAway = pointsToWin - (player.score + player.secretPoints);
 
+  let buyProbability = 0.4;
+
   if (pointsAway <= 3) {
-    return Math.random() < 0.8;
+    buyProbability = 0.8;
   } else if (pointsAway <= 5) {
-    return Math.random() < 0.6;
+    buyProbability = 0.6;
   }
 
-  return Math.random() < 0.4;
+  if (gameState.gameSettings.largestArmyEnabled) {
+    const largestArmyBonus = gameState.gameSettings.largestArmyBonus;
+    const largestArmySize = gameState.gameSettings.largestArmySize;
+    const myGuardCount = player.guardsPlayed;
+    const currentLargestArmyHolder = gameState.players.find(p => p.hasLargestArmy);
+
+    if (largestArmyBonus >= 3) {
+      if (currentLargestArmyHolder && currentLargestArmyHolder.id === player.id) {
+        buyProbability += 0.15;
+      } else if (myGuardCount >= largestArmySize - 2) {
+        const guardsNeeded = currentLargestArmyHolder
+          ? Math.max(currentLargestArmyHolder.guardsPlayed + 1 - myGuardCount, 0)
+          : largestArmySize - myGuardCount;
+
+        if (guardsNeeded <= 2) {
+          buyProbability += 0.2;
+        }
+      }
+    }
+  }
+
+  return Math.random() < Math.min(buyProbability, 0.95);
 }
 
 export function evaluateDevCardPlay(
@@ -52,8 +75,13 @@ export function evaluateDevCardPlay(
 
   scoredCards.sort((a, b) => b.score - a.score);
 
+  const largestArmyBonus = gameState.gameSettings.largestArmyEnabled ? gameState.gameSettings.largestArmyBonus : 0;
+  const longestRoadBonus = gameState.gameSettings.longestRoadEnabled ? gameState.gameSettings.longestRoadBonus : 0;
+  const maxBonus = Math.max(largestArmyBonus, longestRoadBonus);
+  const bonusAdjustment = maxBonus >= 4 ? -1 : 0;
+
   if (difficulty === 'easy') {
-    if (scoredCards[0].score > 5 && Math.random() < 0.4) {
+    if (scoredCards[0].score > (5 + bonusAdjustment) && Math.random() < 0.4) {
       return {
         shouldPlay: true,
         cardId: scoredCards[0].card.id,
@@ -61,7 +89,7 @@ export function evaluateDevCardPlay(
       };
     }
   } else if (difficulty === 'normal') {
-    if (scoredCards[0].score > 6 && Math.random() < 0.6) {
+    if (scoredCards[0].score > (6 + bonusAdjustment) && Math.random() < 0.6) {
       return {
         shouldPlay: true,
         cardId: scoredCards[0].card.id,
@@ -69,7 +97,7 @@ export function evaluateDevCardPlay(
       };
     }
   } else {
-    if (scoredCards[0].score > 4) {
+    if (scoredCards[0].score > (4 + bonusAdjustment)) {
       return {
         shouldPlay: true,
         cardId: scoredCards[0].card.id,
@@ -107,30 +135,93 @@ function scoreCardPlayTiming(
         return 0;
       }
 
+      let guardScore = 5;
+
+      if (gameState.gameSettings.largestArmyEnabled) {
+        const largestArmyBonus = gameState.gameSettings.largestArmyBonus;
+        const largestArmySize = gameState.gameSettings.largestArmySize;
+        const myGuardCount = player.guardsPlayed;
+        const currentLargestArmyHolder = gameState.players.find(p => p.hasLargestArmy);
+
+        if (currentLargestArmyHolder && currentLargestArmyHolder.id === player.id) {
+          const bonusValue = largestArmyBonus * 1.5;
+          guardScore += bonusValue;
+          console.log(`   🏆 Largest Army holder - bonus value: +${bonusValue.toFixed(1)} (${largestArmyBonus} pts)`);
+        } else if (myGuardCount >= largestArmySize - 2) {
+          const guardsNeeded = currentLargestArmyHolder
+            ? Math.max(currentLargestArmyHolder.guardsPlayed + 1 - myGuardCount, 0)
+            : largestArmySize - myGuardCount;
+
+          if (guardsNeeded <= 1) {
+            const bonusValue = largestArmyBonus * 3.0;
+            guardScore += bonusValue;
+            console.log(`   ⚔️ Close to Largest Army (${guardsNeeded} guards needed) - bonus value: +${bonusValue.toFixed(1)} (${largestArmyBonus} pts)`);
+          } else if (guardsNeeded <= 2) {
+            const bonusValue = largestArmyBonus * 2.0;
+            guardScore += bonusValue;
+            console.log(`   ⚔️ Pursuing Largest Army (${guardsNeeded} guards needed) - bonus value: +${bonusValue.toFixed(1)} (${largestArmyBonus} pts)`);
+          } else if (guardsNeeded <= 3) {
+            const bonusValue = largestArmyBonus * 1.5;
+            guardScore += bonusValue;
+            console.log(`   ⚔️ Working toward Largest Army (${guardsNeeded} guards needed) - bonus value: +${bonusValue.toFixed(1)} (${largestArmyBonus} pts)`);
+          }
+        }
+      }
+
       const leader = getGameLeader(gameState);
       if (leader && leader.id !== player.id) {
         const leaderPointsAway = pointsToWin - (leader.score + leader.secretPoints);
         if (leaderPointsAway <= 2) {
-          return 15;
+          guardScore += 10;
         } else if (leaderPointsAway <= 4) {
-          return 10;
+          guardScore += 5;
         }
       }
 
       if (player.resources.total >= gameState.gameSettings.maxResourceHold) {
-        return 12;
+        guardScore += 7;
       }
 
-      return 5;
+      return guardScore;
 
     case 'Road Construction':
       const roadCount = gameState.roads.filter(r => r.playerId === player.id).length;
-      if (roadCount < 6) {
-        return 12;
-      } else if (roadCount < 10) {
-        return 9;
+      let roadConstructionScore = 6;
+
+      if (gameState.gameSettings.longestRoadEnabled) {
+        const longestRoadBonus = gameState.gameSettings.longestRoadBonus;
+        const longestRoadSize = gameState.gameSettings.longestRoadSize;
+        const myLongestPath = player.longestRoadLength || 0;
+        const currentLongestRoadHolder = gameState.players.find(p => p.hasLongestRoad);
+
+        if (currentLongestRoadHolder && currentLongestRoadHolder.id === player.id) {
+          const bonusValue = longestRoadBonus * 1.5;
+          roadConstructionScore += bonusValue;
+          console.log(`   🏆 Longest Road holder - bonus value: +${bonusValue.toFixed(1)} (${longestRoadBonus} pts)`);
+        } else if (myLongestPath >= longestRoadSize - 3) {
+          const roadsNeeded = currentLongestRoadHolder
+            ? Math.max((currentLongestRoadHolder.longestRoadLength || 0) + 1 - myLongestPath, 0)
+            : longestRoadSize - myLongestPath;
+
+          if (roadsNeeded <= 2) {
+            const bonusValue = longestRoadBonus * 3.0;
+            roadConstructionScore += bonusValue;
+            console.log(`   🛤️ Close to Longest Road (${roadsNeeded} roads needed) - bonus value: +${bonusValue.toFixed(1)} (${longestRoadBonus} pts)`);
+          } else if (roadsNeeded <= 3) {
+            const bonusValue = longestRoadBonus * 2.0;
+            roadConstructionScore += bonusValue;
+            console.log(`   🛤️ Pursuing Longest Road (${roadsNeeded} roads needed) - bonus value: +${bonusValue.toFixed(1)} (${longestRoadBonus} pts)`);
+          }
+        }
       }
-      return 6;
+
+      if (roadCount < 6) {
+        roadConstructionScore += 6;
+      } else if (roadCount < 10) {
+        roadConstructionScore += 3;
+      }
+
+      return roadConstructionScore;
 
     case 'Free Upgrade':
       const villageCount = gameState.villages.filter(

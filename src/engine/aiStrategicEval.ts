@@ -280,10 +280,31 @@ export function calculateBuildingPriority(
   let estatePriority = villageCount > 0 ? (5 - cityCount) * 2.5 : 0;
   estatePriority -= estateResourcesNeeded * 3;
 
+  let roadPriority = Math.max(8 - roadCount, 3);
+
+  if (gameState.gameSettings.longestRoadEnabled) {
+    const longestRoadBonus = gameState.gameSettings.longestRoadBonus;
+    const longestRoadSize = gameState.gameSettings.longestRoadSize;
+    const myLongestPath = player.longestRoadLength || 0;
+    const currentLongestRoadHolder = gameState.players.find(p => p.hasLongestRoad);
+
+    if (currentLongestRoadHolder && currentLongestRoadHolder.id === player.id) {
+      roadPriority += longestRoadBonus * 1.5;
+    } else if (myLongestPath >= longestRoadSize - 3) {
+      const roadsNeeded = currentLongestRoadHolder
+        ? Math.max((currentLongestRoadHolder.longestRoadLength || 0) + 1 - myLongestPath, 0)
+        : longestRoadSize - myLongestPath;
+
+      if (roadsNeeded <= 2) {
+        roadPriority += longestRoadBonus * 2.0;
+      } else if (roadsNeeded <= 3) {
+        roadPriority += longestRoadBonus * 1.5;
+      }
+    }
+  }
+
   priorities.push({ type: 'village', priority: Math.max(villagePriority, 1) });
   priorities.push({ type: 'estate', priority: Math.max(estatePriority, 1) });
-
-  const roadPriority = Math.max(8 - roadCount, 3);
   priorities.push({ type: 'road', priority: roadPriority });
 
   priorities.sort((a, b) => b.priority - a.priority);
