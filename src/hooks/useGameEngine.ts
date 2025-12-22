@@ -2844,6 +2844,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, []);
 
   const handleConfirmBoomingEconomy = useCallback(() => {
+    let logData: { playerName: string; playerColor: string; resources: string[] } | null = null;
+
     setGameState(prev => {
       const resourcesSelected = (prev.turnState.placementContext.resourcesSelected || []) as string[];
       const pendingCardId = prev.turnState.placementContext.pendingCardId;
@@ -2875,11 +2877,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return p;
       });
 
-      // Log the resource gain once, outside of the map
+      // Capture logging data (don't log inside state updater)
       if (currentPlayer) {
-        const playerColor = getPlayerColorStyle(currentPlayer.color);
-        const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> gained ${resourcesSelected.join(' and ')} from Booming Economy`;
-        setTimeout(() => addToLog(message), 100);
+        logData = {
+          playerName: currentPlayer.name,
+          playerColor: getPlayerColorStyle(currentPlayer.color),
+          resources: resourcesSelected
+        };
       }
 
       // Find the card to move to discard
@@ -2902,6 +2906,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
+
+    // Log after state update completes
+    if (logData) {
+      const message = `<span style="color: ${logData.playerColor}; font-weight: bold;">${logData.playerName}</span> gained ${logData.resources.join(' and ')} from Booming Economy`;
+      setTimeout(() => addToLog(message), 100);
+    }
   }, [addToLog, getPlayerColorStyle]);
 
   const handleClosedMarketResourceSelection = useCallback((resourceType: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral') => {

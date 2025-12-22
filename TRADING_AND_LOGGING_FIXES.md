@@ -9,36 +9,49 @@ Fixed two issues: Booming Economy duplicate logging and enhanced AI player-to-pl
 When an AI player played Booming Economy, the resource distribution message appeared multiple times in the game log.
 
 ### Root Cause
-In `src/hooks/useGameEngine.ts` at the `handleConfirmBoomingEconomy` function (line 2862), the `addToLog` call was inside the `players.map()` function. This caused the log message to be called once for every player in the game, even though only one player was actually gaining resources.
+In `src/hooks/useGameEngine.ts` at the `handleConfirmBoomingEconomy` function, the `addToLog` call was happening **inside** the `setGameState` updater function. React can execute state updater functions multiple times (especially in Strict Mode or during concurrent renders), causing the log to be added multiple times.
 
 ### Solution
-Moved the logging outside of the `players.map()` loop:
+Moved the logging **outside** the `setGameState` call entirely. State updater functions should be pure and not have side effects like logging.
+
 ```typescript
-// Before: Inside the map function
-const updatedPlayers = prev.players.map(p => {
-  if (p.id === prev.currentPlayer) {
-    // ... resource updates ...
-    addToLog(message); // ❌ Called for every player iteration
-    return { ...p, resources: newResources };
+// Before: Logging inside state updater
+setGameState(prev => {
+  // ... state updates ...
+
+  if (currentPlayer) {
+    const message = `${currentPlayer.name} gained resources`;
+    setTimeout(() => addToLog(message), 100); // ❌ Can be called multiple times
   }
-  return p;
+
+  return newState;
 });
 
-// After: Outside the map function
-const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
-const updatedPlayers = prev.players.map(p => {
-  if (p.id === prev.currentPlayer) {
-    // ... resource updates ...
-    return { ...p, resources: newResources };
-  }
-  return p;
-});
+// After: Capture data, then log after state update
+const handleConfirmBoomingEconomy = useCallback(() => {
+  let logData: { playerName: string; playerColor: string; resources: string[] } | null = null;
 
-// Log once, after the map
-if (currentPlayer) {
-  const message = `${currentPlayer.name} gained ${resourcesSelected.join(' and ')} from Booming Economy`;
-  addToLog(message); // ✅ Called only once
-}
+  setGameState(prev => {
+    // ... pure state updates ...
+
+    // Capture data for logging (no side effects)
+    if (currentPlayer) {
+      logData = {
+        playerName: currentPlayer.name,
+        playerColor: getPlayerColorStyle(currentPlayer.color),
+        resources: resourcesSelected
+      };
+    }
+
+    return newState;
+  });
+
+  // Log after state update completes ✅ Called exactly once
+  if (logData) {
+    const message = `${logData.playerName} gained ${logData.resources.join(' and ')}`;
+    setTimeout(() => addToLog(message), 100);
+  }
+}, [addToLog, getPlayerColorStyle]);
 ```
 
 ### Result
