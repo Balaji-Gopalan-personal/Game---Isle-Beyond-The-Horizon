@@ -1104,6 +1104,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     let resourceCollection = { resources: {}, logMessage: '' };
     if (gameState.phase === 'setup-phase-2') {
       resourceCollection = collectResourcesFromAdjacentCenters(vertexId, playerId);
+      console.log('DEBUG: Resource collection for human player:', {
+        vertexId,
+        playerId,
+        phase: gameState.phase,
+        resources: resourceCollection.resources,
+        logMessage: resourceCollection.logMessage
+      });
     }
 
     console.log('DEBUG: Updating React state after village placement');
@@ -1127,7 +1134,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
                 ...p,
                 villageCount: p.villageCount + 1,
                 score: p.score + 1,
-                resources: gameState.phase === 'setup-phase-2' ? {
+                resources: prev.phase === 'setup-phase-2' ? {
                   clay: p.resources.clay + (resourceCollection.resources.clay || 0),
                   lumber: p.resources.lumber + (resourceCollection.resources.lumber || 0),
                   grain: p.resources.grain + (resourceCollection.resources.grain || 0),
@@ -1584,7 +1591,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             score: p.score + villageScore + longestRoadScore,
             hasLongestRoad: aiLongestRoadUpdate?.shouldAward ? true : p.hasLongestRoad,
             isActive: mutableState.turnState.currentPlayerId === playerId,
-            resources: villagePlaced && gameState.phase === 'setup-phase-2' ? {
+            resources: villagePlaced && prev.phase === 'setup-phase-2' ? {
               clay: p.resources.clay + (aiResourceCollection.resources.clay || 0),
               lumber: p.resources.lumber + (aiResourceCollection.resources.lumber || 0),
               grain: p.resources.grain + (aiResourceCollection.resources.grain || 0),
