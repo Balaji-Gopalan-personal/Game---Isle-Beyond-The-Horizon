@@ -2850,6 +2850,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
       if (resourcesSelected.length !== 2) return prev;
 
+      const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
+
       const updatedPlayers = prev.players.map(p => {
         if (p.id === prev.currentPlayer) {
           const newResources = { ...p.resources };
@@ -2857,10 +2859,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             newResources[res as keyof typeof newResources]++;
             newResources.total++;
           });
-
-          const playerColor = getPlayerColorStyle(p.color);
-          const message = `<span style="color: ${playerColor}; font-weight: bold;">${p.name}</span> gained ${resourcesSelected.join(' and ')} from Booming Economy`;
-          setTimeout(() => addToLog(message), 100);
 
           // Remove the card now that it's successfully played
           if (pendingCardId) {
@@ -2877,8 +2875,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return p;
       });
 
+      // Log the resource gain once, outside of the map
+      if (currentPlayer) {
+        const playerColor = getPlayerColorStyle(currentPlayer.color);
+        const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> gained ${resourcesSelected.join(' and ')} from Booming Economy`;
+        setTimeout(() => addToLog(message), 100);
+      }
+
       // Find the card to move to discard
-      const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       const cardToDiscard = currentPlayer?.developmentCardsInHand.find(c => c.id === pendingCardId);
 
       return {

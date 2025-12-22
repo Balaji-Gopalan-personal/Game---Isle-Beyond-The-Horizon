@@ -188,43 +188,41 @@ export function generatePlayerTradeProposal(
   gameState: GameState,
   failedProposalsThisTurn: Set<string>
 ): { offeredResources: any; requestedResources: any } | null {
-  const priorities = assessResourceNeeds(player);
-  if (priorities.length === 0) return null;
+  const tradeEval = evaluateTradeOpportunity(player, gameState);
 
-  const availableResources = getResourcesAvailableForTrade(player);
-  if (availableResources.length === 0) return null;
+  if (tradeEval.shouldTrade &&
+      tradeEval.tradeType === 'player' &&
+      tradeEval.offering &&
+      tradeEval.requesting &&
+      tradeEval.offeringAmount &&
+      tradeEval.requestingAmount) {
 
-  const mostNeededResource = priorities[0].resource;
-
-  for (const offeringResource of availableResources) {
-    const proposalKey = `${offeringResource}->${mostNeededResource}`;
+    const proposalKey = `${tradeEval.offeringAmount}${tradeEval.offering}->${tradeEval.requestingAmount}${tradeEval.requesting}`;
 
     if (failedProposalsThisTurn.has(proposalKey)) {
-      continue;
+      return null;
     }
 
-    const offerAmount = 1;
-    if (player.resources[offeringResource] > 1) {
-      const offeredResources = {
-        clay: 0,
-        lumber: 0,
-        grain: 0,
-        fabric: 0,
-        mineral: 0,
-        [offeringResource]: offerAmount
-      };
+    const offeredResources = {
+      clay: 0,
+      lumber: 0,
+      grain: 0,
+      fabric: 0,
+      mineral: 0,
+      [tradeEval.offering]: tradeEval.offeringAmount
+    };
 
-      const requestedResources = {
-        clay: 0,
-        lumber: 0,
-        grain: 0,
-        fabric: 0,
-        mineral: 0,
-        [mostNeededResource]: 1
-      };
+    const requestedResources = {
+      clay: 0,
+      lumber: 0,
+      grain: 0,
+      fabric: 0,
+      mineral: 0,
+      [tradeEval.requesting]: tradeEval.requestingAmount
+    };
 
-      return { offeredResources, requestedResources };
-    }
+    console.log(`   Proposing P2P: ${tradeEval.offeringAmount} ${tradeEval.offering} for ${tradeEval.requestingAmount} ${tradeEval.requesting}`);
+    return { offeredResources, requestedResources };
   }
 
   return null;

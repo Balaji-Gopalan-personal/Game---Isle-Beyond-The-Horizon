@@ -14,6 +14,7 @@ export interface TradeEvaluation {
   offering?: ResourceType;
   offeringAmount?: number;
   requesting?: ResourceType;
+  requestingAmount?: number;
   reasoning?: string;
 }
 
@@ -156,19 +157,153 @@ function findBestPlayerTrade(
     return null;
   }
 
+  const difficulty = player.difficulty || 'normal';
+  const personality = player.character?.personality || 'balanced';
+
+  const possibleTrades: Array<{
+    offering: ResourceType;
+    offeringAmount: number;
+    requesting: ResourceType;
+    requestingAmount: number;
+    fairness: number;
+  }> = [];
+
   for (const surplusResource of surplus) {
     for (const neededResource of neededResources) {
-      if (player.resources[surplusResource] >= 2) {
-        return {
-          shouldTrade: true,
-          tradeType: 'player',
+      const availableAmount = player.resources[surplusResource];
+      const neededAmount = goal.neededResources[neededResource] || 1;
+
+      if (availableAmount >= 1) {
+        possibleTrades.push({
+          offering: surplusResource,
+          offeringAmount: 1,
+          requesting: neededResource,
+          requestingAmount: 1,
+          fairness: 1.0
+        });
+      }
+
+      if (availableAmount >= 2) {
+        possibleTrades.push({
           offering: surplusResource,
           offeringAmount: 2,
           requesting: neededResource,
-          reasoning: `P2P trade: 2 ${surplusResource} for 1 ${neededResource} to build ${goal.targetBuilding}`
-        };
+          requestingAmount: 1,
+          fairness: 0.5
+        });
+      }
+
+      if (availableAmount >= 2 && neededAmount >= 2) {
+        possibleTrades.push({
+          offering: surplusResource,
+          offeringAmount: 2,
+          requesting: neededResource,
+          requestingAmount: 2,
+          fairness: 1.0
+        });
+      }
+
+      if (availableAmount >= 3) {
+        possibleTrades.push({
+          offering: surplusResource,
+          offeringAmount: 3,
+          requesting: neededResource,
+          requestingAmount: 1,
+          fairness: 0.33
+        });
+      }
+
+      if (availableAmount >= 3 && neededAmount >= 2) {
+        possibleTrades.push({
+          offering: surplusResource,
+          offeringAmount: 3,
+          requesting: neededResource,
+          requestingAmount: 2,
+          fairness: 0.67
+        });
+      }
+
+      if (availableAmount >= 1 && neededAmount >= 2) {
+        possibleTrades.push({
+          offering: surplusResource,
+          offeringAmount: 1,
+          requesting: neededResource,
+          requestingAmount: 2,
+          fairness: 2.0
+        });
       }
     }
+  }
+
+  if (possibleTrades.length === 0) {
+    return null;
+  }
+
+  const scoredTrades = possibleTrades.map(trade => {
+    let score = 0;
+
+    const totalPriority = goal.priority;
+    const resourceScarcity = 1.0 / (player.resources[trade.offering] + 1);
+
+    if (difficulty === 'easy') {
+      if (trade.fairness >= 0.8 && trade.fairness <= 1.2) {
+        score += 10;
+      } else if (trade.fairness >= 0.6) {
+        score += 5;
+      }
+    } else if (difficulty === 'normal') {
+      if (trade.fairness >= 0.7) {
+        score += 8;
+      } else if (trade.fairness >= 0.4) {
+        score += 5;
+      }
+    } else {
+      if (trade.fairness >= 0.5) {
+        score += 6;
+      } else if (trade.fairness >= 0.3) {
+        score += 8;
+      }
+    }
+
+    if (personality === 'aggressive') {
+      score += (1.0 - trade.fairness) * 5;
+    } else if (personality === 'defensive') {
+      if (trade.fairness >= 0.8) {
+        score += 3;
+      }
+    } else if (personality === 'balanced') {
+      if (trade.fairness >= 0.5 && trade.fairness <= 1.0) {
+        score += 4;
+      }
+    } else if (personality === 'economic') {
+      if (trade.fairness >= 1.0) {
+        score += 5;
+      }
+    }
+
+    score += totalPriority * 0.3;
+    score -= resourceScarcity * 2;
+
+    if (trade.offeringAmount === 1 && trade.requestingAmount === 1) {
+      score += 2;
+    }
+
+    return { ...trade, score };
+  });
+
+  scoredTrades.sort((a, b) => b.score - a.score);
+
+  const bestTrade = scoredTrades[0];
+
+  if (bestTrade.score > 0) {
+    return {
+      shouldTrade: true,
+      tradeType: 'player',
+      offering: bestTrade.offering,
+      offeringAmount: bestTrade.offeringAmount,
+      requesting: bestTrade.requesting,
+      reasoning: `P2P trade: ${bestTrade.offeringAmount} ${bestTrade.offering} for ${bestTrade.requestingAmount} ${bestTrade.requesting} to build ${goal.targetBuilding}`
+    };
   }
 
   return null;
