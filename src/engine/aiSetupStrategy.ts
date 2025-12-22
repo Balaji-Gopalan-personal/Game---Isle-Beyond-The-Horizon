@@ -31,7 +31,7 @@ function evaluateBlockingPotential(
   player: Player
 ): number {
   const boardData = loadBoardForSize(boardSize);
-  const adjacentCenters = boardData.centers.filter(center =>
+  const adjacentCenters = gameState.boardCenters.filter(center =>
     center.vertices.includes(vertexId)
   );
 
@@ -85,10 +85,10 @@ export function evaluateSetupVertex(
     evaluation.portAccess * weights.portAccess +
     evaluation.expansionPotential * weights.expansion;
 
-  const pipBonus = calculatePipCountBonus(vertexId, boardSize);
+  const pipBonus = calculatePipCountBonus(vertexId, boardSize, gameState.boardCenters);
   score += pipBonus;
 
-  const centerCountPenalty = calculateCenterCountBonus(vertexId, boardSize);
+  const centerCountPenalty = calculateCenterCountBonus(vertexId, boardSize, gameState.boardCenters);
   score += centerCountPenalty;
 
   if (isPhase2) {
@@ -98,12 +98,22 @@ export function evaluateSetupVertex(
   const blockingBonus = evaluateBlockingPotential(vertexId, gameState, boardSize, player);
   score += blockingBonus;
 
+  const adjacentCenters = gameState.boardCenters.filter(center =>
+    center.vertices.includes(vertexId)
+  );
+
+  if (adjacentCenters.length > 0) {
+    const centerInfo = adjacentCenters.map(c =>
+      `C${c.id}:${c.resourceType}/${c.value}`
+    ).join(', ');
+    console.log(`[AI Eval] V${vertexId} adjacent centers: ${centerInfo} | Score: ${score.toFixed(1)}`);
+  }
+
   return score;
 }
 
-function calculatePipCountBonus(vertexId: number, boardSize: BoardSize): number {
-  const boardData = loadBoardForSize(boardSize);
-  const adjacentCenters = boardData.centers.filter(center =>
+function calculatePipCountBonus(vertexId: number, boardSize: BoardSize, boardCenters: any[]): number {
+  const adjacentCenters = boardCenters.filter(center =>
     center.vertices.includes(vertexId)
   );
 
@@ -128,9 +138,8 @@ function calculatePipCountBonus(vertexId: number, boardSize: BoardSize): number 
   return pipBonus;
 }
 
-function calculateCenterCountBonus(vertexId: number, boardSize: BoardSize): number {
-  const boardData = loadBoardForSize(boardSize);
-  const adjacentCenters = boardData.centers.filter(center =>
+function calculateCenterCountBonus(vertexId: number, boardSize: BoardSize, boardCenters: any[]): number {
+  const adjacentCenters = boardCenters.filter(center =>
     center.vertices.includes(vertexId)
   );
 
@@ -155,12 +164,11 @@ function evaluateComplementaryResources(
   boardSize: BoardSize,
   gameState: GameState
 ): number {
-  const boardData = loadBoardForSize(boardSize);
-  const adjacentCenters = boardData.centers.filter(center =>
+  const adjacentCenters = gameState.boardCenters.filter(center =>
     center.vertices.includes(vertexId)
   );
 
-  const currentResources = getResourceProduction(player, boardData.centers, gameState);
+  const currentResources = getResourceProduction(player, gameState.boardCenters, gameState);
   const newResources = adjacentCenters
     .filter(c => c.resourceType !== 'desert')
     .map(c => c.resourceType);
@@ -235,7 +243,7 @@ function evaluateRoadExpansionPath(
     const hasAdjacentSettlement = adjacentToCandidate.some(v => gameState.verticesOccupiedBy[v]);
 
     if (!hasAdjacentSettlement) {
-      const adjacentCenters = boardData.centers.filter(center =>
+      const adjacentCenters = gameState.boardCenters.filter(center =>
         center.vertices.includes(potentialVertex)
       );
 

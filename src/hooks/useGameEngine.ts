@@ -117,7 +117,8 @@ const DEFAULT_GAME_STATE: GameState = {
   verticesOccupiedBy: {},
   edgesOccupiedBy: {},
   developmentCardDeck: [],
-  developmentCardDiscard: []
+  developmentCardDiscard: [],
+  boardCenters: []
 };
 
 export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 'standard', config?: GameConfig) => {
@@ -584,10 +585,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     console.log('Loading board data for game engine, board size:', boardSize);
     const boardData = loadBoardForSize(boardSize);
     const G = boardData.graph;
-    
-    // Store centers for resource collection
+
+    // Store centers for resource collection (both in React state and GameState)
     setBoardCenters(boardData.centers);
-    
+    setGameState(prev => ({
+      ...prev,
+      boardCenters: boardData.centers
+    }));
+
     // Diagnostics at load
     console.info('GRAPH', {
       vertices: Object.keys(G.vertices).length,
@@ -607,7 +612,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         console.error('Edge with missing endpoint', id, e);
       }
     }
-    
+
     // Store the complete board data for validators
     (G as any).boardData = boardData;
 

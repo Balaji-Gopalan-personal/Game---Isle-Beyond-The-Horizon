@@ -41,8 +41,8 @@ export function evaluateVertex(
   boardSize: BoardSize,
   player: Player
 ): VertexEvaluation {
-  const productionValue = calculateProductionValue(vertexId, boardSize);
-  const resourceDiversity = calculateResourceDiversity(vertexId, boardSize);
+  const productionValue = calculateProductionValue(vertexId, boardSize, gameState.boardCenters);
+  const resourceDiversity = calculateResourceDiversity(vertexId, boardSize, gameState.boardCenters);
   const portAccess = calculatePortAccess(vertexId, gameState, boardSize);
   const expansionPotential = calculateExpansionPotential(vertexId, gameState, boardSize, player.id);
 
@@ -62,9 +62,9 @@ export function evaluateVertex(
   };
 }
 
-export function calculateProductionValue(vertexId: number, boardSize: BoardSize): number {
-  const boardData = loadBoardForSize(boardSize);
-  const adjacentCenters = boardData.centers.filter(center =>
+export function calculateProductionValue(vertexId: number, boardSize: BoardSize, boardCenters?: any[]): number {
+  const centers = boardCenters || loadBoardForSize(boardSize).centers;
+  const adjacentCenters = centers.filter(center =>
     center.vertices.includes(vertexId)
   );
 
@@ -103,9 +103,9 @@ function getResourceBaseValue(
   }
 }
 
-export function calculateResourceDiversity(vertexId: number, boardSize: BoardSize): number {
-  const boardData = loadBoardForSize(boardSize);
-  const adjacentCenters = boardData.centers.filter(center =>
+export function calculateResourceDiversity(vertexId: number, boardSize: BoardSize, boardCenters?: any[]): number {
+  const centers = boardCenters || loadBoardForSize(boardSize).centers;
+  const adjacentCenters = centers.filter(center =>
     center.vertices.includes(vertexId)
   );
 
@@ -190,7 +190,7 @@ export function evaluateRoadEdge(
   const toVertex = v1 === fromVertex ? v2 : v1;
 
   const expansionValue = calculateEdgeExpansionValue(toVertex, gameState, boardSize, player.id);
-  const productionAccess = calculateProductionValue(toVertex, boardSize);
+  const productionAccess = calculateProductionValue(toVertex, boardSize, gameState.boardCenters);
   const portConnectionValue = calculatePortAccess(toVertex, gameState, boardSize);
 
   const totalScore =

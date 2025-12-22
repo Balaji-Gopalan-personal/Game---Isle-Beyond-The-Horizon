@@ -17,8 +17,7 @@ export function selectRobberPlacement(
 ): RobberPlacement {
   console.log(`\n🎲 [${player.name}] SELECTING ROBBER PLACEMENT (${difficulty} difficulty)`);
 
-  const boardData = loadBoardForSize(boardSize);
-  const validHexes = boardData.centers.filter(center =>
+  const validHexes = gameState.boardCenters.filter(center =>
     center.id !== gameState.robberPosition
   );
 
@@ -54,7 +53,7 @@ export function selectRobberPlacement(
 
   console.log(`   Top 3 placements:`);
   scoredPlacements.slice(0, 3).forEach((p, i) => {
-    const hex = boardData.centers.find(c => c.id === p.hexId);
+    const hex = gameState.boardCenters.find(c => c.id === p.hexId);
     const target = p.targetPlayerId ? gameState.players.find(pl => pl.id === p.targetPlayerId) : null;
     console.log(`     ${i + 1}. Hex ${p.hexId} (${hex?.resourceType} ${hex?.value}) - Score: ${p.score.toFixed(1)} ${target ? `→ ${target.name}` : ''}`);
   });
@@ -76,8 +75,7 @@ function scoreRobberPlacement(
   gameState: GameState,
   boardSize: BoardSize
 ): number {
-  const boardData = loadBoardForSize(boardSize);
-  const hex = boardData.centers.find(c => c.id === hexId);
+  const hex = gameState.boardCenters.find(c => c.id === hexId);
 
   if (!hex) return 0;
 
@@ -159,8 +157,7 @@ function getHexProductionValue(pipValue: number): number {
 }
 
 function getPlayersOnHex(hexId: number, gameState: GameState, boardSize: BoardSize): string[] {
-  const boardData = loadBoardForSize(boardSize);
-  const hex = boardData.centers.find(c => c.id === hexId);
+  const hex = gameState.boardCenters.find(c => c.id === hexId);
 
   if (!hex) return [];
 

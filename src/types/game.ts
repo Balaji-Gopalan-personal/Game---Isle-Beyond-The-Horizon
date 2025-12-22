@@ -29,6 +29,15 @@ export interface TradingPort {
   position: { x: number; y: number };
 }
 
+export interface BoardCenter {
+  id: number;
+  vertices: number[];
+  x: number;
+  y: number;
+  resourceType: 'desert' | 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral';
+  value: number;
+}
+
 export type CardLocation = 'deck' | 'hand' | 'played' | 'discard';
 
 export interface DevelopmentCard {
@@ -195,4 +204,5 @@ export interface GameState {
   developmentCardDeck: DevelopmentCard[];
   developmentCardDiscard: DevelopmentCard[];
   tradingPorts?: TradingPort[];
+  boardCenters: BoardCenter[];
 }
