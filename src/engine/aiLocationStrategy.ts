@@ -313,8 +313,12 @@ export function selectStrategicEstateLocation(
   console.log(`   Personality: ${personality} | Difficulty: ${difficulty}`);
   console.log(`   Upgradable villages: ${upgradableVillages.length}`);
 
+  const boardCenters = gameState.boardCenters && gameState.boardCenters.length > 0
+    ? gameState.boardCenters
+    : loadBoardForSize(boardSize).centers;
+
   const evaluations = upgradableVillages.map(village => {
-    const productionValue = calculateProductionValue(village.vertexId, boardSize, gameState.boardCenters);
+    const productionValue = calculateProductionValue(village.vertexId, boardSize, boardCenters);
 
     const adjacentVertices = getAdjacentVertices(village.vertexId, boardSize);
     const adjacentEnemies = adjacentVertices.filter(v => {
@@ -415,6 +419,10 @@ function calculateResourceStrategicValue(
   const boardSize = gameState.gameSettings.boardSize as BoardSize;
   const playerVillages = gameState.villages.filter(v => v.playerId === player.id);
   let productionRate = 0;
+
+  if (!gameState.boardCenters || gameState.boardCenters.length === 0) {
+    return value;
+  }
 
   for (const village of playerVillages) {
     const adjacentCenters = gameState.boardCenters.filter(c => c.vertices.includes(village.vertexId));

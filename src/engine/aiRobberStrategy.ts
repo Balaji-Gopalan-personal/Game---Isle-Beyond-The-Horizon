@@ -17,9 +17,32 @@ export function selectRobberPlacement(
 ): RobberPlacement {
   console.log(`\n🎲 [${player.name}] SELECTING ROBBER PLACEMENT (${difficulty} difficulty)`);
 
+  if (!gameState.boardCenters || gameState.boardCenters.length === 0) {
+    console.error('ERROR: boardCenters is undefined or empty in selectRobberPlacement');
+    const boardData = loadBoardForSize(boardSize);
+    const fallbackHex = boardData.centers.find(c => c.resourceType !== 'desert') || boardData.centers[0];
+    return {
+      hexId: fallbackHex.id,
+      targetPlayerId: undefined,
+      score: 0,
+      reasoning: 'Fallback - boardCenters was undefined'
+    };
+  }
+
   const validHexes = gameState.boardCenters.filter(center =>
     center.id !== gameState.robberPosition
   );
+
+  if (validHexes.length === 0) {
+    console.error('ERROR: No valid hexes available for robber placement');
+    const fallbackHex = gameState.boardCenters.find(c => c.resourceType !== 'desert') || gameState.boardCenters[0];
+    return {
+      hexId: fallbackHex.id,
+      targetPlayerId: undefined,
+      score: 0,
+      reasoning: 'Fallback - no valid hexes'
+    };
+  }
 
   if (difficulty === 'easy') {
     const randomHex = validHexes[Math.floor(Math.random() * validHexes.length)];
