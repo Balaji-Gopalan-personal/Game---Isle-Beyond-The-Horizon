@@ -24,6 +24,51 @@ export const PHASE_2_WEIGHTS: SetupPhaseWeights = {
   expansion: 1.0,
 };
 
+function evaluateBlockingPotential(
+  vertexId: number,
+  gameState: GameState,
+  boardSize: BoardSize,
+  player: Player
+): number {
+  const boardData = loadBoardForSize(boardSize);
+  const adjacentCenters = boardData.centers.filter(center =>
+    center.vertices.includes(vertexId)
+  );
+
+  const nonDesertCenters = adjacentCenters.filter(c => c.resourceType !== 'desert');
+  if (nonDesertCenters.length < 2) {
+    return 0;
+  }
+
+  let highValueCenters = 0;
+  for (const center of nonDesertCenters) {
+    if (center.value === 6 || center.value === 8) {
+      highValueCenters++;
+    } else if (center.value === 5 || center.value === 9) {
+      highValueCenters += 0.5;
+    }
+  }
+
+  if (highValueCenters >= 1.5) {
+    const adjacentVertices = boardData.adjacencyMap[vertexId] || [];
+    let opponentNearby = false;
+
+    for (const adjVertex of adjacentVertices) {
+      const occupyingPlayerId = gameState.verticesOccupiedBy[adjVertex];
+      if (occupyingPlayerId && occupyingPlayerId !== player.id) {
+        opponentNearby = true;
+        break;
+      }
+    }
+
+    if (opponentNearby) {
+      return highValueCenters * 8.0;
+    }
+  }
+
+  return 0;
+}
+
 export function evaluateSetupVertex(
   vertexId: number,
   gameState: GameState,
@@ -50,6 +95,9 @@ export function evaluateSetupVertex(
     score += evaluateComplementaryResources(vertexId, player, boardSize, gameState);
   }
 
+  const blockingBonus = evaluateBlockingPotential(vertexId, gameState, boardSize, player);
+  score += blockingBonus;
+
   return score;
 }
 
@@ -67,13 +115,13 @@ function calculatePipCountBonus(vertexId: number, boardSize: BoardSize): number 
     if (center.value === 6 || center.value === 8) {
       pipBonus += 15.0;
     } else if (center.value === 5 || center.value === 9) {
-      pipBonus += 10.0;
+      pipBonus += 12.0;
     } else if (center.value === 4 || center.value === 10) {
       pipBonus += 6.0;
     } else if (center.value === 3 || center.value === 11) {
-      pipBonus += 3.0;
+      pipBonus += 2.0;
     } else if (center.value === 2 || center.value === 12) {
-      pipBonus += 1.0;
+      pipBonus += 0.5;
     }
   }
 
@@ -93,7 +141,9 @@ function calculateCenterCountBonus(vertexId: number, boardSize: BoardSize): numb
   } else if (nonDesertCenters === 2) {
     return 5.0;
   } else if (nonDesertCenters === 1) {
-    return -8.0;
+    return -50.0;
+  } else if (nonDesertCenters === 0) {
+    return -100.0;
   }
 
   return 0;
@@ -121,9 +171,9 @@ function evaluateComplementaryResources(
     const currentCount = currentResources[resource] || 0;
 
     if (currentCount === 0) {
-      complementaryScore += 15.0;
+      complementaryScore += 20.0;
     } else if (currentCount === 1) {
-      complementaryScore += 8.0;
+      complementaryScore += 12.0;
     } else if (currentCount === 2) {
       complementaryScore += 3.0;
     }
@@ -162,6 +212,56 @@ function getResourceProduction(
   return production;
 }
 
+function evaluateRoadExpansionPath(
+  edgeId: string,
+  fromVertex: number,
+  gameState: GameState,
+  boardSize: BoardSize,
+  player: Player
+): number {
+  const [v1, v2] = edgeId.split('__').map(Number);
+  const toVertex = v1 === fromVertex ? v2 : v1;
+
+  const boardData = loadBoardForSize(boardSize);
+  const adjacentToTarget = boardData.adjacencyMap[toVertex] || [];
+
+  let expansionScore = 0;
+
+  for (const potentialVertex of adjacentToTarget) {
+    if (potentialVertex === fromVertex) continue;
+    if (gameState.verticesOccupiedBy[potentialVertex]) continue;
+
+    const adjacentToCandidate = boardData.adjacencyMap[potentialVertex] || [];
+    const hasAdjacentSettlement = adjacentToCandidate.some(v => gameState.verticesOccupiedBy[v]);
+
+    if (!hasAdjacentSettlement) {
+      const adjacentCenters = boardData.centers.filter(center =>
+        center.vertices.includes(potentialVertex)
+      );
+
+      const nonDesertCenters = adjacentCenters.filter(c => c.resourceType !== 'desert');
+
+      if (nonDesertCenters.length >= 2) {
+        let vertexValue = 0;
+
+        for (const center of nonDesertCenters) {
+          if (center.value === 6 || center.value === 8) {
+            vertexValue += 5.0;
+          } else if (center.value === 5 || center.value === 9) {
+            vertexValue += 3.0;
+          } else if (center.value === 4 || center.value === 10) {
+            vertexValue += 1.5;
+          }
+        }
+
+        expansionScore += vertexValue;
+      }
+    }
+  }
+
+  return expansionScore;
+}
+
 export function evaluateSetupRoad(
   edgeId: string,
   fromVertex: number,
@@ -174,10 +274,13 @@ export function evaluateSetupRoad(
 
   const weights = isPhase2 ? PHASE_2_WEIGHTS : PHASE_1_WEIGHTS;
 
-  const score =
+  let score =
     evaluation.expansionValue * weights.expansion +
     evaluation.productionAccess * weights.production +
     evaluation.portConnectionValue * weights.portAccess;
+
+  const expansionPath = evaluateRoadExpansionPath(edgeId, fromVertex, gameState, boardSize, player);
+  score += expansionPath * (isPhase2 ? 0.5 : 1.0);
 
   return score;
 }

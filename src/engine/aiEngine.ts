@@ -108,15 +108,44 @@ export class AIEngine {
 
     scoredVertices.sort((a, b) => b.score - a.score);
 
-    if (this.difficulty === 'easy') {
-      const topCandidates = scoredVertices.slice(0, Math.ceil(scoredVertices.length * 0.6));
-      return this.selectRandomVertex(topCandidates.map(v => v.vertexId));
-    } else if (this.difficulty === 'normal') {
-      const topCandidates = scoredVertices.slice(0, Math.ceil(scoredVertices.length * 0.3));
-      return this.selectRandomVertex(topCandidates.map(v => v.vertexId));
+    let filteredVertices = scoredVertices;
+    if (this.difficulty === 'hard' && scoredVertices.length > 1) {
+      filteredVertices = scoredVertices.filter(v => v.score >= 20.0);
+      if (filteredVertices.length === 0) {
+        filteredVertices = scoredVertices.filter(v => v.score >= 10.0);
+      }
+      if (filteredVertices.length === 0) {
+        filteredVertices = [scoredVertices[0]];
+      }
+    } else if (this.difficulty === 'normal' && scoredVertices.length > 1) {
+      filteredVertices = scoredVertices.filter(v => v.score >= 10.0);
+      if (filteredVertices.length === 0) {
+        filteredVertices = [scoredVertices[0]];
+      }
     }
 
-    return scoredVertices[0].vertexId;
+    const bestVertex = filteredVertices[0];
+    console.log(`[AI ${this.difficulty}] ${player.name} evaluating ${scoredVertices.length} vertices (${filteredVertices.length} after filtering). Best: ${bestVertex.vertexId} (score: ${bestVertex.score.toFixed(2)})`);
+
+    if (this.difficulty === 'hard') {
+      return filteredVertices[0].vertexId;
+    } else if (this.difficulty === 'normal') {
+      if (Math.random() < 0.8) {
+        return filteredVertices[0].vertexId;
+      }
+      const topCandidates = filteredVertices.slice(0, Math.min(3, filteredVertices.length));
+      const selected = this.selectRandomVertex(topCandidates.map(v => v.vertexId));
+      console.log(`[AI ${this.difficulty}] Selected alternative vertex: ${selected}`);
+      return selected;
+    } else {
+      if (Math.random() < 0.6) {
+        return filteredVertices[0].vertexId;
+      }
+      const topCandidates = filteredVertices.slice(0, Math.ceil(filteredVertices.length * 0.4));
+      const selected = this.selectRandomVertex(topCandidates.map(v => v.vertexId));
+      console.log(`[AI ${this.difficulty}] Selected alternative vertex: ${selected}`);
+      return selected;
+    }
   }
 
   private selectBestRoadEdge(
@@ -125,8 +154,8 @@ export class AIEngine {
     player: Player,
     gameState: GameState
   ): string {
-    if (this.difficulty === 'easy' || validEdges.length === 1) {
-      return this.selectRandomEdge(validEdges);
+    if (validEdges.length === 1) {
+      return validEdges[0];
     }
 
     const isSetupPhase = gameState.phase === 'setup-phase-1' || gameState.phase === 'setup-phase-2';
@@ -141,12 +170,28 @@ export class AIEngine {
 
     scoredEdges.sort((a, b) => b.score - a.score);
 
-    if (this.difficulty === 'normal') {
-      const topCandidates = scoredEdges.slice(0, Math.ceil(scoredEdges.length * 0.3));
-      return this.selectRandomEdge(topCandidates.map(e => e.edgeId));
-    }
+    const bestEdge = scoredEdges[0];
+    console.log(`[AI ${this.difficulty}] ${player.name} evaluating ${scoredEdges.length} roads from vertex ${fromVertex}. Best: ${bestEdge.edgeId} (score: ${bestEdge.score.toFixed(2)})`);
 
-    return scoredEdges[0].edgeId;
+    if (this.difficulty === 'hard') {
+      return scoredEdges[0].edgeId;
+    } else if (this.difficulty === 'normal') {
+      if (Math.random() < 0.8) {
+        return scoredEdges[0].edgeId;
+      }
+      const topCandidates = scoredEdges.slice(0, Math.min(3, scoredEdges.length));
+      const selected = this.selectRandomEdge(topCandidates.map(e => e.edgeId));
+      console.log(`[AI ${this.difficulty}] Selected alternative road: ${selected}`);
+      return selected;
+    } else {
+      if (Math.random() < 0.6) {
+        return scoredEdges[0].edgeId;
+      }
+      const topCandidates = scoredEdges.slice(0, Math.min(Math.ceil(scoredEdges.length * 0.7), scoredEdges.length));
+      const selected = this.selectRandomEdge(topCandidates.map(e => e.edgeId));
+      console.log(`[AI ${this.difficulty}] Selected alternative road: ${selected}`);
+      return selected;
+    }
   }
 
   private scoreVillageLocation(vertexId: number, player: Player, gameState: GameState): number {

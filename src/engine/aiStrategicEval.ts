@@ -87,11 +87,11 @@ function getResourceBaseValue(
 ): number {
   switch (resourceType) {
     case 'clay':
-      return 1.2;
+      return 1.5;
     case 'lumber':
-      return 1.2;
+      return 1.5;
     case 'grain':
-      return 1.1;
+      return 1.2;
     case 'fabric':
       return 1.1;
     case 'mineral':
