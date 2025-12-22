@@ -1,6 +1,8 @@
 import { loadBoardGraph, loadBoardForSize } from '../graph/loadBoard';
 import { legalRoadEdgesFrom, canPlaceVillage, edgeTouchesVertex, whyNotVillage, initializeValidators } from './validators';
 import { BoardSize } from '../data/boardConfigs';
+import { evaluateVertex, evaluateRoadEdge } from './aiStrategicEval';
+import { getPersonalityForCharacter, applyDifficultyRandomness, PersonalityTrait } from './aiLocationStrategy';
 
 // We'll get board size from state
 let currentBoardSize: BoardSize = 'standard';
@@ -169,21 +171,92 @@ export function aiTakeTurn_P1(state: any) {
 }
 
 function chooseBestVillageVertex(state: any, candidates: number[], playerId: string): number {
-  console.log(`DEBUG: AI ${playerId} choosing from ${candidates.length} village candidates: [${candidates.join(', ')}]`);
-  const randomIndex = Math.floor(Math.random() * candidates.length);
-  console.log(`DEBUG: AI ${playerId} chose vertex ${candidates[randomIndex]} (index ${randomIndex})`);
-  return candidates[randomIndex];
+  const player = state.players.find((p: any) => p.id === playerId);
+  if (!player) {
+    const randomIndex = Math.floor(Math.random() * candidates.length);
+    return candidates[randomIndex];
+  }
+
+  const boardSize = state.gameSettings?.boardSize || state.boardSize || currentBoardSize || 'standard';
+  const difficulty = player.difficulty || 'normal';
+
+  console.log(`\n📍 [SETUP PHASE 1] ${player.name} selecting village (${difficulty} difficulty)`);
+  console.log(`   Candidates: ${candidates.length}`);
+
+  const evaluations = candidates.map(vertexId => {
+    const evaluation = evaluateVertex(vertexId, state, boardSize, player);
+    return evaluation;
+  });
+
+  evaluations.sort((a, b) => b.totalScore - a.totalScore);
+
+  console.log(`   Top 3 candidates:`);
+  evaluations.slice(0, 3).forEach((e, i) => {
+    console.log(`     ${i + 1}. Vertex ${e.vertexId} - Score: ${e.totalScore.toFixed(1)}`);
+  });
+
+  const randomnessChance = difficulty === 'easy' ? 0.4 : difficulty === 'normal' ? 0.2 : 0;
+  let selected;
+
+  if (difficulty === 'hard' || Math.random() >= randomnessChance) {
+    const topCandidates = difficulty === 'easy'
+      ? evaluations.slice(0, Math.max(3, Math.ceil(evaluations.length * 0.5)))
+      : evaluations.slice(0, Math.max(2, Math.ceil(evaluations.length * 0.3)));
+    const randomIndex = Math.floor(Math.random() * topCandidates.length);
+    selected = topCandidates[randomIndex];
+  } else {
+    const randomIndex = Math.floor(Math.random() * evaluations.length);
+    selected = evaluations[randomIndex];
+  }
+
+  console.log(`   ✓ Selected: Vertex ${selected.vertexId} (Score: ${selected.totalScore.toFixed(1)})`);
+  return selected.vertexId;
 }
 
 function chooseBestRoadEdge(state: any, options: string[], playerId: string, v: number): string {
-  console.log(`DEBUG: AI ${playerId} choosing from ${options.length} road options for village vertex ${v}: [${options.join(', ')}]`);
-  
   if (options.length === 0) {
     console.error(`DEBUG: CRITICAL - No road options available for AI ${playerId} from village vertex ${v}`);
-    return ''; // Return empty string to indicate no valid move
+    return '';
   }
-  
-  const randomIndex = Math.floor(Math.random() * options.length);
-  console.log(`DEBUG: AI ${playerId} chose road edge ${options[randomIndex]} (index ${randomIndex})`);
-  return options[randomIndex];
+
+  const player = state.players.find((p: any) => p.id === playerId);
+  if (!player) {
+    const randomIndex = Math.floor(Math.random() * options.length);
+    return options[randomIndex];
+  }
+
+  const boardSize = state.gameSettings?.boardSize || state.boardSize || currentBoardSize || 'standard';
+  const difficulty = player.difficulty || 'normal';
+
+  console.log(`\n🛤️  [SETUP PHASE 1] ${player.name} selecting road (${difficulty} difficulty)`);
+  console.log(`   Options: ${options.length}`);
+
+  const evaluations = options.map(edgeId => {
+    const evaluation = evaluateRoadEdge(edgeId, v, state, boardSize, player);
+    return { edgeId, ...evaluation };
+  });
+
+  evaluations.sort((a, b) => b.totalScore - a.totalScore);
+
+  console.log(`   Top 3 candidates:`);
+  evaluations.slice(0, 3).forEach((e, i) => {
+    console.log(`     ${i + 1}. Edge ${e.edgeId} - Score: ${e.totalScore.toFixed(1)}`);
+  });
+
+  const randomnessChance = difficulty === 'easy' ? 0.4 : difficulty === 'normal' ? 0.2 : 0;
+  let selected;
+
+  if (difficulty === 'hard' || Math.random() >= randomnessChance) {
+    const topCandidates = difficulty === 'easy'
+      ? evaluations.slice(0, Math.max(3, Math.ceil(evaluations.length * 0.5)))
+      : evaluations.slice(0, Math.max(2, Math.ceil(evaluations.length * 0.3)));
+    const randomIndex = Math.floor(Math.random() * topCandidates.length);
+    selected = topCandidates[randomIndex];
+  } else {
+    const randomIndex = Math.floor(Math.random() * evaluations.length);
+    selected = evaluations[randomIndex];
+  }
+
+  console.log(`   ✓ Selected: Edge ${selected.edgeId} (Score: ${selected.totalScore.toFixed(1)})`);
+  return selected.edgeId;
 }

@@ -7,7 +7,8 @@ import { loadBoardGraph, loadBoardForSize } from '../graph/loadBoard';
 import { canPlaceVillage, legalRoadEdgesFrom, edgeTouchesVertex, whyNotVillage, initializeValidators } from '../engine/validators';
 import { placeVillage_P1, placeRoad_P1_byEdgeId, aiTakeTurn_P1 } from '../engine/phase1';
 import { calculateLongestRoadPath, getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages } from '../engine/gameplayActions';
-import { makeRandomBuildDecision, makeStrategicBuildDecision, selectRandomRoadLocation, selectRandomVillageLocation, selectRandomEstateLocation, getAvailableBuildingTypes } from '../engine/aiBuilding';
+import { makeRandomBuildDecision, makeStrategicBuildDecision, getAvailableBuildingTypes } from '../engine/aiBuilding';
+import { selectStrategicRoadLocation, selectStrategicVillageLocation, selectStrategicEstateLocation, selectStrategicDiscardResources } from '../engine/aiLocationStrategy';
 import { findDesertCentre, isValidRobberDestination, getPlayersWithAdjacentBuildings, selectRandomRobberDestination, stealRandomResource, selectRandomStealTarget, CentreData } from '../engine/robberActions';
 import { selectRobberPlacement } from '../engine/aiRobberStrategy';
 import { shouldPlayDevCardAfterRoll } from '../engine/aiDevCardStrategy';
@@ -3466,7 +3467,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
       if (currentPlayer && !currentPlayer.isHuman && freeRoadsRemaining > 0) {
         const timer = setTimeout(() => {
-          const roadLocation = selectRandomRoadLocation(currentPlayer.id, gameState, boardSize);
+          const difficulty = currentPlayer.difficulty || 'normal';
+          const roadLocation = selectStrategicRoadLocation(currentPlayer.id, gameState, boardSize, difficulty, true);
 
           if (roadLocation) {
             const { fromVertex, toVertex } = roadLocation;
@@ -3635,7 +3637,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const player = gameState.players.find(p => p.id === playerId);
     if (!player) return false;
 
-    const roadLocation = selectRandomRoadLocation(playerId, gameState, boardSize);
+    const difficulty = player.difficulty || 'normal';
+    const roadLocation = selectStrategicRoadLocation(playerId, gameState, boardSize, difficulty);
     if (!roadLocation) {
       console.log('DEBUG: No valid road location found');
       return false;
@@ -3712,7 +3715,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const player = gameState.players.find(p => p.id === playerId);
     if (!player) return false;
 
-    const vertexId = selectRandomVillageLocation(playerId, gameState, boardSize);
+    const difficulty = player.difficulty || 'normal';
+    const vertexId = selectStrategicVillageLocation(playerId, gameState, boardSize, difficulty);
     if (!vertexId) {
       console.log('DEBUG: No valid village location found');
       return false;
@@ -3775,7 +3779,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const player = gameState.players.find(p => p.id === playerId);
     if (!player) return false;
 
-    const vertexId = selectRandomEstateLocation(playerId, gameState);
+    const difficulty = player.difficulty || 'normal';
+    const vertexId = selectStrategicEstateLocation(playerId, gameState, difficulty);
     if (!vertexId) {
       console.log('DEBUG: No valid estate location found');
       return false;
@@ -4144,8 +4149,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const maxResourceHold = gameState.gameSettings?.maxResourceHold || 7;
     const discardAmount = calculateDiscardAmount(player.resources.total);
 
-    // Select random resources and apply discard
-    const selection = selectRandomResourcesForDiscard(player, discardAmount);
+    // Select strategic resources and apply discard
+    const selection = selectStrategicDiscardResources(player, discardAmount, gameState);
     applyDiscardToPlayer(playerId, selection);
 
     // Move to next player or complete
