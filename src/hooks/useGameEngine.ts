@@ -4389,139 +4389,140 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         setRobberMovementInitiated(true);
 
         setTimeout(() => {
-          const robberPlacement = selectRobberPlacement(
-            currentPlayer,
-            gameState,
-            boardSize,
-            currentPlayer.difficulty || 'normal'
-          );
+          // Get fresh state and calculate robber placement
+          setGameState(prev => {
+            console.log('DEBUG: Current robber position in state:', prev.robberPosition);
 
-          if (robberPlacement && robberPlacement.hexId !== null) {
-            const newCentreId = robberPlacement.hexId;
-
-            // Move robber
-            const oldPosition = gameState.robberPosition;
-            setGameState(prev => ({
-              ...prev,
-              robberPosition: newCentreId
-            }));
-
-            // Log robber movement
-            const playerColor = getPlayerColorStyle(currentPlayer.color);
-            const moveMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> moved the robber from centre ${oldPosition} to centre ${newCentreId}`;
-            addToLog(moveMessage);
-
-            // Check for steal targets
-            const eligibleTargets = getPlayersWithAdjacentBuildings(
-              newCentreId,
-              boardCenters as CentreData[],
-              gameState,
-              currentPlayer.id
+            const robberPlacement = selectRobberPlacement(
+              currentPlayer,
+              prev, // Use fresh state
+              boardSize,
+              currentPlayer.difficulty || 'normal'
             );
 
-            if (eligibleTargets.length > 0) {
-              // AI steals from strategically selected target
-              setTimeout(() => {
-                let targetPlayerId = robberPlacement.targetPlayerId;
-
-                // Validate that targetPlayerId is actually in eligibleTargets
-                if (targetPlayerId && !eligibleTargets.some(t => t.id === targetPlayerId)) {
-                  console.warn(`AI selected invalid steal target ${targetPlayerId}, not in eligible list. Selecting random target instead.`);
-                  targetPlayerId = selectRandomStealTarget(eligibleTargets)?.id;
-                } else if (!targetPlayerId) {
-                  targetPlayerId = selectRandomStealTarget(eligibleTargets)?.id;
-                }
-
-                const targetPlayer = targetPlayerId ? gameState.players.find(p => p.id === targetPlayerId) : null;
-
-                if (targetPlayer) {
-                  const stealResult = stealRandomResource(targetPlayer, currentPlayer);
-
-                  if (stealResult.resource && stealResult.amount > 0) {
-                    // Transfer resource
-                    setGameState(prev => ({
-                      ...prev,
-                      players: prev.players.map(p => {
-                        if (p.id === targetPlayer.id) {
-                          return {
-                            ...p,
-                            resources: {
-                              ...p.resources,
-                              [stealResult.resource!]: p.resources[stealResult.resource!] - stealResult.amount,
-                              total: p.resources.total - stealResult.amount
-                            }
-                          };
-                        } else if (p.id === currentPlayer.id) {
-                          return {
-                            ...p,
-                            resources: {
-                              ...p.resources,
-                              [stealResult.resource!]: p.resources[stealResult.resource!] + stealResult.amount,
-                              total: p.resources.total + stealResult.amount
-                            }
-                          };
-                        }
-                        return p;
-                      }),
-                      turnState: {
-                        ...prev.turnState,
-                        step: 'play_dev_cards'
-                      }
-                    }));
-                    console.log('DEBUG: Resetting robberMovementInitiated to false (after successful steal)');
-                    setRobberMovementInitiated(false);
-
-                    // Log the theft
-                    const currentPlayerColor = getPlayerColorStyle(currentPlayer.color);
-                    const targetPlayerColor = getPlayerColorStyle(targetPlayer.color);
-
-                    const isHumanInvolved = targetPlayer.isHuman;
-                    const stealMessage = isHumanInvolved
-                      ? `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> stole 1 ${stealResult.resource} from <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`
-                      : `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> stole a resource from <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`;
-
-                    addToLog(stealMessage);
-                  } else {
-                    // Target has no resources
-                    addToLog(`${targetPlayer.name} has no resources to steal`);
-                    setGameState(prev => ({
-                      ...prev,
-                      turnState: {
-                        ...prev.turnState,
-                        step: 'play_dev_cards'
-                      }
-                    }));
-                    console.log('DEBUG: Resetting robberMovementInitiated to false (target has no resources)');
-                    setRobberMovementInitiated(false);
-                  }
-                }
-              }, 1000);
-            } else {
-              // No one to steal from
-              addToLog('No players to steal from');
-              setGameState(prev => ({
+            if (!robberPlacement || robberPlacement.hexId === null) {
+              console.error('DEBUG: No valid robber destination found');
+              setTimeout(() => setRobberMovementInitiated(false), 0);
+              return {
                 ...prev,
                 turnState: {
                   ...prev.turnState,
                   step: 'play_dev_cards'
                 }
-              }));
-              console.log('DEBUG: Resetting robberMovementInitiated to false (no one to steal from)');
-              setRobberMovementInitiated(false);
+              };
             }
-          } else {
-            console.error('DEBUG: No valid robber destination found');
-            // Fallback: proceed to main phase
-            setGameState(prev => ({
+
+            const newCentreId = robberPlacement.hexId;
+
+            // Verify the move is valid (extra safety check)
+            if (newCentreId === prev.robberPosition) {
+              console.error('ERROR: AI tried to move robber to same position!', newCentreId);
+              setTimeout(() => setRobberMovementInitiated(false), 0);
+              return {
+                ...prev,
+                turnState: {
+                  ...prev.turnState,
+                  step: 'play_dev_cards'
+                }
+              };
+            }
+
+            // Log robber movement
+            const playerColor = getPlayerColorStyle(currentPlayer.color);
+            const moveMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> moved the robber from centre ${prev.robberPosition} to centre ${newCentreId}`;
+            setTimeout(() => addToLog(moveMessage), 0);
+
+            // Check for steal targets using fresh data
+            const eligibleTargets = getPlayersWithAdjacentBuildings(
+              newCentreId,
+              prev.boardCenters as CentreData[],
+              prev,
+              currentPlayer.id
+            );
+
+            if (eligibleTargets.length > 0) {
+              // Determine steal target
+              let targetPlayerId = robberPlacement.targetPlayerId;
+
+              // Validate target
+              if (targetPlayerId && !eligibleTargets.some(t => t.id === targetPlayerId)) {
+                console.warn(`AI selected invalid steal target, selecting random target instead.`);
+                targetPlayerId = selectRandomStealTarget(eligibleTargets)?.id;
+              } else if (!targetPlayerId) {
+                targetPlayerId = selectRandomStealTarget(eligibleTargets)?.id;
+              }
+
+              const targetPlayer = targetPlayerId ? prev.players.find(p => p.id === targetPlayerId) : null;
+
+              if (targetPlayer && targetPlayer.resources.total > 0) {
+                const stealResult = stealRandomResource(targetPlayer, currentPlayer);
+
+                if (stealResult.resource && stealResult.amount > 0) {
+                  // Log the theft
+                  const currentPlayerColor = getPlayerColorStyle(currentPlayer.color);
+                  const targetPlayerColor = getPlayerColorStyle(targetPlayer.color);
+                  const isHumanInvolved = targetPlayer.isHuman;
+                  const stealMessage = isHumanInvolved
+                    ? `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> stole 1 ${stealResult.resource} from <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`
+                    : `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> stole a resource from <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`;
+                  setTimeout(() => addToLog(stealMessage), 100);
+
+                  setTimeout(() => setRobberMovementInitiated(false), 0);
+
+                  // Return state with robber moved and resource stolen
+                  return {
+                    ...prev,
+                    robberPosition: newCentreId,
+                    players: prev.players.map(p => {
+                      if (p.id === targetPlayer.id) {
+                        return {
+                          ...p,
+                          resources: {
+                            ...p.resources,
+                            [stealResult.resource!]: p.resources[stealResult.resource!] - stealResult.amount,
+                            total: p.resources.total - stealResult.amount
+                          }
+                        };
+                      } else if (p.id === currentPlayer.id) {
+                        return {
+                          ...p,
+                          resources: {
+                            ...p.resources,
+                            [stealResult.resource!]: p.resources[stealResult.resource!] + stealResult.amount,
+                            total: p.resources.total + stealResult.amount
+                          }
+                        };
+                      }
+                      return p;
+                    }),
+                    turnState: {
+                      ...prev.turnState,
+                      step: 'play_dev_cards'
+                    }
+                  };
+                }
+              }
+
+              // Target has no resources
+              const targetName = targetPlayer?.name || 'target player';
+              setTimeout(() => addToLog(`${targetName} has no resources to steal`), 100);
+            } else {
+              // No one to steal from
+              setTimeout(() => addToLog('No players to steal from'), 100);
+            }
+
+            setTimeout(() => setRobberMovementInitiated(false), 0);
+
+            // Move robber and proceed
+            return {
               ...prev,
+              robberPosition: newCentreId,
               turnState: {
                 ...prev.turnState,
                 step: 'play_dev_cards'
               }
-            }));
-            console.log('DEBUG: Resetting robberMovementInitiated to false (no valid destination)');
-            setRobberMovementInitiated(false);
-          }
+            };
+          });
         }, 1500);
       }
     }
