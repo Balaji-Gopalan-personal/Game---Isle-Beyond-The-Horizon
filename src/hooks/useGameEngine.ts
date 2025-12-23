@@ -4378,6 +4378,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   useEffect(() => {
     console.log('DEBUG: AI robber useEffect triggered - step:', gameState.turnState.step, 'robberMovementInitiated:', robberMovementInitiated);
 
+    // Safety check: ensure boardCenters is loaded before attempting robber movement
+    if (boardCenters.length === 0) {
+      console.log('DEBUG: Skipping robber logic - boardCenters not loaded yet');
+      return;
+    }
+
     if (gameState.phase === 'playing' &&
         gameState.turnState.step === 'move_robber' &&
         !robberMovementInitiated) {
@@ -4392,10 +4398,19 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           // Get fresh state and calculate robber placement
           setGameState(prev => {
             console.log('DEBUG: Current robber position in state:', prev.robberPosition);
+            console.log('DEBUG: boardCenters length:', boardCenters.length);
+
+            // Create a fresh state object with boardCenters for the strategy functions
+            const freshState = {
+              ...prev,
+              boardCenters: prev.boardCenters && prev.boardCenters.length > 0
+                ? prev.boardCenters
+                : boardCenters // Fallback to React state
+            };
 
             const robberPlacement = selectRobberPlacement(
               currentPlayer,
-              prev, // Use fresh state
+              freshState, // Use state with guaranteed boardCenters
               boardSize,
               currentPlayer.difficulty || 'normal'
             );
@@ -4432,10 +4447,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             const moveMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> moved the robber from centre ${prev.robberPosition} to centre ${newCentreId}`;
             setTimeout(() => addToLog(moveMessage), 0);
 
-            // Check for steal targets using fresh data
+            // Check for steal targets using boardCenters from React state
             const eligibleTargets = getPlayersWithAdjacentBuildings(
               newCentreId,
-              prev.boardCenters as CentreData[],
+              boardCenters as CentreData[], // Use React state boardCenters
               prev,
               currentPlayer.id
             );
@@ -4526,7 +4541,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }, 1500);
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.players, gameState.currentPlayer, gameState.robberPosition, gameState.gameSettings, boardCenters, addToLog, getPlayerColorStyle]);
+  }, [gameState.phase, gameState.turnState.step, gameState.players, gameState.currentPlayer, gameState.robberPosition, gameState.gameSettings, boardCenters, boardSize, robberMovementInitiated, addToLog, getPlayerColorStyle]);
 
   // Trading handlers
   const handleExecuteBankTrade = useCallback((offeringResource: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral', offeringAmount: number, requestedResource: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral') => {
