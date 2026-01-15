@@ -462,6 +462,7 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
                 selectedPlayerId={selectedStealTarget}
                 onSelectPlayer={(playerId) => onSelectStealTarget?.(playerId)}
                 showResourceCount={true}
+                hideDetailedResources={true}
               />
 
               {selectedStealTarget && (
