@@ -630,6 +630,7 @@ function App() {
                 firstRoadVertex={firstRoadVertex}
                 onCentreClick={handleCentreClick}
                 selectedCentre={selectedCentre}
+                waitingForConfirmation={waitingForConfirmation}
               />
             </div>
 

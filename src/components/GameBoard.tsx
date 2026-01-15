@@ -26,6 +26,7 @@ interface GameBoardProps {
   firstRoadVertex?: number | null;
   onCentreClick?: (centreId: number) => void;
   selectedCentre?: number | null;
+  waitingForConfirmation?: boolean;
 }
 
 export const GameBoard: React.FC<GameBoardProps> = ({
@@ -36,7 +37,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   validRoadVertices = [],
   firstRoadVertex = null,
   onCentreClick,
-  selectedCentre = null
+  selectedCentre = null,
+  waitingForConfirmation = false
 }) => {
   const { assets } = useAssets();
 
@@ -401,7 +403,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             // Check if this centre is clickable for robber movement
             const isMovingRobber = gameState.turnState.step === 'move_robber';
             const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
-            const canClickCentre = isMovingRobber && currentPlayer?.isHuman && onCentreClick;
+            const isNotWaitingForDiceConfirmation = !waitingForConfirmation;
+            const isNotInDiscardPhase = gameState.turnState.step !== 'awaiting_discard';
+            const canClickCentre = isMovingRobber && currentPlayer?.isHuman && onCentreClick && isNotWaitingForDiceConfirmation && isNotInDiscardPhase;
 
             // Check if this centre is the current robber position
             const isCurrentRobberPosition = gameState.robberPosition === center.id;
