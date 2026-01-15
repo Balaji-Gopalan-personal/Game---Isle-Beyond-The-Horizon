@@ -46,11 +46,15 @@ export function evaluateVertex(
   const portAccess = calculatePortAccess(vertexId, gameState, boardSize);
   const expansionPotential = calculateExpansionPotential(vertexId, gameState, boardSize, player.id);
 
+  // Calculate bonus for filling resource gaps
+  const gapFillingBonus = calculateResourceGapBonus(vertexId, boardSize, gameState, player);
+
   const totalScore =
     productionValue * 3.0 +
-    resourceDiversity * 2.0 +
+    resourceDiversity * 2.5 +  // Increased from 2.0
     portAccess * 1.5 +
-    expansionPotential * 1.0;
+    expansionPotential * 1.0 +
+    gapFillingBonus * 3.0;  // New component for balanced resources
 
   return {
     vertexId,
@@ -118,18 +122,78 @@ export function calculateResourceDiversity(vertexId: number, boardSize: BoardSiz
   const diversityScore = uniqueResources.size;
 
   if (uniqueResources.size === 5) {
-    return 10.0;
+    return 12.0;  // Increased from 10.0
   } else if (uniqueResources.size === 4) {
-    return 7.0;
+    return 8.0;   // Increased from 7.0
   } else if (uniqueResources.size === 3) {
     return 5.0;
   } else if (uniqueResources.size === 2) {
-    return 3.0;
+    return 2.5;   // Decreased from 3.0
   } else if (uniqueResources.size === 1) {
-    return 1.0;
+    return 0.5;   // Decreased from 1.0
   }
 
   return 0;
+}
+
+function calculateResourceGapBonus(
+  vertexId: number,
+  boardSize: BoardSize,
+  gameState: GameState,
+  player: Player
+): number {
+  const centers = gameState.boardCenters && gameState.boardCenters.length > 0
+    ? gameState.boardCenters
+    : loadBoardForSize(boardSize).centers;
+
+  // Get resources the player already has production access to
+  const playerVillages = gameState.villages.filter(v => v.playerId === player.id);
+  const existingResources = new Set<string>();
+
+  for (const village of playerVillages) {
+    const adjacentCenters = centers.filter(c => c.vertices.includes(village.vertexId));
+    for (const center of adjacentCenters) {
+      if (center.resourceType !== 'desert') {
+        existingResources.add(center.resourceType);
+      }
+    }
+  }
+
+  // Get resources this vertex would provide
+  const vertexCenters = centers.filter(c => c.vertices.includes(vertexId));
+  const vertexResources = new Set(
+    vertexCenters
+      .filter(c => c.resourceType !== 'desert')
+      .map(c => c.resourceType)
+  );
+
+  // Count how many NEW resources this vertex provides
+  let newResourceCount = 0;
+  let totalNewProductionValue = 0;
+
+  for (const resource of vertexResources) {
+    if (!existingResources.has(resource)) {
+      newResourceCount++;
+
+      // Find the production value of this new resource
+      const resourceCenter = vertexCenters.find(c => c.resourceType === resource);
+      if (resourceCenter) {
+        const pipProb = PIP_PROBABILITIES[resourceCenter.value] || 0;
+        totalNewProductionValue += pipProb * 100;
+      }
+    }
+  }
+
+  // Bonus scales with number of new resources and their production value
+  let bonus = newResourceCount * 4.0;  // 4 points per new resource type
+  bonus += totalNewProductionValue * 0.5;  // Plus half the production value
+
+  // Extra bonus if this would give the player access to all 5 resources
+  if (existingResources.size + newResourceCount >= 5) {
+    bonus += 8.0;
+  }
+
+  return bonus;
 }
 
 export function calculatePortAccess(
@@ -257,8 +321,8 @@ export function identifyResourceDeficit(player: Player): string[] {
 export function calculateBuildingPriority(
   player: Player,
   gameState: GameState
-): { type: 'village' | 'estate' | 'road'; priority: number }[] {
-  const priorities: { type: 'village' | 'estate' | 'road'; priority: number }[] = [];
+): { type: 'village' | 'estate' | 'road' | 'dev_card'; priority: number }[] {
+  const priorities: { type: 'village' | 'estate' | 'road' | 'dev_card'; priority: number }[] = [];
 
   const villageCount = gameState.villages.filter(v => v.playerId === player.id && v.type === 'settlement').length;
   const cityCount = gameState.villages.filter(v => v.playerId === player.id && v.type === 'city').length;
@@ -274,11 +338,11 @@ export function calculateBuildingPriority(
     (player.resources.grain >= 2 ? 0 : 2 - player.resources.grain) +
     (player.resources.mineral >= 3 ? 0 : 3 - player.resources.mineral);
 
-  let villagePriority = (10 - villageCount) * 2.5;
-  villagePriority -= villageResourcesNeeded * 3;
+  let villagePriority = (10 - villageCount) * 3.0;  // Increased from 2.5
+  villagePriority -= villageResourcesNeeded * 2.5;  // Reduced penalty from 3
 
-  let estatePriority = villageCount > 0 ? (5 - cityCount) * 2.5 : 0;
-  estatePriority -= estateResourcesNeeded * 3;
+  let estatePriority = villageCount > 0 ? (5 - cityCount) * 3.5 : 0;  // Increased from 2.5
+  estatePriority -= estateResourcesNeeded * 2.5;  // Reduced penalty from 3
 
   let roadPriority = Math.max(8 - roadCount, 3);
 
@@ -303,9 +367,31 @@ export function calculateBuildingPriority(
     }
   }
 
+  // Calculate dev card priority
+  const pointsToWin = gameState.gameSettings.pointsToWin;
+  const pointsAway = pointsToWin - (player.score + player.secretPoints);
+  let devCardPriority = 9;  // Base priority (increased for more aggression)
+
+  // Higher priority when close to winning
+  if (pointsAway <= 3) {
+    devCardPriority += 3;
+  } else if (pointsAway <= 5) {
+    devCardPriority += 1.5;
+  }
+
+  // Higher priority for largest army pursuit
+  if (gameState.gameSettings.largestArmyEnabled) {
+    const largestArmySize = gameState.gameSettings.largestArmySize;
+    const myGuardCount = player.guardsPlayed || 0;
+    if (myGuardCount >= largestArmySize - 2) {
+      devCardPriority += 2;
+    }
+  }
+
   priorities.push({ type: 'village', priority: Math.max(villagePriority, 1) });
   priorities.push({ type: 'estate', priority: Math.max(estatePriority, 1) });
   priorities.push({ type: 'road', priority: roadPriority });
+  priorities.push({ type: 'dev_card', priority: devCardPriority });
 
   priorities.sort((a, b) => b.priority - a.priority);
 

@@ -86,7 +86,7 @@ export function checkBuildingAvailability(
     type: 'dev_card',
     canAfford: canAffordDevCardRes,
     hasValidLocation: hasDevCardsAvailable,
-    priority: 5
+    priority: priorityMap['dev_card'] || 8  // Increased from 5, use calculated priority
   });
 
   return options;

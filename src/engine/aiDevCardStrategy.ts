@@ -269,15 +269,17 @@ function scoreCardPlayTiming(
       return swapScore;
 
     case 'Expert Negotiator':
-      const hasSurplusResources = checkSurplusResources(player);
-      if (!hasSurplusResources) {
-        return 0;
+      // Only play Expert Negotiator if we're actually planning to do a bank trade
+      const wouldBankTrade = checkIfBankTradeIsBeneficial(player, gameState);
+      if (!wouldBankTrade) {
+        return 0;  // Don't play if not intending to bank trade
       }
 
-      if (pointsAway <= 4 && hasSurplusResources) {
+      // If we would benefit from a bank trade, Expert Negotiator is very valuable
+      if (pointsAway <= 4) {
         return 13;
-      } else if (hasSurplusResources) {
-        return 8;
+      } else {
+        return 10;
       }
       return 0;
 
@@ -401,4 +403,74 @@ export function shouldPlayDevCardAfterRoll(
   difficulty: 'easy' | 'normal' | 'hard'
 ): DevCardPlayDecision {
   return evaluateDevCardPlay(player, gameState, boardSize, difficulty);
+}
+
+function checkIfBankTradeIsBeneficial(player: Player, gameState: GameState): boolean {
+  // Check if player has any trade goals (needs resources for buildings)
+  const hasTradeGoal = hasViableBuildingGoal(player, gameState);
+  if (!hasTradeGoal) {
+    return false;
+  }
+
+  // Check if player has surplus resources they could trade
+  const hasSurplus = checkSurplusResources(player);
+  if (!hasSurplus) {
+    return false;
+  }
+
+  // Check if player can afford at least one bank trade (4:1 or better with ports)
+  const resourceTypes = ['clay', 'lumber', 'grain', 'fabric', 'mineral'] as const;
+  for (const resource of resourceTypes) {
+    // Can afford 4:1 trade (minimum bank trade rate)?
+    if (player.resources[resource] >= 4) {
+      return true;
+    }
+    // Can afford 3:1 with generic port or 2:1 with specific port?
+    if (player.resources[resource] >= 3) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function hasViableBuildingGoal(player: Player, gameState: GameState): boolean {
+  const res = player.resources;
+
+  // Close to affording a village? (need 1 each of clay, lumber, grain, fabric)
+  const villageDeficit =
+    (res.clay >= 1 ? 0 : 1) +
+    (res.lumber >= 1 ? 0 : 1) +
+    (res.grain >= 1 ? 0 : 1) +
+    (res.fabric >= 1 ? 0 : 1);
+  if (villageDeficit <= 2 && villageDeficit > 0) {
+    return true;
+  }
+
+  // Close to affording an estate? (need 2 grain, 3 mineral)
+  const estateDeficit =
+    (res.grain >= 2 ? 0 : 2 - res.grain) +
+    (res.mineral >= 3 ? 0 : 3 - res.mineral);
+  if (estateDeficit <= 2 && estateDeficit > 0) {
+    return true;
+  }
+
+  // Close to affording a road? (need 1 clay, 1 lumber)
+  const roadDeficit =
+    (res.clay >= 1 ? 0 : 1) +
+    (res.lumber >= 1 ? 0 : 1);
+  if (roadDeficit === 1) {
+    return true;
+  }
+
+  // Close to affording a dev card? (need 1 grain, 1 fabric, 1 mineral)
+  const devCardDeficit =
+    (res.grain >= 1 ? 0 : 1) +
+    (res.fabric >= 1 ? 0 : 1) +
+    (res.mineral >= 1 ? 0 : 1);
+  if (devCardDeficit <= 2 && devCardDeficit > 0) {
+    return true;
+  }
+
+  return false;
 }

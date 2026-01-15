@@ -97,16 +97,16 @@ function calculateBuildPriority(
 
   switch (buildingType) {
     case 'village':
-      basePriority = 9;
+      basePriority = 11;  // Increased from 9
       break;
     case 'estate':
-      basePriority = 10;
+      basePriority = 12;  // Increased from 10
       break;
     case 'road':
       basePriority = 6;
       break;
     case 'dev_card':
-      basePriority = 7;
+      basePriority = 9;   // Increased from 7
       break;
   }
 
