@@ -36,6 +36,12 @@ export function evaluateTradeOpportunity(
 ): TradeEvaluation {
   console.log(`\n💱 [${player.name}] EVALUATING TRADE OPPORTUNITIES`);
 
+  // Check if Expert Negotiator is active - if so, prioritize bank trades heavily
+  const expertNegotiatorActive = gameState.turnState.expertNegotiatorActive;
+  if (expertNegotiatorActive) {
+    console.log(`   ⭐ Expert Negotiator is active - prioritizing 2:1 bank trades!`);
+  }
+
   const goals = identifyTradeGoals(player, gameState);
 
   if (goals.length === 0) {
@@ -57,6 +63,19 @@ export function evaluateTradeOpportunity(
   const topGoal = goals[0];
   console.log(`   🎯 Prioritizing: ${topGoal.targetBuilding} (priority ${topGoal.priority})`);
 
+  // If Expert Negotiator is active, check bank trades FIRST
+  if (expertNegotiatorActive) {
+    const bestBankTrade = findBestBankTrade(player, gameState, topGoal);
+    if (bestBankTrade) {
+      console.log(`   ✓ Found bank trade with Expert Negotiator: ${bestBankTrade.offeringAmount}x ${bestBankTrade.offering} → ${bestBankTrade.requesting}`);
+      console.log(`   Reason: ${bestBankTrade.reasoning}`);
+      return bestBankTrade;
+    } else {
+      console.log(`   ✗ No viable bank trades found even with Expert Negotiator`);
+    }
+  }
+
+  // Otherwise, try player trades first (normal behavior)
   const bestPlayerTrade = findBestPlayerTrade(player, gameState, topGoal);
   if (bestPlayerTrade) {
     console.log(`   ✓ Found P2P trade opportunity: ${bestPlayerTrade.offeringAmount}x ${bestPlayerTrade.offering} → ${bestPlayerTrade.requesting}`);

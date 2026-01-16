@@ -38,6 +38,21 @@ export function createTurnPlan(
     });
   }
 
+  // If Expert Negotiator is active, force a bank trade with very high priority
+  if (gameState.turnState.expertNegotiatorActive) {
+    const tradeEval = evaluateTradeOpportunity(player, gameState);
+    if (tradeEval.shouldTrade && tradeEval.tradeType === 'bank') {
+      console.log(`   ⭐ Expert Negotiator active - forcing bank trade (priority 15)`);
+      actions.push({
+        type: 'trade_bank',
+        priority: 15,
+        data: tradeEval
+      });
+    } else {
+      console.log(`   ⚠️ Expert Negotiator active but no viable bank trade found`);
+    }
+  }
+
   const buildDecision = makeStrategicBuildDecision(player.id, gameState, boardSize, 0, difficulty);
   if (buildDecision.shouldBuild && buildDecision.buildingType) {
     const buildPriority = calculateBuildPriority(player, gameState, buildDecision.buildingType);

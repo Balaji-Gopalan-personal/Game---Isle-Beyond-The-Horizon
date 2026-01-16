@@ -438,14 +438,24 @@ function checkIfBankTradeIsBeneficial(player: Player, gameState: GameState): boo
     return false;
   }
 
-  const nearBuilding =
-    (player.resources.clay >= 1 && player.resources.lumber >= 1 &&
-     player.resources.grain >= 1 && player.resources.fabric >= 1) ||
-    (player.resources.grain >= 2 && player.resources.mineral >= 3);
+  // Check if player has specific resources they need - if they have duplicates but are missing
+  // key resources for building, then 2:1 trade would be very beneficial
+  const villageNeeds = 4 - Math.min(1, player.resources.clay) - Math.min(1, player.resources.lumber) -
+                       Math.min(1, player.resources.grain) - Math.min(1, player.resources.fabric);
+  const estateNeeds = 5 - Math.min(2, player.resources.grain) - Math.min(3, player.resources.mineral);
 
-  if (nearBuilding) {
-    console.log(`   ⚠️ Expert Negotiator: Already can afford a building, 2:1 trade not immediately beneficial`);
-    return false;
+  // If we're 1-2 resources away from a building and have duplicates, 2:1 trade is great
+  if ((villageNeeds <= 2 && villageNeeds > 0) || (estateNeeds <= 2 && estateNeeds > 0)) {
+    console.log(`   ✓ Expert Negotiator: 2:1 trade would help close gap to building (village needs: ${villageNeeds}, estate needs: ${estateNeeds})`);
+    return true;
+  }
+
+  // If we have 3+ of any resource, trading at 2:1 for diversity is beneficial
+  for (const resource of resourceTypes) {
+    if (player.resources[resource] >= 3) {
+      console.log(`   ✓ Expert Negotiator: Have ${player.resources[resource]} ${resource}, can benefit from 2:1 trade for diversity`);
+      return true;
+    }
   }
 
   console.log(`   ✓ Expert Negotiator: Bank trade would be beneficial for building goals`);
