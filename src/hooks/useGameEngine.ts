@@ -281,9 +281,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             lastVillageVertex: null,
             buildingType: null
           },
-          lock: false
+          lock: false,
+          aiTradeAttemptsThisTurn: 0,
+          aiFailedTradeProposalsThisTurn: new Set<string>()
         };
-        console.log('DEBUG: Reset turnState to awaiting_dice_roll for playing phase');
+        console.log('DEBUG: Reset turnState to awaiting_dice_roll for playing phase (cleared trade tracking)');
       }
 
       // Get the turn number to display (after increment)
@@ -4733,6 +4735,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
               const failedProposals = prev.turnState.aiFailedTradeProposalsThisTurn || new Set<string>();
               failedProposals.add(proposalKey);
 
+              console.log(`   🚫 Trade rejected by all - adding to failed proposals: "${proposalKey}"`);
+              console.log(`   📋 Failed proposals this turn: ${Array.from(failedProposals).join(', ')}`);
+
               return {
                 ...prev,
                 gameLog: newGameLog,
@@ -4872,6 +4877,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           const proposalKey = getTradeProposalKey(currentProposal.offeredResources, currentProposal.requestedResources);
           const failedProposals = prev.turnState.aiFailedTradeProposalsThisTurn || new Set<string>();
           failedProposals.add(proposalKey);
+
+          console.log(`   🚫 Trade rejected by all - adding to failed proposals: "${proposalKey}"`);
+          console.log(`   📋 Failed proposals this turn: ${Array.from(failedProposals).join(', ')}`);
 
           return {
             ...prev,

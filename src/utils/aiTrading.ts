@@ -242,15 +242,15 @@ export function getTradeProposalKey(
   offeredResources: any,
   requestedResources: any
 ): string {
-  const offered = Object.entries(offeredResources)
+  const offeredParts = Object.entries(offeredResources)
     .filter(([_, amount]) => (amount as number) > 0)
-    .map(([resource]) => resource)
+    .map(([resource, amount]) => `${amount}${resource}`)
     .join(',');
 
-  const requested = Object.entries(requestedResources)
+  const requestedParts = Object.entries(requestedResources)
     .filter(([_, amount]) => (amount as number) > 0)
-    .map(([resource]) => resource)
+    .map(([resource, amount]) => `${amount}${resource}`)
     .join(',');
 
-  return `${offered}->${requested}`;
+  return `${offeredParts}->${requestedParts}`;
 }
