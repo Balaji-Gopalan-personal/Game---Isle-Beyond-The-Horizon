@@ -1,6 +1,6 @@
 import { GameState, Player, Resources } from '../types/game';
 import { ResourceType, getBestTradeRateForResource } from './tradingUtils';
-import { evaluateTradeOpportunity, evaluatePlayerTradeProposal, shouldInitiatePlayerTrade } from '../engine/aiTradingStrategy';
+import { evaluateTradeOpportunity, evaluatePlayerTradeProposal, shouldInitiatePlayerTrade, identifyTradeGoals, getAllRankedPlayerTrades } from '../engine/aiTradingStrategy';
 
 export interface ResourcePriority {
   resource: ResourceType;
@@ -13,7 +13,7 @@ const PROBABILITY_DECAY_PER_ATTEMPT = 0.15;
 const MAX_TRADE_ATTEMPTS_PER_TURN = 3;
 
 const BASE_PLAYER_TRADE_PROBABILITY = 0.35;
-const MAX_PLAYER_TRADE_ATTEMPTS_PER_TURN = 2;
+const MAX_PLAYER_TRADE_ATTEMPTS_PER_TURN = 5;
 
 export function shouldAttemptBankTrade(
   player: Player,
@@ -188,43 +188,53 @@ export function generatePlayerTradeProposal(
   gameState: GameState,
   failedProposalsThisTurn: Set<string>
 ): { offeredResources: any; requestedResources: any } | null {
-  const tradeEval = evaluateTradeOpportunity(player, gameState);
+  const goals = identifyTradeGoals(player, gameState);
 
-  if (tradeEval.shouldTrade &&
-      tradeEval.tradeType === 'player' &&
-      tradeEval.offering &&
-      tradeEval.requesting &&
-      tradeEval.offeringAmount &&
-      tradeEval.requestingAmount) {
-
-    const proposalKey = `${tradeEval.offeringAmount}${tradeEval.offering}->${tradeEval.requestingAmount}${tradeEval.requesting}`;
-
-    if (failedProposalsThisTurn.has(proposalKey)) {
-      return null;
-    }
-
-    const offeredResources = {
-      clay: 0,
-      lumber: 0,
-      grain: 0,
-      fabric: 0,
-      mineral: 0,
-      [tradeEval.offering]: tradeEval.offeringAmount
-    };
-
-    const requestedResources = {
-      clay: 0,
-      lumber: 0,
-      grain: 0,
-      fabric: 0,
-      mineral: 0,
-      [tradeEval.requesting]: tradeEval.requestingAmount
-    };
-
-    console.log(`   Proposing P2P: ${tradeEval.offeringAmount} ${tradeEval.offering} for ${tradeEval.requestingAmount} ${tradeEval.requesting}`);
-    return { offeredResources, requestedResources };
+  if (goals.length === 0) {
+    console.log(`   ✗ No trade goals for player trade proposal`);
+    return null;
   }
 
+  const topGoal = goals[0];
+  const rankedTrades = getAllRankedPlayerTrades(player, gameState, topGoal);
+
+  if (rankedTrades.length === 0) {
+    console.log(`   ✗ No viable ranked trades available`);
+    return null;
+  }
+
+  console.log(`   📊 Generated ${rankedTrades.length} ranked trade options (filtering out ${failedProposalsThisTurn.size} failed proposals)`);
+
+  for (const trade of rankedTrades) {
+    const proposalKey = `${trade.offeringAmount}${trade.offering}->${trade.requestingAmount}${trade.requesting}`;
+
+    if (!failedProposalsThisTurn.has(proposalKey)) {
+      const offeredResources = {
+        clay: 0,
+        lumber: 0,
+        grain: 0,
+        fabric: 0,
+        mineral: 0,
+        [trade.offering]: trade.offeringAmount
+      };
+
+      const requestedResources = {
+        clay: 0,
+        lumber: 0,
+        grain: 0,
+        fabric: 0,
+        mineral: 0,
+        [trade.requesting]: trade.requestingAmount
+      };
+
+      console.log(`   ✓ Selected P2P trade: ${trade.offeringAmount} ${trade.offering} for ${trade.requestingAmount} ${trade.requesting} (fairness: ${trade.fairness.toFixed(2)}, score: ${trade.score.toFixed(1)})`);
+      return { offeredResources, requestedResources };
+    } else {
+      console.log(`   ⊗ Skipping already-attempted trade: ${trade.offeringAmount} ${trade.offering} for ${trade.requestingAmount} ${trade.requesting}`);
+    }
+  }
+
+  console.log(`   ✗ All viable trades have been attempted`);
   return null;
 }
 

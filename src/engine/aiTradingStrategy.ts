@@ -16,6 +16,18 @@ export interface TradeEvaluation {
   requesting?: ResourceType;
   requestingAmount?: number;
   reasoning?: string;
+  fairness?: number;
+  score?: number;
+}
+
+export interface RankedTrade {
+  offering: ResourceType;
+  offeringAmount: number;
+  requesting: ResourceType;
+  requestingAmount: number;
+  fairness: number;
+  score: number;
+  reasoning: string;
 }
 
 export function evaluateTradeOpportunity(
@@ -67,7 +79,7 @@ export function evaluateTradeOpportunity(
   return { shouldTrade: false, tradeType: 'bank', reasoning: 'No beneficial trades available' };
 }
 
-function identifyTradeGoals(player: Player, gameState: GameState): TradeGoal[] {
+export function identifyTradeGoals(player: Player, gameState: GameState): TradeGoal[] {
   const goals: TradeGoal[] = [];
 
   const pointsToWin = gameState.gameSettings.pointsToWin;
@@ -363,11 +375,165 @@ function findBestPlayerTrade(
       offering: bestTrade.offering,
       offeringAmount: bestTrade.offeringAmount,
       requesting: bestTrade.requesting,
-      reasoning: `P2P trade: ${bestTrade.offeringAmount} ${bestTrade.offering} for ${bestTrade.requestingAmount} ${bestTrade.requesting} to build ${goal.targetBuilding}`
+      reasoning: `P2P trade: ${bestTrade.offeringAmount} ${bestTrade.offering} for ${bestTrade.requestingAmount} ${bestTrade.requesting} to build ${goal.targetBuilding}`,
+      fairness: bestTrade.fairness,
+      score: bestTrade.score
     };
   }
 
   return null;
+}
+
+export function getAllRankedPlayerTrades(
+  player: Player,
+  gameState: GameState,
+  goal: TradeGoal
+): RankedTrade[] {
+  const neededResources = Object.keys(goal.neededResources) as ResourceType[];
+  const surplus = getSurplusResources(player.resources, goal);
+
+  if (surplus.length === 0 || neededResources.length === 0) {
+    return [];
+  }
+
+  const difficulty = player.difficulty || 'normal';
+  const personality = player.character?.personality || 'balanced';
+
+  const possibleTrades: Array<{
+    offering: ResourceType;
+    offeringAmount: number;
+    requesting: ResourceType;
+    requestingAmount: number;
+    fairness: number;
+  }> = [];
+
+  for (const surplusResource of surplus) {
+    for (const neededResource of neededResources) {
+      const availableAmount = player.resources[surplusResource];
+      const neededAmount = goal.neededResources[neededResource] || 1;
+
+      if (availableAmount >= 1) {
+        possibleTrades.push({
+          offering: surplusResource,
+          offeringAmount: 1,
+          requesting: neededResource,
+          requestingAmount: 1,
+          fairness: 1.0
+        });
+      }
+
+      if (availableAmount >= 2) {
+        possibleTrades.push({
+          offering: surplusResource,
+          offeringAmount: 2,
+          requesting: neededResource,
+          requestingAmount: 1,
+          fairness: 0.5
+        });
+      }
+
+      if (availableAmount >= 2 && neededAmount >= 2) {
+        possibleTrades.push({
+          offering: surplusResource,
+          offeringAmount: 2,
+          requesting: neededResource,
+          requestingAmount: 2,
+          fairness: 1.0
+        });
+      }
+
+      if (availableAmount >= 3) {
+        possibleTrades.push({
+          offering: surplusResource,
+          offeringAmount: 3,
+          requesting: neededResource,
+          requestingAmount: 1,
+          fairness: 0.33
+        });
+      }
+
+      if (availableAmount >= 3 && neededAmount >= 2) {
+        possibleTrades.push({
+          offering: surplusResource,
+          offeringAmount: 3,
+          requesting: neededResource,
+          requestingAmount: 2,
+          fairness: 0.67
+        });
+      }
+
+      if (availableAmount >= 1 && neededAmount >= 2) {
+        possibleTrades.push({
+          offering: surplusResource,
+          offeringAmount: 1,
+          requesting: neededResource,
+          requestingAmount: 2,
+          fairness: 2.0
+        });
+      }
+    }
+  }
+
+  const scoredTrades = possibleTrades.map(trade => {
+    let score = 0;
+
+    const totalPriority = goal.priority;
+    const resourceScarcity = 1.0 / (player.resources[trade.offering] + 1);
+
+    if (difficulty === 'easy') {
+      if (trade.fairness >= 0.8 && trade.fairness <= 1.2) {
+        score += 10;
+      } else if (trade.fairness >= 0.6) {
+        score += 5;
+      }
+    } else if (difficulty === 'normal') {
+      if (trade.fairness >= 0.7) {
+        score += 8;
+      } else if (trade.fairness >= 0.4) {
+        score += 5;
+      }
+    } else {
+      if (trade.fairness >= 0.5) {
+        score += 6;
+      } else if (trade.fairness >= 0.3) {
+        score += 8;
+      }
+    }
+
+    if (personality === 'aggressive') {
+      score += (1.0 - trade.fairness) * 5;
+    } else if (personality === 'defensive') {
+      if (trade.fairness >= 0.8) {
+        score += 3;
+      }
+    } else if (personality === 'balanced') {
+      if (trade.fairness >= 0.5 && trade.fairness <= 1.0) {
+        score += 4;
+      }
+    } else if (personality === 'economic') {
+      if (trade.fairness >= 1.0) {
+        score += 5;
+      }
+    }
+
+    score += totalPriority * 0.3;
+    score -= resourceScarcity * 2;
+
+    if (trade.offeringAmount === 1 && trade.requestingAmount === 1) {
+      score += 2;
+    }
+
+    return {
+      ...trade,
+      score,
+      reasoning: `P2P trade: ${trade.offeringAmount} ${trade.offering} for ${trade.requestingAmount} ${trade.requesting} to build ${goal.targetBuilding} (fairness: ${trade.fairness.toFixed(2)}, score: ${score.toFixed(1)})`
+    };
+  });
+
+  scoredTrades.sort((a, b) => b.score - a.score);
+
+  const minFairnessThreshold = 0.25;
+  return scoredTrades.filter(trade => trade.score > 0 && trade.fairness >= minFairnessThreshold);
 }
 
 function findBestBankTrade(
@@ -470,6 +636,21 @@ function getSurplusResources(resources: Resources, goal?: TradeGoal): ResourceTy
   return surplus;
 }
 
+function getGameLeader(gameState: GameState): Player | null {
+  let leader: Player | null = null;
+  let maxScore = -1;
+
+  for (const p of gameState.players) {
+    const totalScore = p.score + p.secretPoints;
+    if (totalScore > maxScore) {
+      maxScore = totalScore;
+      leader = p;
+    }
+  }
+
+  return leader;
+}
+
 export function evaluatePlayerTradeProposal(
   proposal: {
     offeredResources: Resources;
@@ -493,6 +674,34 @@ export function evaluatePlayerTradeProposal(
       if (proposerPointsAway <= 5 && isTradeEnablingWin(proposal.requestedResources, proposingPlayer)) {
         console.log(`   ✗ Rejecting trade from ${proposingPlayer.name} - resources may enable immediate win`);
         return false;
+      }
+
+      const gameLeader = getGameLeader(gameState);
+      if (gameLeader && gameLeader.id === proposingPlayer.id) {
+        const netGain = calculateTradeValue(proposal.offeredResources, proposal.requestedResources, player, gameState);
+        const isVeryHelpful = netGain >= 3.0;
+
+        if (!isVeryHelpful) {
+          const difficulty = player.difficulty || 'normal';
+          let rejectChance = 1.0;
+
+          if (difficulty === 'easy') {
+            rejectChance = 0.6;
+          } else if (difficulty === 'normal') {
+            rejectChance = 0.8;
+          } else if (difficulty === 'hard') {
+            rejectChance = 1.0;
+          }
+
+          if (Math.random() < rejectChance) {
+            console.log(`   ✗ Rejecting trade from game leader ${proposingPlayer.name} (${difficulty} difficulty: ${(rejectChance * 100).toFixed(0)}% reject chance, not VERY helpful)`);
+            return false;
+          } else {
+            console.log(`   ✓ Accepting trade from game leader ${proposingPlayer.name} despite policy (${difficulty} difficulty: rolled within ${(1 - rejectChance) * 100}% acceptance window)`);
+          }
+        } else {
+          console.log(`   ✓ Accepting VERY helpful trade from game leader ${proposingPlayer.name} (value: ${netGain.toFixed(1)})`);
+        }
       }
     }
   }

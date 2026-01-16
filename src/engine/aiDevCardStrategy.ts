@@ -406,32 +406,46 @@ export function shouldPlayDevCardAfterRoll(
 }
 
 function checkIfBankTradeIsBeneficial(player: Player, gameState: GameState): boolean {
-  // Check if player has any trade goals (needs resources for buildings)
   const hasTradeGoal = hasViableBuildingGoal(player, gameState);
   if (!hasTradeGoal) {
+    console.log(`   ⚠️ Expert Negotiator: No viable building goal, won't play card`);
     return false;
   }
 
-  // Check if player has surplus resources they could trade
   const hasSurplus = checkSurplusResources(player);
   if (!hasSurplus) {
+    console.log(`   ⚠️ Expert Negotiator: No surplus resources to trade, won't play card`);
     return false;
   }
 
-  // Check if player can afford at least one bank trade (4:1 or better with ports)
   const resourceTypes = ['clay', 'lumber', 'grain', 'fabric', 'mineral'] as const;
+  let canExecute2to1Trade = false;
+
   for (const resource of resourceTypes) {
-    // Can afford 4:1 trade (minimum bank trade rate)?
-    if (player.resources[resource] >= 4) {
-      return true;
-    }
-    // Can afford 3:1 with generic port or 2:1 with specific port?
-    if (player.resources[resource] >= 3) {
-      return true;
+    if (player.resources[resource] >= 2) {
+      canExecute2to1Trade = true;
+      console.log(`   ✓ Expert Negotiator: Can execute 2:1 trade with ${resource} (have ${player.resources[resource]})`);
+      break;
     }
   }
 
-  return false;
+  if (!canExecute2to1Trade) {
+    console.log(`   ⚠️ Expert Negotiator: Cannot afford any 2:1 trades, won't play card`);
+    return false;
+  }
+
+  const nearBuilding =
+    (player.resources.clay >= 1 && player.resources.lumber >= 1 &&
+     player.resources.grain >= 1 && player.resources.fabric >= 1) ||
+    (player.resources.grain >= 2 && player.resources.mineral >= 3);
+
+  if (nearBuilding) {
+    console.log(`   ⚠️ Expert Negotiator: Already can afford a building, 2:1 trade not immediately beneficial`);
+    return false;
+  }
+
+  console.log(`   ✓ Expert Negotiator: Bank trade would be beneficial for building goals`);
+  return true;
 }
 
 function hasViableBuildingGoal(player: Player, gameState: GameState): boolean {
