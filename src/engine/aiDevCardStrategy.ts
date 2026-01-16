@@ -269,6 +269,11 @@ function scoreCardPlayTiming(
       return swapScore;
 
     case 'Expert Negotiator':
+      // Check if Expert Negotiator is already active this turn
+      if (gameState.turnState.expertNegotiatorActive) {
+        return 0;  // Already played this turn, cannot play again
+      }
+
       // Only play Expert Negotiator if we're actually planning to do a bank trade
       const wouldBankTrade = checkIfBankTradeIsBeneficial(player, gameState);
       if (!wouldBankTrade) {
@@ -281,7 +286,6 @@ function scoreCardPlayTiming(
       } else {
         return 10;
       }
-      return 0;
 
     case 'Closed Market':
       const leader2 = getGameLeader(gameState);
