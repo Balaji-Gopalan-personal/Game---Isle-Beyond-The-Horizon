@@ -198,6 +198,9 @@ export function selectStrategicRoadLocation(
   if (validVertices.length === 0) return null;
 
   const personality = getPersonalityForCharacter(player.character?.name);
+  const villageCount = gameState.villages.filter(v => v.playerId === playerId && v.type === 'settlement').length;
+  const currentPoints = player.score + player.secretPoints;
+  const isEarlyGame = currentPoints < 5;
 
   const playerRoads = gameState.roads.filter(r => r.playerId === playerId);
   const playerVillages = gameState.villages.filter(v => v.playerId === playerId);
@@ -228,11 +231,16 @@ export function selectStrategicRoadLocation(
             adjustedScore += calculateLongestRoadPotential(fromVertex, toVertex, playerId, gameState, boardSize) * 3.0;
           }
 
+          const villageExpansionValue = calculateVillageExpansionValue(
+            toVertex, gameState, boardSize, player
+          );
+
           const weights = PERSONALITY_PROFILES[personality];
           adjustedScore =
             evaluation.expansionValue * weights.expansionWeight +
             evaluation.productionAccess * weights.productionWeight * 0.5 +
-            evaluation.portConnectionValue * weights.portWeight;
+            evaluation.portConnectionValue * weights.portWeight +
+            villageExpansionValue * (isEarlyGame && villageCount < 3 ? 5.0 : 3.0);
 
           validEdges.push({
             fromVertex,
@@ -293,6 +301,42 @@ function calculateLongestRoadPotential(
   const toConnections = roadConnections.get(toVertex)?.length || 0;
 
   return fromConnections + toConnections;
+}
+
+function calculateVillageExpansionValue(
+  vertexId: number,
+  gameState: GameState,
+  boardSize: BoardSize,
+  player: Player
+): number {
+  const adjacentVertices = getAdjacentVertices(vertexId, boardSize);
+  let expansionValue = 0;
+
+  for (const adjVertex of adjacentVertices) {
+    if (gameState.verticesOccupiedBy[adjVertex]) {
+      continue;
+    }
+
+    const adjAdjVertices = getAdjacentVertices(adjVertex, boardSize);
+    const hasAdjacentSettlement = adjAdjVertices.some(v => gameState.verticesOccupiedBy[v]);
+
+    if (!hasAdjacentSettlement) {
+      const vertexEval = evaluateVertex(adjVertex, gameState, boardSize, player);
+      const villageScore = vertexEval.totalScore;
+
+      if (villageScore > 20) {
+        expansionValue += 8;
+      } else if (villageScore > 15) {
+        expansionValue += 5;
+      } else if (villageScore > 10) {
+        expansionValue += 3;
+      } else {
+        expansionValue += 1;
+      }
+    }
+  }
+
+  return expansionValue;
 }
 
 export function selectStrategicEstateLocation(

@@ -328,6 +328,12 @@ export function calculateBuildingPriority(
   const cityCount = gameState.villages.filter(v => v.playerId === player.id && v.type === 'city').length;
   const roadCount = gameState.roads.filter(r => r.playerId === player.id).length;
 
+  const pointsToWin = gameState.gameSettings.pointsToWin;
+  const currentPoints = player.score + player.secretPoints;
+  const pointsAway = pointsToWin - currentPoints;
+  const isEarlyGame = currentPoints < 5;
+  const isMidGame = currentPoints >= 5 && currentPoints < 8;
+
   const villageResourcesNeeded =
     (player.resources.clay >= 1 ? 0 : 1) +
     (player.resources.lumber >= 1 ? 0 : 1) +
@@ -338,13 +344,43 @@ export function calculateBuildingPriority(
     (player.resources.grain >= 2 ? 0 : 2 - player.resources.grain) +
     (player.resources.mineral >= 3 ? 0 : 3 - player.resources.mineral);
 
-  let villagePriority = (10 - villageCount) * 3.0;  // Increased from 2.5
-  villagePriority -= villageResourcesNeeded * 2.5;  // Reduced penalty from 3
+  const avgVillages = gameState.players.reduce((sum, p) =>
+    sum + gameState.villages.filter(v => v.playerId === p.id && v.type === 'settlement').length, 0
+  ) / gameState.players.length;
 
-  let estatePriority = villageCount > 0 ? (5 - cityCount) * 3.5 : 0;  // Increased from 2.5
-  estatePriority -= estateResourcesNeeded * 2.5;  // Reduced penalty from 3
+  const isBehindOnVillages = villageCount < avgVillages - 0.5;
+
+  let villagePriority = (10 - villageCount) * 4.0;
+
+  if (isEarlyGame) {
+    villagePriority *= 2.0;
+    if (villageCount < 3) {
+      villagePriority += 10;
+    }
+  } else if (isMidGame && villageCount < 4) {
+    villagePriority *= 1.5;
+  }
+
+  if (isBehindOnVillages) {
+    villagePriority += 8;
+  }
+
+  if (villageResourcesNeeded > 0) {
+    villagePriority += villageResourcesNeeded * 1.5;
+  }
+
+  let estatePriority = villageCount > 0 ? (5 - cityCount) * 3.5 : 0;
+  estatePriority -= estateResourcesNeeded * 2.5;
+
+  if (isEarlyGame && villageCount < 3) {
+    estatePriority *= 0.3;
+  }
 
   let roadPriority = Math.max(8 - roadCount, 3);
+
+  if (isEarlyGame && villageCount < 3) {
+    roadPriority *= 0.6;
+  }
 
   if (gameState.gameSettings.longestRoadEnabled) {
     const longestRoadBonus = gameState.gameSettings.longestRoadBonus;
@@ -367,25 +403,24 @@ export function calculateBuildingPriority(
     }
   }
 
-  // Calculate dev card priority
-  const pointsToWin = gameState.gameSettings.pointsToWin;
-  const pointsAway = pointsToWin - (player.score + player.secretPoints);
-  let devCardPriority = 9;  // Base priority (increased for more aggression)
+  let devCardPriority = 9;
 
-  // Higher priority when close to winning
   if (pointsAway <= 3) {
     devCardPriority += 3;
   } else if (pointsAway <= 5) {
     devCardPriority += 1.5;
   }
 
-  // Higher priority for largest army pursuit
   if (gameState.gameSettings.largestArmyEnabled) {
     const largestArmySize = gameState.gameSettings.largestArmySize;
     const myGuardCount = player.guardsPlayed || 0;
     if (myGuardCount >= largestArmySize - 2) {
       devCardPriority += 2;
     }
+  }
+
+  if (isEarlyGame && villageCount < 3) {
+    devCardPriority *= 0.5;
   }
 
   priorities.push({ type: 'village', priority: Math.max(villagePriority, 1) });
