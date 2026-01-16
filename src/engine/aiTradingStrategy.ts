@@ -243,6 +243,11 @@ function findBestPlayerTrade(
 
   for (const surplusResource of surplus) {
     for (const neededResource of neededResources) {
+      // Skip if trying to trade the same resource for itself
+      if (surplusResource === neededResource) {
+        continue;
+      }
+
       const availableAmount = player.resources[surplusResource];
       const neededAmount = goal.neededResources[neededResource] || 1;
 
@@ -409,6 +414,11 @@ export function getAllRankedPlayerTrades(
 
   for (const surplusResource of surplus) {
     for (const neededResource of neededResources) {
+      // Skip if trying to trade the same resource for itself
+      if (surplusResource === neededResource) {
+        continue;
+      }
+
       const availableAmount = player.resources[surplusResource];
       const neededAmount = goal.neededResources[neededResource] || 1;
 
