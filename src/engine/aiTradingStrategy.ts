@@ -497,9 +497,29 @@ export function shouldInitiatePlayerTrade(
 
   const goals = identifyTradeGoals(player, gameState);
   if (goals.length === 0) {
+    console.log(`   ✗ No trade goals, won't initiate trade`);
     return false;
   }
 
   const surplus = getSurplusResources(player.resources);
-  return surplus.length > 0 && Math.random() < 0.6;
+  if (surplus.length === 0) {
+    console.log(`   ✗ No surplus resources, won't initiate trade`);
+    return false;
+  }
+
+  const difficulty = player.difficulty || 'normal';
+  let tradeChance = 0.8;
+
+  if (difficulty === 'easy') {
+    tradeChance = 0.6;
+  } else if (difficulty === 'normal') {
+    tradeChance = 0.8;
+  } else if (difficulty === 'hard') {
+    tradeChance = 1.0;
+  }
+
+  const willTrade = Math.random() < tradeChance;
+  console.log(`   ${willTrade ? '✓' : '✗'} Trade chance for ${difficulty}: ${(tradeChance * 100).toFixed(0)}% (rolled ${willTrade ? 'yes' : 'no'})`);
+
+  return willTrade;
 }
