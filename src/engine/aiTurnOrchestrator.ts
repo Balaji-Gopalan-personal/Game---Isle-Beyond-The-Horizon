@@ -38,18 +38,6 @@ export function createTurnPlan(
     });
   }
 
-  const tradeEval = evaluateTradeOpportunity(player, gameState);
-  if (tradeEval.shouldTrade) {
-    const tradePriority = calculateTradePriority(player, gameState);
-    console.log(`   ✓ Adding ${tradeEval.tradeType} trade to plan (priority ${tradePriority})`);
-    console.log(`     Reason: ${tradeEval.reasoning}`);
-    actions.push({
-      type: tradeEval.tradeType === 'bank' ? 'trade_bank' : 'trade_player',
-      priority: tradePriority,
-      data: tradeEval
-    });
-  }
-
   const buildDecision = makeStrategicBuildDecision(player.id, gameState, boardSize, 0, difficulty);
   if (buildDecision.shouldBuild && buildDecision.buildingType) {
     const buildPriority = calculateBuildPriority(player, gameState, buildDecision.buildingType);
@@ -59,6 +47,39 @@ export function createTurnPlan(
       priority: buildPriority,
       data: { buildingType: buildDecision.buildingType }
     });
+
+    if (buildDecision.buildingType === 'village' || buildDecision.buildingType === 'estate') {
+      console.log(`   📊 High-value build detected, checking post-build trade opportunities...`);
+      const simulatedResources = simulateResourcesAfterBuild(player.resources, buildDecision.buildingType);
+      console.log(`   Simulated resources after ${buildDecision.buildingType}: Clay=${simulatedResources.clay} Lumber=${simulatedResources.lumber} Grain=${simulatedResources.grain} Fabric=${simulatedResources.fabric} Mineral=${simulatedResources.mineral}`);
+
+      const simulatedPlayer = { ...player, resources: simulatedResources };
+      const postBuildTradeEval = evaluateTradeOpportunity(simulatedPlayer, gameState);
+      if (postBuildTradeEval.shouldTrade) {
+        const tradePriority = calculateTradePriority(player, gameState) - 1;
+        console.log(`   ✓ Adding post-build ${postBuildTradeEval.tradeType} trade to plan (priority ${tradePriority})`);
+        console.log(`     Reason: ${postBuildTradeEval.reasoning}`);
+        actions.push({
+          type: postBuildTradeEval.tradeType === 'bank' ? 'trade_bank' : 'trade_player',
+          priority: tradePriority,
+          data: postBuildTradeEval
+        });
+      }
+    }
+  }
+
+  if (!buildDecision.shouldBuild || buildDecision.buildingType === 'road') {
+    const tradeEval = evaluateTradeOpportunity(player, gameState);
+    if (tradeEval.shouldTrade) {
+      const tradePriority = calculateTradePriority(player, gameState);
+      console.log(`   ✓ Adding ${tradeEval.tradeType} trade to plan (priority ${tradePriority})`);
+      console.log(`     Reason: ${tradeEval.reasoning}`);
+      actions.push({
+        type: tradeEval.tradeType === 'bank' ? 'trade_bank' : 'trade_player',
+        priority: tradePriority,
+        data: tradeEval
+      });
+    }
   }
 
   actions.sort((a, b) => b.priority - a.priority);
@@ -70,6 +91,35 @@ export function createTurnPlan(
     actions,
     reasoning: `${player.name} turn plan with ${actions.length} actions: ${actionSummary}`
   };
+}
+
+function simulateResourcesAfterBuild(resources: Resources, buildingType: 'road' | 'village' | 'estate' | 'dev_card'): Resources {
+  const simulated = { ...resources };
+
+  switch (buildingType) {
+    case 'village':
+      simulated.clay = Math.max(0, simulated.clay - 1);
+      simulated.lumber = Math.max(0, simulated.lumber - 1);
+      simulated.grain = Math.max(0, simulated.grain - 1);
+      simulated.fabric = Math.max(0, simulated.fabric - 1);
+      break;
+    case 'estate':
+      simulated.grain = Math.max(0, simulated.grain - 2);
+      simulated.mineral = Math.max(0, simulated.mineral - 3);
+      break;
+    case 'road':
+      simulated.clay = Math.max(0, simulated.clay - 1);
+      simulated.lumber = Math.max(0, simulated.lumber - 1);
+      break;
+    case 'dev_card':
+      simulated.grain = Math.max(0, simulated.grain - 1);
+      simulated.fabric = Math.max(0, simulated.fabric - 1);
+      simulated.mineral = Math.max(0, simulated.mineral - 1);
+      break;
+  }
+
+  simulated.total = simulated.clay + simulated.lumber + simulated.grain + simulated.fabric + simulated.mineral;
+  return simulated;
 }
 
 function calculateTradePriority(player: Player, gameState: GameState): number {

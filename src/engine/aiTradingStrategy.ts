@@ -31,16 +31,27 @@ export function evaluateTradeOpportunity(
     return { shouldTrade: false, tradeType: 'bank', reasoning: 'No immediate building goals' };
   }
 
+  console.log(`   📊 Identified ${goals.length} possible trade goals:`);
+  goals.forEach((goal, idx) => {
+    const neededList = Object.entries(goal.neededResources).map(([r, amt]) => `${amt} ${r}`).join(', ');
+    const neededCount = Object.keys(goal.neededResources).length;
+    if (neededCount === 0) {
+      console.log(`   ${idx + 1}. ${goal.targetBuilding} (priority ${goal.priority}) - Can afford now, considering post-build trades`);
+    } else {
+      console.log(`   ${idx + 1}. ${goal.targetBuilding} (priority ${goal.priority}) - Needs: ${neededList}`);
+    }
+  });
+
   const topGoal = goals[0];
-  console.log(`   Top goal: ${topGoal.targetBuilding} (priority ${topGoal.priority})`);
-  const neededList = Object.entries(topGoal.neededResources).map(([r, amt]) => `${amt} ${r}`).join(', ');
-  console.log(`   Needs: ${neededList}`);
+  console.log(`   🎯 Prioritizing: ${topGoal.targetBuilding} (priority ${topGoal.priority})`);
 
   const bestPlayerTrade = findBestPlayerTrade(player, gameState, topGoal);
   if (bestPlayerTrade) {
     console.log(`   ✓ Found P2P trade opportunity: ${bestPlayerTrade.offeringAmount}x ${bestPlayerTrade.offering} → ${bestPlayerTrade.requesting}`);
     console.log(`   Reason: ${bestPlayerTrade.reasoning}`);
     return bestPlayerTrade;
+  } else {
+    console.log(`   ✗ No viable player trades found`);
   }
 
   const bestBankTrade = findBestBankTrade(player, gameState, topGoal);
@@ -48,6 +59,8 @@ export function evaluateTradeOpportunity(
     console.log(`   ✓ Found bank trade: ${bestBankTrade.offeringAmount}x ${bestBankTrade.offering} → ${bestBankTrade.requesting}`);
     console.log(`   Reason: ${bestBankTrade.reasoning}`);
     return bestBankTrade;
+  } else {
+    console.log(`   ✗ No viable bank trades found`);
   }
 
   console.log(`   ✗ No beneficial trades available`);
@@ -62,6 +75,9 @@ function identifyTradeGoals(player: Player, gameState: GameState): TradeGoal[] {
   const isEarlyGame = currentPoints < 5;
   const villageCount = gameState.villages.filter(v => v.playerId === player.id && v.type === 'settlement').length;
 
+  const totalResources = player.resources.clay + player.resources.lumber +
+                         player.resources.grain + player.resources.fabric + player.resources.mineral;
+
   const villageNeeds = calculateResourceNeeds(player.resources, {
     clay: 1,
     lumber: 1,
@@ -74,7 +90,7 @@ function identifyTradeGoals(player: Player, gameState: GameState): TradeGoal[] {
   const neededCount = Object.keys(villageNeeds).length;
   const maxNeededForVillage = isEarlyGame || villageCount < 3 ? 3 : 2;
 
-  if (neededCount > 0 && neededCount <= maxNeededForVillage) {
+  if (neededCount >= 0 && neededCount <= maxNeededForVillage && (neededCount > 0 || totalResources >= 5)) {
     let villagePriority = 10;
     if (isEarlyGame && villageCount < 3) {
       villagePriority = 15;
@@ -97,11 +113,20 @@ function identifyTradeGoals(player: Player, gameState: GameState): TradeGoal[] {
     total: 5
   });
 
-  if (Object.keys(estateNeeds).length > 0 && Object.keys(estateNeeds).length <= 2) {
+  const estateNeededCount = Object.keys(estateNeeds).length;
+  if (estateNeededCount >= 0 && estateNeededCount <= 2 && (estateNeededCount > 0 || totalResources >= 6)) {
     let estatePriority = 12;
     if (isEarlyGame && villageCount < 3) {
       estatePriority = 6;
     }
+
+    const hasUpgradeableVillage = gameState.villages.some(v =>
+      v.playerId === player.id && v.type === 'settlement'
+    );
+    if (hasUpgradeableVillage && villageCount >= 2) {
+      estatePriority += 2;
+    }
+
     goals.push({
       targetBuilding: 'estate',
       neededResources: estateNeeds,
@@ -118,7 +143,8 @@ function identifyTradeGoals(player: Player, gameState: GameState): TradeGoal[] {
     total: 2
   });
 
-  if (Object.keys(roadNeeds).length > 0 && Object.keys(roadNeeds).length <= 1) {
+  const roadNeededCount = Object.keys(roadNeeds).length;
+  if (roadNeededCount >= 0 && roadNeededCount <= 1 && (roadNeededCount > 0 || totalResources >= 3)) {
     let roadPriority = 6;
     if (isEarlyGame && villageCount < 3) {
       roadPriority = 4;
@@ -139,7 +165,8 @@ function identifyTradeGoals(player: Player, gameState: GameState): TradeGoal[] {
     total: 3
   });
 
-  if (Object.keys(devCardNeeds).length > 0 && Object.keys(devCardNeeds).length <= 2) {
+  const devCardNeededCount = Object.keys(devCardNeeds).length;
+  if (devCardNeededCount >= 0 && devCardNeededCount <= 2 && (devCardNeededCount > 0 || totalResources >= 4)) {
     let devCardPriority = 8;
     if (isEarlyGame && villageCount < 3) {
       devCardPriority = 5;
@@ -179,7 +206,15 @@ function findBestPlayerTrade(
   const neededResources = Object.keys(goal.neededResources) as ResourceType[];
   const surplus = getSurplusResources(player.resources, goal);
 
+  console.log(`   💰 Surplus resources available for trading: ${surplus.length > 0 ? surplus.join(', ') : 'None'}`);
+
   if (surplus.length === 0 || neededResources.length === 0) {
+    if (surplus.length === 0) {
+      console.log(`   ⚠️ No surplus resources to offer in player trade`);
+    }
+    if (neededResources.length === 0) {
+      console.log(`   ⚠️ No resources needed for goal (can already afford)`);
+    }
     return null;
   }
 
@@ -350,8 +385,12 @@ function findBestBankTrade(
   let bestTrade: TradeEvaluation | null = null;
   let bestTradeEfficiency = Infinity;
 
+  console.log(`   🏦 Evaluating bank trade options...`);
+
   for (const surplusResource of surplus) {
     const tradeRate = getBestTradeRateForResource(player.id, surplusResource, gameState);
+
+    console.log(`      ${surplusResource}: Have ${player.resources[surplusResource]}, Rate ${tradeRate.rate}:1 ${tradeRate.portType ? `(${tradeRate.portType} port)` : '(4:1 bank)'}`);
 
     if (player.resources[surplusResource] >= tradeRate.rate) {
       for (const neededResource of neededResources) {
@@ -369,6 +408,8 @@ function findBestBankTrade(
           };
         }
       }
+    } else {
+      console.log(`         ✗ Not enough (need ${tradeRate.rate})`);
     }
   }
 
@@ -387,7 +428,7 @@ function getSurplusResources(resources: Resources, goal?: TradeGoal): ResourceTy
   const hasMany = totalResources >= 8;
 
   (['clay', 'lumber', 'grain', 'fabric', 'mineral'] as ResourceType[]).forEach(resource => {
-    let keepThreshold = 2;
+    let keepThreshold = 1;
 
     if (nearVillage) {
       if (resource === 'clay' || resource === 'lumber' || resource === 'grain' || resource === 'fabric') {
@@ -403,17 +444,24 @@ function getSurplusResources(resources: Resources, goal?: TradeGoal): ResourceTy
       }
     }
 
-    if (hasMany && resources[resource] > 1) {
+    if (goal) {
+      const isNeededForGoal = goal.neededResources[resource] && goal.neededResources[resource]! > 0;
+      if (isNeededForGoal) {
+        keepThreshold = 0;
+      }
+    }
+
+    if (hasMany && resources[resource] > 0) {
       surplus.push(resource);
     } else if (resources[resource] > keepThreshold) {
       surplus.push(resource);
     }
   });
 
-  if (goal?.targetBuilding === 'village' && surplus.length === 0 && totalResources >= 5) {
+  if (goal && surplus.length === 0 && totalResources >= 4) {
     (['clay', 'lumber', 'grain', 'fabric', 'mineral'] as ResourceType[]).forEach(resource => {
       const isNeeded = goal.neededResources[resource] && goal.neededResources[resource]! > 0;
-      if (!isNeeded && resources[resource] >= 2) {
+      if (!isNeeded && resources[resource] >= 1) {
         surplus.push(resource);
       }
     });
