@@ -8,6 +8,18 @@ export interface TradeGoal {
   priority: number;
 }
 
+export interface TurnTradeHistory {
+  tradesExecuted: Array<{
+    offering: ResourceType;
+    offeringAmount: number;
+    requesting: ResourceType;
+    requestingAmount: number;
+  }>;
+  targetGoal?: TradeGoal;
+  resourcesGained: Partial<Record<ResourceType, number>>;
+  resourcesLost: Partial<Record<ResourceType, number>>;
+}
+
 export interface TradeEvaluation {
   shouldTrade: boolean;
   tradeType: 'bank' | 'player';
@@ -32,7 +44,8 @@ export interface RankedTrade {
 
 export function evaluateTradeOpportunity(
   player: Player,
-  gameState: GameState
+  gameState: GameState,
+  tradeHistory?: TurnTradeHistory
 ): TradeEvaluation {
   console.log(`\n💱 [${player.name}] EVALUATING TRADE OPPORTUNITIES`);
 
@@ -42,7 +55,29 @@ export function evaluateTradeOpportunity(
     console.log(`   ⭐ Expert Negotiator is active - prioritizing 2:1 bank trades!`);
   }
 
+  // If we have a trade history, validate we should continue trading
+  if (tradeHistory && tradeHistory.tradesExecuted.length > 0) {
+    console.log(`   📊 Analyzing ${tradeHistory.tradesExecuted.length} previous trades this turn`);
+
+    // Check if we're cycling resources (trading away what we just got)
+    if (isResourceCycling(tradeHistory)) {
+      console.log(`   ✗ Detected resource cycling - stopping trades to prevent waste`);
+      return { shouldTrade: false, tradeType: 'bank', reasoning: 'Preventing resource cycling' };
+    }
+
+    // Limit total trades per turn (unless close to winning)
+    const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
+    const maxTrades = expertNegotiatorActive ? 4 : (pointsAway <= 2 ? 5 : 3);
+    if (tradeHistory.tradesExecuted.length >= maxTrades) {
+      console.log(`   ✗ Max trades reached (${maxTrades}) for this turn`);
+      return { shouldTrade: false, tradeType: 'bank', reasoning: 'Max trades per turn reached' };
+    }
+  }
+
   const goals = identifyTradeGoals(player, gameState);
+
+  // Use locked-in goal from history if available, otherwise use top goal
+  const activeGoal = tradeHistory?.targetGoal || goals[0];
 
   if (goals.length === 0) {
     console.log(`   ✗ No trade goals identified`);
@@ -60,12 +95,15 @@ export function evaluateTradeOpportunity(
     }
   });
 
-  const topGoal = goals[0];
-  console.log(`   🎯 Prioritizing: ${topGoal.targetBuilding} (priority ${topGoal.priority})`);
+  if (tradeHistory?.targetGoal) {
+    console.log(`   🔒 Locked to goal from previous trade: ${activeGoal.targetBuilding} (priority ${activeGoal.priority})`);
+  } else {
+    console.log(`   🎯 Prioritizing: ${activeGoal.targetBuilding} (priority ${activeGoal.priority})`);
+  }
 
   // If Expert Negotiator is active, check bank trades FIRST
   if (expertNegotiatorActive) {
-    const bestBankTrade = findBestBankTrade(player, gameState, topGoal);
+    const bestBankTrade = findBestBankTrade(player, gameState, activeGoal, tradeHistory);
     if (bestBankTrade) {
       console.log(`   ✓ Found bank trade with Expert Negotiator: ${bestBankTrade.offeringAmount}x ${bestBankTrade.offering} → ${bestBankTrade.requesting}`);
       console.log(`   Reason: ${bestBankTrade.reasoning}`);
@@ -76,7 +114,7 @@ export function evaluateTradeOpportunity(
   }
 
   // Otherwise, try player trades first (normal behavior)
-  const bestPlayerTrade = findBestPlayerTrade(player, gameState, topGoal);
+  const bestPlayerTrade = findBestPlayerTrade(player, gameState, activeGoal, tradeHistory);
   if (bestPlayerTrade) {
     console.log(`   ✓ Found P2P trade opportunity: ${bestPlayerTrade.offeringAmount}x ${bestPlayerTrade.offering} → ${bestPlayerTrade.requesting}`);
     console.log(`   Reason: ${bestPlayerTrade.reasoning}`);
@@ -85,7 +123,7 @@ export function evaluateTradeOpportunity(
     console.log(`   ✗ No viable player trades found`);
   }
 
-  const bestBankTrade = findBestBankTrade(player, gameState, topGoal);
+  const bestBankTrade = findBestBankTrade(player, gameState, activeGoal, tradeHistory);
   if (bestBankTrade) {
     console.log(`   ✓ Found bank trade: ${bestBankTrade.offeringAmount}x ${bestBankTrade.offering} → ${bestBankTrade.requesting}`);
     console.log(`   Reason: ${bestBankTrade.reasoning}`);
@@ -229,10 +267,38 @@ function calculateResourceNeeds(
   return needs;
 }
 
+function isResourceCycling(history: TurnTradeHistory): boolean {
+  if (history.tradesExecuted.length < 2) return false;
+
+  // Check last 2 trades for cycling pattern
+  const lastTrade = history.tradesExecuted[history.tradesExecuted.length - 1];
+
+  // Look for trades in the history where we acquired what we're about to give away
+  for (let i = history.tradesExecuted.length - 2; i >= 0; i--) {
+    const prevTrade = history.tradesExecuted[i];
+
+    // If we previously traded FOR the resource we're now trading AWAY, that's cycling
+    if (prevTrade.requesting === lastTrade.offering) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isRecentlyAcquired(resource: ResourceType, history: TurnTradeHistory): boolean {
+  if (!history || history.tradesExecuted.length === 0) return false;
+
+  // Check if this resource was acquired in the last trade
+  const lastTrade = history.tradesExecuted[history.tradesExecuted.length - 1];
+  return lastTrade.requesting === resource;
+}
+
 function findBestPlayerTrade(
   player: Player,
   gameState: GameState,
-  goal: TradeGoal
+  goal: TradeGoal,
+  tradeHistory?: TurnTradeHistory
 ): TradeEvaluation | null {
   const neededResources = Object.keys(goal.neededResources) as ResourceType[];
   const surplus = getSurplusResources(player.resources, goal);
@@ -261,6 +327,12 @@ function findBestPlayerTrade(
   }> = [];
 
   for (const surplusResource of surplus) {
+    // Don't trade away resources we just acquired (prevents cycling)
+    if (tradeHistory && isRecentlyAcquired(surplusResource, tradeHistory)) {
+      console.log(`   ⚠️ Skipping ${surplusResource} - recently acquired in previous trade`);
+      continue;
+    }
+
     for (const neededResource of neededResources) {
       // Skip if trying to trade the same resource for itself
       if (surplusResource === neededResource) {
@@ -568,7 +640,8 @@ export function getAllRankedPlayerTrades(
 function findBestBankTrade(
   player: Player,
   gameState: GameState,
-  goal: TradeGoal
+  goal: TradeGoal,
+  tradeHistory?: TurnTradeHistory
 ): TradeEvaluation | null {
   const neededResources = Object.keys(goal.neededResources) as ResourceType[];
   const surplus = getSurplusResources(player.resources, goal);
@@ -583,6 +656,12 @@ function findBestBankTrade(
   console.log(`   🏦 Evaluating bank trade options...`);
 
   for (const surplusResource of surplus) {
+    // Don't trade away resources we just acquired (prevents cycling)
+    if (tradeHistory && isRecentlyAcquired(surplusResource, tradeHistory)) {
+      console.log(`      ⚠️ Skipping ${surplusResource} - recently acquired in previous trade`);
+      continue;
+    }
+
     const tradeRate = getBestTradeRateForResource(player.id, surplusResource, gameState);
 
     console.log(`      ${surplusResource}: Have ${player.resources[surplusResource]}, Rate ${tradeRate.rate}:1 ${tradeRate.portType ? `(${tradeRate.portType} port)` : '(4:1 bank)'}`);

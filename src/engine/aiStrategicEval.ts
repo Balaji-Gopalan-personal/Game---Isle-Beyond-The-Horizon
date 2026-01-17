@@ -185,12 +185,17 @@ function calculateResourceGapBonus(
   }
 
   // Bonus scales with number of new resources and their production value
-  let bonus = newResourceCount * 4.0;  // 4 points per new resource type
-  bonus += totalNewProductionValue * 0.5;  // Plus half the production value
+  let bonus = newResourceCount * 6.0;  // Increased from 4.0 to 6.0 points per new resource type
+  bonus += totalNewProductionValue * 0.8;  // Increased from 0.5 to 0.8
 
   // Extra bonus if this would give the player access to all 5 resources
   if (existingResources.size + newResourceCount >= 5) {
-    bonus += 8.0;
+    bonus += 12.0;  // Increased from 8.0 - having all 5 resources is very valuable
+  }
+
+  // Additional bonus for filling gaps in early game (first 2 settlements)
+  if (playerVillages.length <= 1 && newResourceCount >= 2) {
+    bonus += 8.0;  // Strong incentive to diversify early
   }
 
   return bonus;

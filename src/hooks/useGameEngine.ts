@@ -12,7 +12,7 @@ import { selectStrategicRoadLocation, selectStrategicVillageLocation, selectStra
 import { findDesertCentre, isValidRobberDestination, getPlayersWithAdjacentBuildings, selectRandomRobberDestination, stealRandomResource, selectRandomStealTarget, CentreData } from '../engine/robberActions';
 import { selectRobberPlacement } from '../engine/aiRobberStrategy';
 import { shouldPlayDevCardAfterRoll } from '../engine/aiDevCardStrategy';
-import { evaluateTradeOpportunity } from '../engine/aiTradingStrategy';
+import { evaluateTradeOpportunity, TurnTradeHistory } from '../engine/aiTradingStrategy';
 import { createTurnPlan, shouldContinueTurn } from '../engine/aiTurnOrchestrator';
 import { createInitialDeck, shuffleDeck } from '../data/developmentCards';
 import { checkVictoryCondition } from '../utils/victoryDetection';
@@ -134,6 +134,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   const [aiActionLoopActive, setAiActionLoopActive] = useState(false);
   const [aiActionLoopIterations, setAiActionLoopIterations] = useState(0);
   const [diceRollPhaseComplete, setDiceRollPhaseComplete] = useState(false);
+  const [turnTradeHistory, setTurnTradeHistory] = useState<TurnTradeHistory>({
+    tradesExecuted: [],
+    resourcesGained: {},
+    resourcesLost: {}
+  });
   const [discardState, setDiscardState] = useState<{ playersNeedingDiscard: string[]; currentDiscardIndex: number; isProcessing: boolean }>({ playersNeedingDiscard: [], currentDiscardIndex: 0, isProcessing: false });
   const [selectedCentre, setSelectedCentre] = useState<number | null>(null);
   const [selectedStealTarget, setSelectedStealTarget] = useState<string | null>(null);
@@ -247,6 +252,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     setWaitingForConfirmation(false);
     setShowDiceResult(false);
     setDiceRollPhaseComplete(false);
+
+    // Clear trade history for new turn
+    setTurnTradeHistory({
+      tradesExecuted: [],
+      resourcesGained: {},
+      resourcesLost: {}
+    });
 
     setGameState(prevState => {
       const currentIndex = prevState.players.findIndex(p => p.id === prevState.currentPlayer);
@@ -3845,22 +3857,22 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const player = gameState.players.find(p => p.id === playerId);
     if (!player) return false;
 
-    const attemptsThisTurn = gameState.turnState.aiTradeAttemptsThisTurn || 0;
+    // Use the new trading strategy with history tracking
+    const tradeEval = evaluateTradeOpportunity(player, gameState, turnTradeHistory);
 
-    if (!shouldAttemptBankTrade(player, gameState, attemptsThisTurn)) {
+    if (!tradeEval.shouldTrade || tradeEval.tradeType !== 'bank') {
       return false;
     }
 
-    const tradeDecision = selectBankTradeResources(player, gameState);
-    if (!tradeDecision) {
+    if (!tradeEval.offering || !tradeEval.offeringAmount || !tradeEval.requesting) {
       return false;
     }
 
     const validation = canExecuteBankTrade(
       playerId,
-      tradeDecision.offeringResource,
-      tradeDecision.offeringAmount,
-      tradeDecision.requestedResource,
+      tradeEval.offering,
+      tradeEval.offeringAmount,
+      tradeEval.requesting,
       1,
       gameState
     );
@@ -3870,19 +3882,49 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
 
     const playerColor = getPlayerColorStyle(player.color);
-    const tradeRate = getBestTradeRateForResource(playerId, tradeDecision.offeringResource, gameState);
+    const tradeRate = getBestTradeRateForResource(playerId, tradeEval.offering, gameState);
     const rateDisplay = getTradeRateDisplay(tradeRate);
 
-    const message = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> traded ${tradeDecision.offeringAmount} ${tradeDecision.offeringResource} for 1 ${tradeDecision.requestedResource} with the bank (${rateDisplay})`;
+    const message = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> traded ${tradeEval.offeringAmount} ${tradeEval.offering} for 1 ${tradeEval.requesting} with the bank (${rateDisplay})`;
     addToLog(message);
+
+    // Update trade history
+    setTurnTradeHistory(prev => {
+      const newHistory = { ...prev };
+
+      // Record the trade
+      newHistory.tradesExecuted.push({
+        offering: tradeEval.offering!,
+        offeringAmount: tradeEval.offeringAmount!,
+        requesting: tradeEval.requesting!,
+        requestingAmount: 1
+      });
+
+      // Track resources gained/lost
+      newHistory.resourcesLost[tradeEval.offering!] = (newHistory.resourcesLost[tradeEval.offering!] || 0) + tradeEval.offeringAmount!;
+      newHistory.resourcesGained[tradeEval.requesting!] = (newHistory.resourcesGained[tradeEval.requesting!] || 0) + 1;
+
+      // Lock in the target goal from first trade
+      if (!newHistory.targetGoal && tradeEval.reasoning) {
+        // Extract the goal from the trade evaluation (this would have been determined in evaluateTradeOpportunity)
+        // For now, just track that we have a locked goal
+        newHistory.targetGoal = {
+          targetBuilding: 'village', // This would be extracted from reasoning or passed differently
+          neededResources: {},
+          priority: 0
+        };
+      }
+
+      return newHistory;
+    });
 
     setGameState(prev => {
       const newPlayers = prev.players.map(p => {
         if (p.id === playerId) {
           const newResources = {
             ...p.resources,
-            [tradeDecision.offeringResource]: p.resources[tradeDecision.offeringResource] - tradeDecision.offeringAmount,
-            [tradeDecision.requestedResource]: p.resources[tradeDecision.requestedResource] + 1
+            [tradeEval.offering!]: p.resources[tradeEval.offering!] - tradeEval.offeringAmount!,
+            [tradeEval.requesting!]: p.resources[tradeEval.requesting!] + 1
           };
           newResources.total = newResources.clay + newResources.lumber + newResources.grain + newResources.fabric + newResources.mineral;
           return { ...p, resources: newResources };
@@ -3901,7 +3943,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     });
 
     return true;
-  }, [gameState, getPlayerColorStyle, addToLog]);
+  }, [gameState, turnTradeHistory, getPlayerColorStyle, addToLog]);
 
   const handleAIPlayerTrade = useCallback((playerId: string): boolean => {
     const player = gameState.players.find(p => p.id === playerId);

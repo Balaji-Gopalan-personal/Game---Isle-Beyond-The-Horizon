@@ -12,14 +12,14 @@ export interface SetupPhaseWeights {
 
 export const PHASE_1_WEIGHTS: SetupPhaseWeights = {
   production: 5.0,
-  diversity: 2.0,
+  diversity: 3.5,  // Increased from 2.0 for better resource balance
   portAccess: 1.0,
   expansion: 1.5,
 };
 
 export const PHASE_2_WEIGHTS: SetupPhaseWeights = {
   production: 4.0,
-  diversity: 3.5,
+  diversity: 4.5,  // Increased from 3.5 to prioritize filling resource gaps
   portAccess: 1.5,
   expansion: 1.0,
 };
