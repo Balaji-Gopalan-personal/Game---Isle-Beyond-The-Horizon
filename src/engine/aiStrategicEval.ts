@@ -2,6 +2,7 @@ import { GameState, Player, TradingPort } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
 import { loadBoardForSize } from '../graph/loadBoard';
 import { getAdjacentVertices } from './boardService';
+import { calculateLongestRoadPath, buildVerticesWithOwnership } from './gameplayActions';
 
 export interface VertexEvaluation {
   vertexId: number;
@@ -390,14 +391,28 @@ export function calculateBuildingPriority(
   if (gameState.gameSettings.longestRoadEnabled) {
     const longestRoadBonus = gameState.gameSettings.longestRoadBonus;
     const longestRoadSize = gameState.gameSettings.longestRoadSize;
-    const myLongestPath = player.longestRoadLength || 0;
+
+    const boardSize = gameState.gameSettings.boardSize as BoardSize;
+    const boardData = loadBoardForSize(boardSize);
+    const verticesWithOwnership = buildVerticesWithOwnership(boardData.graph, gameState.verticesOccupiedBy);
+
+    const myLongestPath = calculateLongestRoadPath(player.id, gameState.roads, verticesWithOwnership);
     const currentLongestRoadHolder = gameState.players.find(p => p.hasLongestRoad);
 
     if (currentLongestRoadHolder && currentLongestRoadHolder.id === player.id) {
       roadPriority += longestRoadBonus * 1.5;
     } else if (myLongestPath >= longestRoadSize - 3) {
+      let currentHolderLongestPath = 0;
+      if (currentLongestRoadHolder) {
+        currentHolderLongestPath = calculateLongestRoadPath(
+          currentLongestRoadHolder.id,
+          gameState.roads,
+          verticesWithOwnership
+        );
+      }
+
       const roadsNeeded = currentLongestRoadHolder
-        ? Math.max((currentLongestRoadHolder.longestRoadLength || 0) + 1 - myLongestPath, 0)
+        ? Math.max(currentHolderLongestPath + 1 - myLongestPath, 0)
         : longestRoadSize - myLongestPath;
 
       if (roadsNeeded <= 2) {

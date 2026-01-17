@@ -6,7 +6,7 @@ import { AICharacter } from '../data/aiCharacters';
 import { loadBoardGraph, loadBoardForSize } from '../graph/loadBoard';
 import { canPlaceVillage, legalRoadEdgesFrom, edgeTouchesVertex, whyNotVillage, initializeValidators } from '../engine/validators';
 import { placeVillage_P1, placeRoad_P1_byEdgeId, aiTakeTurn_P1 } from '../engine/phase1';
-import { calculateLongestRoadPath, getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages } from '../engine/gameplayActions';
+import { calculateLongestRoadPath, getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages, buildVerticesWithOwnership } from '../engine/gameplayActions';
 import { makeRandomBuildDecision, makeStrategicBuildDecision, getAvailableBuildingTypes } from '../engine/aiBuilding';
 import { selectStrategicRoadLocation, selectStrategicVillageLocation, selectStrategicEstateLocation, selectStrategicDiscardResources } from '../engine/aiLocationStrategy';
 import { findDesertCentre, isValidRobberDestination, getPlayersWithAdjacentBuildings, selectRandomRobberDestination, stealRandomResource, selectRandomStealTarget, CentreData } from '../engine/robberActions';
@@ -3405,14 +3405,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
     // Calculate longest road achievement info before state update
     const updatedRoads = [...gameState.roads, newRoad];
-    const longestPath = calculateLongestRoadPath(playerId, updatedRoads, boardGraph.vertices);
+    const verticesWithOwnership = buildVerticesWithOwnership(boardGraph, gameState.verticesOccupiedBy);
+    const longestPath = calculateLongestRoadPath(playerId, updatedRoads, verticesWithOwnership);
     const longestRoadUpdate = checkLongestRoadBonus(playerId, longestPath);
 
     setGameState(prev => {
       const updatedEdgesOccupiedBy = { ...prev.edgesOccupiedBy, [edgeId]: playerId };
       const updatedRoads = [...prev.roads, newRoad];
 
-      const longestPath = calculateLongestRoadPath(playerId, updatedRoads, boardGraph.vertices);
+      const verticesWithOwnership = buildVerticesWithOwnership(boardGraph, prev.verticesOccupiedBy);
+      const longestPath = calculateLongestRoadPath(playerId, updatedRoads, verticesWithOwnership);
 
       const freeRoadsRemaining = (prev.turnState.placementContext.freeRoadsRemaining ?? 0);
       const newFreeRoadsRemaining = isFreeRoad ? freeRoadsRemaining - 1 : 0;
@@ -3686,14 +3688,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
     // Calculate longest road achievement info before state update
     const updatedRoads = [...gameState.roads, newRoad];
-    const longestPath = calculateLongestRoadPath(playerId, updatedRoads, boardGraph.vertices);
+    const verticesWithOwnership = buildVerticesWithOwnership(boardGraph, gameState.verticesOccupiedBy);
+    const longestPath = calculateLongestRoadPath(playerId, updatedRoads, verticesWithOwnership);
     const longestRoadUpdate = checkLongestRoadBonus(playerId, longestPath);
 
     setGameState(prev => {
       const updatedEdgesOccupiedBy = { ...prev.edgesOccupiedBy, [edgeId]: playerId };
       const updatedRoads = [...prev.roads, newRoad];
 
-      const longestPath = calculateLongestRoadPath(playerId, updatedRoads, boardGraph.vertices);
+      const verticesWithOwnership = buildVerticesWithOwnership(boardGraph, prev.verticesOccupiedBy);
+      const longestPath = calculateLongestRoadPath(playerId, updatedRoads, verticesWithOwnership);
 
       return {
         ...prev,

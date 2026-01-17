@@ -1,7 +1,7 @@
-import { GameState, Player } from '../types/game';
+import { GameState, Player, Road } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
 import { loadBoardForSize } from '../graph/loadBoard';
-import { getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages } from './gameplayActions';
+import { getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages, calculateLongestRoadPath, buildVerticesWithOwnership } from './gameplayActions';
 import { evaluateVertex, evaluateRoadEdge, calculateProductionValue, VertexEvaluation, EdgeEvaluation } from './aiStrategicEval';
 import { getAdjacentVertices } from './boardService';
 
@@ -124,6 +124,30 @@ function calculateBlockingValue(vertexId: number, gameState: GameState, playerId
     const occupier = gameState.verticesOccupiedBy[adjVertex];
     if (occupier && occupier === leader.id) {
       blockingScore += 5;
+    }
+  }
+
+  if (gameState.gameSettings.longestRoadEnabled) {
+    const boardData = loadBoardForSize(boardSize);
+    const verticesWithOwnership = buildVerticesWithOwnership(boardData.graph, gameState.verticesOccupiedBy);
+
+    const leaderRoads = gameState.roads.filter(r => r.playerId === leader.id);
+    if (leaderRoads.length >= 4) {
+      const currentLongestPath = calculateLongestRoadPath(leader.id, leaderRoads, verticesWithOwnership);
+
+      const simulatedVerticesOccupiedBy = { ...gameState.verticesOccupiedBy, [vertexId]: playerId };
+      const simulatedVerticesWithOwnership = buildVerticesWithOwnership(boardData.graph, simulatedVerticesOccupiedBy);
+      const newLongestPath = calculateLongestRoadPath(leader.id, leaderRoads, simulatedVerticesWithOwnership);
+
+      const roadDisruption = currentLongestPath - newLongestPath;
+      if (roadDisruption > 0) {
+        blockingScore += roadDisruption * 8;
+
+        const longestRoadSize = gameState.gameSettings.longestRoadSize;
+        if (currentLongestPath >= longestRoadSize && newLongestPath < longestRoadSize) {
+          blockingScore += 20;
+        }
+      }
     }
   }
 
@@ -287,20 +311,23 @@ function calculateLongestRoadPotential(
   gameState: GameState,
   boardSize: BoardSize
 ): number {
-  const playerRoads = gameState.roads.filter(r => r.playerId === playerId);
+  const boardData = loadBoardForSize(boardSize);
+  const verticesWithOwnership = buildVerticesWithOwnership(boardData.graph, gameState.verticesOccupiedBy);
 
-  const roadConnections = new Map<number, number[]>();
-  for (const road of playerRoads) {
-    if (!roadConnections.has(road.from)) roadConnections.set(road.from, []);
-    if (!roadConnections.has(road.to)) roadConnections.set(road.to, []);
-    roadConnections.get(road.from)!.push(road.to);
-    roadConnections.get(road.to)!.push(road.from);
-  }
+  const currentLongestPath = calculateLongestRoadPath(playerId, gameState.roads, verticesWithOwnership);
 
-  const fromConnections = roadConnections.get(fromVertex)?.length || 0;
-  const toConnections = roadConnections.get(toVertex)?.length || 0;
+  const edgeId = fromVertex < toVertex ? `${fromVertex}__${toVertex}` : `${toVertex}__${fromVertex}`;
+  const simulatedRoad: Road = {
+    id: edgeId,
+    playerId,
+    from: fromVertex,
+    to: toVertex
+  };
 
-  return fromConnections + toConnections;
+  const updatedRoads = [...gameState.roads, simulatedRoad];
+  const newLongestPath = calculateLongestRoadPath(playerId, updatedRoads, verticesWithOwnership);
+
+  return newLongestPath - currentLongestPath;
 }
 
 function calculateVillageExpansionValue(
