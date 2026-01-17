@@ -246,6 +246,29 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   const advanceToNextPlayer = useCallback((state: GameState) => {
     console.log('DEBUG: advanceToNextPlayer called');
 
+    // Check for victory condition BEFORE advancing to next player
+    // This ensures both human and AI victories are detected
+    if (state.phase === 'playing') {
+      const { hasWinner, winner } = checkVictoryCondition(state);
+
+      if (hasWinner && winner) {
+        console.log('DEBUG: Victory condition met!', winner.name);
+        const playerColor = getPlayerColorStyle(winner.color);
+        const victoryMessage = `<span style="color: ${playerColor}; font-weight: bold;">${winner.name}</span> wins the game with ${winner.score} points!`;
+
+        setGameState(prev => ({
+          ...prev,
+          phase: 'ended',
+          gameLog: [...prev.gameLog, {
+            message: victoryMessage,
+            timestamp: new Date().toLocaleTimeString()
+          }]
+        }));
+
+        return; // Don't advance to next player, game is over
+      }
+    }
+
     // Clear dice roll state for new turn
     setDiceRoll(null);
     setIsRollingDice(false);
@@ -3323,29 +3346,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   const handleEndTurn = useCallback(() => {
     console.log('DEBUG: handleEndTurn called');
 
-    if (gameState.phase === 'playing') {
-      const { hasWinner, winner } = checkVictoryCondition(gameState);
-
-      if (hasWinner && winner) {
-        console.log('DEBUG: Victory condition met!', winner.name);
-        const playerColor = getPlayerColorStyle(winner.color);
-        const victoryMessage = `<span style="color: ${playerColor}; font-weight: bold;">${winner.name}</span> wins the game with ${winner.score} points!`;
-
-        setGameState(prev => ({
-          ...prev,
-          phase: 'ended',
-          gameLog: [...prev.gameLog, {
-            message: victoryMessage,
-            timestamp: new Date().toLocaleTimeString()
-          }]
-        }));
-
-        return;
-      }
-    }
-
+    // Victory check is now handled in advanceToNextPlayer
+    // This simplifies the code and ensures all players (human and AI) are checked
     advanceToNextPlayer(gameState);
-  }, [gameState, advanceToNextPlayer, getPlayerColorStyle]);
+  }, [gameState, advanceToNextPlayer]);
 
   const handlePlaceRoadGameplay = useCallback((playerId: string, fromVertexId: number, toVertexId: number) => {
     console.log('DEBUG: handlePlaceRoadGameplay called with from:', fromVertexId, 'to:', toVertexId);
