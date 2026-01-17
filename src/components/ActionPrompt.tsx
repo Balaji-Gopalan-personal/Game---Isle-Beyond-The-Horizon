@@ -191,7 +191,10 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
   };
 
   const canAffordAnything = () => {
-    return canAffordRoad() || canAffordVillage() || canAffordEstate() || canAffordDevelopmentCard();
+    return canAffordRoad() ||
+           (canAffordVillage() && hasAdjacentRoadEndpoint()) ||
+           (canAffordEstate() && hasVillageToUpgrade()) ||
+           canAffordDevelopmentCard();
   };
 
   const hasVillageToUpgrade = () => {
