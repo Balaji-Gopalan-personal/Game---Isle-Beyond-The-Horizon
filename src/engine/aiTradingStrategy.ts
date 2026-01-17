@@ -55,6 +55,15 @@ export function evaluateTradeOpportunity(
     console.log(`   ⭐ Expert Negotiator is active - prioritizing 2:1 bank trades!`);
   }
 
+  // Calculate "frustration meter" based on failed P2P attempts this turn
+  const failedProposals = gameState.turnState.aiFailedTradeProposalsThisTurn || new Set<string>();
+  const failedAttempts = failedProposals.size;
+  const frustrationLevel = Math.min(failedAttempts, 3); // Cap at 3 for scoring purposes
+
+  if (failedAttempts > 0) {
+    console.log(`   📉 Failed P2P attempts this turn: ${failedAttempts} (frustration level: ${frustrationLevel})`);
+  }
+
   // If we have a trade history, validate we should continue trading
   if (tradeHistory && tradeHistory.tradesExecuted.length > 0) {
     console.log(`   📊 Analyzing ${tradeHistory.tradesExecuted.length} previous trades this turn`);
@@ -101,35 +110,57 @@ export function evaluateTradeOpportunity(
     console.log(`   🎯 Prioritizing: ${activeGoal.targetBuilding} (priority ${activeGoal.priority})`);
   }
 
-  // If Expert Negotiator is active, check bank trades FIRST
-  if (expertNegotiatorActive) {
-    const bestBankTrade = findBestBankTrade(player, gameState, activeGoal, tradeHistory);
-    if (bestBankTrade) {
-      console.log(`   ✓ Found bank trade with Expert Negotiator: ${bestBankTrade.offeringAmount}x ${bestBankTrade.offering} → ${bestBankTrade.requesting}`);
-      console.log(`   Reason: ${bestBankTrade.reasoning}`);
-      return bestBankTrade;
-    } else {
-      console.log(`   ✗ No viable bank trades found even with Expert Negotiator`);
-    }
+  // Determine if we should prefer bank trades based on multiple factors
+  const totalResources = player.resources.total;
+  const hasAbundantResources = totalResources >= 7;
+  const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
+  const isCloseToWinning = pointsAway <= 2;
+  const difficulty = player.difficulty || 'normal';
+
+  // Check if player has favorable trading ports
+  const hasFavorablePort = checkForFavorablePorts(player, gameState);
+
+  // Decision: should we prefer bank trades?
+  const preferBankTrades = expertNegotiatorActive ||
+                           (failedAttempts >= 2) ||
+                           (hasAbundantResources && hasFavorablePort) ||
+                           (isCloseToWinning && hasAbundantResources) ||
+                           (difficulty === 'hard' && failedAttempts >= 1);
+
+  if (preferBankTrades) {
+    console.log(`   🏦 PREFERRING BANK TRADES due to:`);
+    if (expertNegotiatorActive) console.log(`      - Expert Negotiator active`);
+    if (failedAttempts >= 2) console.log(`      - Multiple failed P2P attempts (${failedAttempts})`);
+    if (hasAbundantResources && hasFavorablePort) console.log(`      - Abundant resources + favorable port`);
+    if (isCloseToWinning && hasAbundantResources) console.log(`      - Close to winning + abundant resources`);
+    if (difficulty === 'hard' && failedAttempts >= 1) console.log(`      - Hard difficulty + P2P failure`);
   }
 
-  // Otherwise, try player trades first (normal behavior)
+  // Evaluate both bank and P2P trades, then choose the best option
+  const bestBankTrade = findBestBankTrade(player, gameState, activeGoal, tradeHistory, frustrationLevel);
   const bestPlayerTrade = findBestPlayerTrade(player, gameState, activeGoal, tradeHistory);
-  if (bestPlayerTrade) {
-    console.log(`   ✓ Found P2P trade opportunity: ${bestPlayerTrade.offeringAmount}x ${bestPlayerTrade.offering} → ${bestPlayerTrade.requesting}`);
-    console.log(`   Reason: ${bestPlayerTrade.reasoning}`);
-    return bestPlayerTrade;
-  } else {
-    console.log(`   ✗ No viable player trades found`);
-  }
 
-  const bestBankTrade = findBestBankTrade(player, gameState, activeGoal, tradeHistory);
-  if (bestBankTrade) {
-    console.log(`   ✓ Found bank trade: ${bestBankTrade.offeringAmount}x ${bestBankTrade.offering} → ${bestBankTrade.requesting}`);
+  // If we prefer bank trades and have one available, use it
+  if (preferBankTrades && bestBankTrade) {
+    console.log(`   ✓ Selected BANK trade: ${bestBankTrade.offeringAmount}x ${bestBankTrade.offering} → ${bestBankTrade.requesting}`);
     console.log(`   Reason: ${bestBankTrade.reasoning}`);
     return bestBankTrade;
-  } else {
-    console.log(`   ✗ No viable bank trades found`);
+  }
+
+  // Try P2P trade (only if we haven't exhausted attempts)
+  if (bestPlayerTrade && failedAttempts < 3) {
+    console.log(`   ✓ Selected P2P trade: ${bestPlayerTrade.offeringAmount}x ${bestPlayerTrade.offering} → ${bestPlayerTrade.requesting}`);
+    console.log(`   Reason: ${bestPlayerTrade.reasoning}`);
+    return bestPlayerTrade;
+  } else if (bestPlayerTrade && failedAttempts >= 3) {
+    console.log(`   ⚠️ P2P trade available but too many failures (${failedAttempts}), switching to bank`);
+  }
+
+  // Fallback to bank trade if P2P didn't work or was skipped
+  if (bestBankTrade) {
+    console.log(`   ✓ Selected BANK trade (fallback): ${bestBankTrade.offeringAmount}x ${bestBankTrade.offering} → ${bestBankTrade.requesting}`);
+    console.log(`   Reason: ${bestBankTrade.reasoning}`);
+    return bestBankTrade;
   }
 
   console.log(`   ✗ No beneficial trades available`);
@@ -641,7 +672,8 @@ function findBestBankTrade(
   player: Player,
   gameState: GameState,
   goal: TradeGoal,
-  tradeHistory?: TurnTradeHistory
+  tradeHistory?: TurnTradeHistory,
+  frustrationLevel: number = 0
 ): TradeEvaluation | null {
   const neededResources = Object.keys(goal.neededResources) as ResourceType[];
   const surplus = getSurplusResources(player.resources, goal);
@@ -651,9 +683,12 @@ function findBestBankTrade(
   }
 
   let bestTrade: TradeEvaluation | null = null;
-  let bestTradeEfficiency = Infinity;
+  let bestTradeScore = -Infinity;
 
   console.log(`   🏦 Evaluating bank trade options...`);
+  if (frustrationLevel > 0) {
+    console.log(`      (Frustration bonus active: +${frustrationLevel * 2} to all bank trades)`);
+  }
 
   for (const surplusResource of surplus) {
     // Don't trade away resources we just acquired (prevents cycling)
@@ -668,23 +703,83 @@ function findBestBankTrade(
 
     if (player.resources[surplusResource] >= tradeRate.rate) {
       for (const neededResource of neededResources) {
-        const efficiency = tradeRate.rate;
+        // Calculate trade score (higher is better)
+        let tradeScore = 0;
 
-        if (efficiency < bestTradeEfficiency) {
-          bestTradeEfficiency = efficiency;
+        // Base score: efficiency (lower rate is better)
+        const efficiency = tradeRate.rate;
+        tradeScore += (5 - efficiency) * 3; // 2:1 = 9 points, 3:1 = 6 points, 4:1 = 3 points
+
+        // Port bonus
+        if (tradeRate.portType === 'specific_2to1') {
+          tradeScore += 8; // Significant bonus for 2:1 port
+          console.log(`         🎯 2:1 port bonus: +8 points`);
+        } else if (tradeRate.portType === 'general_3to1') {
+          tradeScore += 4; // Moderate bonus for 3:1 port
+          console.log(`         🎯 3:1 port bonus: +4 points`);
+        }
+
+        // Frustration bonus (makes bank trades more attractive after P2P failures)
+        const frustrationBonus = frustrationLevel * 2;
+        tradeScore += frustrationBonus;
+        if (frustrationBonus > 0) {
+          console.log(`         😤 Frustration bonus: +${frustrationBonus} points`);
+        }
+
+        // Resource concentration bonus (if we have lots of this resource)
+        const resourceAmount = player.resources[surplusResource];
+        if (resourceAmount >= 5) {
+          tradeScore += 3;
+          console.log(`         💰 Abundance bonus (${resourceAmount}): +3 points`);
+        } else if (resourceAmount >= 4) {
+          tradeScore += 2;
+          console.log(`         💰 Abundance bonus (${resourceAmount}): +2 points`);
+        }
+
+        // Certainty bonus (guaranteed to get the resource)
+        const totalResources = player.resources.total;
+        if (totalResources >= 8) {
+          tradeScore += 3; // High value when near discard threshold
+          console.log(`         ✅ Certainty bonus (avoiding discard risk): +3 points`);
+        } else if (totalResources >= 7) {
+          tradeScore += 2;
+          console.log(`         ✅ Certainty bonus: +2 points`);
+        } else {
+          tradeScore += 1;
+          console.log(`         ✅ Certainty bonus: +1 point`);
+        }
+
+        // Victory urgency bonus
+        const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
+        if (pointsAway <= 2 && Object.keys(goal.neededResources).length === 1) {
+          tradeScore += 5; // High bonus when close to winning and only 1 resource away
+          console.log(`         🏆 Victory urgency bonus: +5 points`);
+        } else if (pointsAway <= 2) {
+          tradeScore += 2;
+          console.log(`         🏆 Victory urgency bonus: +2 points`);
+        }
+
+        console.log(`         Score: ${tradeScore.toFixed(1)} (efficiency: ${efficiency}:1)`);
+
+        if (tradeScore > bestTradeScore) {
+          bestTradeScore = tradeScore;
           bestTrade = {
             shouldTrade: true,
             tradeType: 'bank',
             offering: surplusResource,
             offeringAmount: tradeRate.rate,
             requesting: neededResource,
-            reasoning: `Trading ${tradeRate.rate} ${surplusResource} for ${neededResource} to build ${goal.targetBuilding}`
+            reasoning: `Bank trade ${tradeRate.rate}:1 ${surplusResource}→${neededResource} for ${goal.targetBuilding} (score: ${tradeScore.toFixed(1)}${tradeRate.portType ? `, ${tradeRate.portType} port` : ''})`
           };
         }
       }
     } else {
       console.log(`         ✗ Not enough (need ${tradeRate.rate})`);
     }
+  }
+
+  if (bestTrade) {
+    console.log(`      ✓ Best bank trade: ${bestTrade.offeringAmount}x ${bestTrade.offering} → ${bestTrade.requesting} (score: ${bestTradeScore.toFixed(1)})`);
   }
 
   return bestTrade;
@@ -699,12 +794,20 @@ function getSurplusResources(resources: Resources, goal?: TradeGoal): ResourceTy
 
   const totalResources = resources.clay + resources.lumber + resources.grain +
                         resources.fabric + resources.mineral;
-  const hasMany = totalResources >= 8;
+  // Lowered from 8 to 7 to make bank trades more accessible
+  const hasMany = totalResources >= 7;
+
+  // Find if any resource has high concentration (3+ of one type)
+  const hasConcentratedResource = (['clay', 'lumber', 'grain', 'fabric', 'mineral'] as ResourceType[])
+    .some(r => resources[r] >= 3);
 
   (['clay', 'lumber', 'grain', 'fabric', 'mineral'] as ResourceType[]).forEach(resource => {
     let keepThreshold = 1;
 
-    if (nearVillage) {
+    // If player has concentrated resources (3+ of one type), be more willing to trade
+    if (hasConcentratedResource && resources[resource] >= 3) {
+      keepThreshold = 2; // Keep 2, trade the rest
+    } else if (nearVillage) {
       if (resource === 'clay' || resource === 'lumber' || resource === 'grain' || resource === 'fabric') {
         keepThreshold = 1;
       }
@@ -742,6 +845,21 @@ function getSurplusResources(resources: Resources, goal?: TradeGoal): ResourceTy
   }
 
   return surplus;
+}
+
+function checkForFavorablePorts(player: Player, gameState: GameState): boolean {
+  // Check if player has any 2:1 or 3:1 trading ports
+  const playerPorts = gameState.tradingPorts?.filter(port =>
+    gameState.villages.some(v =>
+      v.playerId === player.id &&
+      port.vertices.includes(v.vertexId)
+    )
+  ) || [];
+
+  // Check if any ports are 2:1 or 3:1
+  return playerPorts.some(port =>
+    port.type === 'specific_2to1' || port.type === 'general_3to1'
+  );
 }
 
 function getGameLeader(gameState: GameState): Player | null {
