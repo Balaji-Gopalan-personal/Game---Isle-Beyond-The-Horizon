@@ -154,7 +154,18 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">Final Standings</h2>
+          <div className="mb-4 text-center">
+            <h2 className="text-2xl font-bold text-gray-800">Final Standings</h2>
+            {(() => {
+              const aiPlayer = allPlayerStats.find(p => !p.isHuman);
+              const difficultyLevel = aiPlayer?.difficulty
+                ? aiPlayer.difficulty.charAt(0).toUpperCase() + aiPlayer.difficulty.slice(1)
+                : null;
+              return difficultyLevel ? (
+                <p className="text-sm text-gray-600 mt-1">{difficultyLevel} Difficulty</p>
+              ) : null;
+            })()}
+          </div>
 
           <div className="space-y-3">
             {allPlayerStats.map((player, index) => {

@@ -54,9 +54,19 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({
     return getPlayerColorHex(color);
   };
 
+  const aiPlayer = players.find(p => !p.isHuman);
+  const difficultyLevel = aiPlayer?.difficulty
+    ? aiPlayer.difficulty.charAt(0).toUpperCase() + aiPlayer.difficulty.slice(1)
+    : null;
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-2 h-[calc(100vh-120px)] flex flex-col w-full">
-      <h2 className="text-lg font-bold text-gray-800 mb-3 text-center">Players</h2>
+      <div className="mb-3 text-center">
+        <h2 className="text-lg font-bold text-gray-800">Players</h2>
+        {difficultyLevel && (
+          <p className="text-xs text-gray-600 mt-0.5">{difficultyLevel} Difficulty</p>
+        )}
+      </div>
 
       <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto">
         {/* All Players in Order */}

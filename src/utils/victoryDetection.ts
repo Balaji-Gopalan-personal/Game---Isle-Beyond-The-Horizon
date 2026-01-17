@@ -15,6 +15,7 @@ export interface PlayerVictoryStats {
   totalPoints: number;
   isHuman: boolean;
   character?: AICharacter;
+  difficulty?: 'easy' | 'normal' | 'hard';
 }
 
 export function calculatePlayerTotalPoints(player: Player, gameSettings: GameState['gameSettings']): number {
@@ -59,7 +60,8 @@ export function getAllPlayerStats(gameState: GameState): PlayerVictoryStats[] {
       extraPointCards: player.secretPoints,
       totalPoints,
       isHuman: player.isHuman,
-      character: player.character
+      character: player.character,
+      difficulty: player.difficulty
     };
   });
 
