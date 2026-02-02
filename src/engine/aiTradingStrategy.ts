@@ -703,74 +703,95 @@ function findBestBankTrade(
 
     if (player.resources[surplusResource] >= tradeRate.rate) {
       for (const neededResource of neededResources) {
-        // Calculate trade score (higher is better)
-        let tradeScore = 0;
-
-        // Base score: efficiency (lower rate is better)
-        const efficiency = tradeRate.rate;
-        tradeScore += (5 - efficiency) * 3; // 2:1 = 9 points, 3:1 = 6 points, 4:1 = 3 points
-
-        // Port bonus
-        if (tradeRate.portType === 'specific_2to1') {
-          tradeScore += 8; // Significant bonus for 2:1 port
-          console.log(`         🎯 2:1 port bonus: +8 points`);
-        } else if (tradeRate.portType === 'general_3to1') {
-          tradeScore += 4; // Moderate bonus for 3:1 port
-          console.log(`         🎯 3:1 port bonus: +4 points`);
-        }
-
-        // Frustration bonus (makes bank trades more attractive after P2P failures)
-        const frustrationBonus = frustrationLevel * 2;
-        tradeScore += frustrationBonus;
-        if (frustrationBonus > 0) {
-          console.log(`         😤 Frustration bonus: +${frustrationBonus} points`);
-        }
-
-        // Resource concentration bonus (if we have lots of this resource)
+        const neededAmount = goal.neededResources[neededResource] || 1;
         const resourceAmount = player.resources[surplusResource];
-        if (resourceAmount >= 5) {
-          tradeScore += 3;
-          console.log(`         💰 Abundance bonus (${resourceAmount}): +3 points`);
-        } else if (resourceAmount >= 4) {
-          tradeScore += 2;
-          console.log(`         💰 Abundance bonus (${resourceAmount}): +2 points`);
-        }
 
-        // Certainty bonus (guaranteed to get the resource)
-        const totalResources = player.resources.total;
-        if (totalResources >= 8) {
-          tradeScore += 3; // High value when near discard threshold
-          console.log(`         ✅ Certainty bonus (avoiding discard risk): +3 points`);
-        } else if (totalResources >= 7) {
-          tradeScore += 2;
-          console.log(`         ✅ Certainty bonus: +2 points`);
-        } else {
-          tradeScore += 1;
-          console.log(`         ✅ Certainty bonus: +1 point`);
-        }
+        // Determine max multiplier: how many times can we trade?
+        const maxPossibleMultiplier = Math.floor(resourceAmount / tradeRate.rate);
+        // Cap at how many we need, or 3x for efficiency
+        const maxMultiplier = Math.min(maxPossibleMultiplier, neededAmount, 3);
 
-        // Victory urgency bonus
-        const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
-        if (pointsAway <= 2 && Object.keys(goal.neededResources).length === 1) {
-          tradeScore += 5; // High bonus when close to winning and only 1 resource away
-          console.log(`         🏆 Victory urgency bonus: +5 points`);
-        } else if (pointsAway <= 2) {
-          tradeScore += 2;
-          console.log(`         🏆 Victory urgency bonus: +2 points`);
-        }
+        // Evaluate different trade sizes (1x, 2x, 3x the base rate)
+        for (let multiplier = 1; multiplier <= maxMultiplier; multiplier++) {
+          const offeringAmount = tradeRate.rate * multiplier;
+          const requestingAmount = multiplier;
 
-        console.log(`         Score: ${tradeScore.toFixed(1)} (efficiency: ${efficiency}:1)`);
+          // Calculate trade score (higher is better)
+          let tradeScore = 0;
 
-        if (tradeScore > bestTradeScore) {
-          bestTradeScore = tradeScore;
-          bestTrade = {
-            shouldTrade: true,
-            tradeType: 'bank',
-            offering: surplusResource,
-            offeringAmount: tradeRate.rate,
-            requesting: neededResource,
-            reasoning: `Bank trade ${tradeRate.rate}:1 ${surplusResource}→${neededResource} for ${goal.targetBuilding} (score: ${tradeScore.toFixed(1)}${tradeRate.portType ? `, ${tradeRate.portType} port` : ''})`
-          };
+          // Base score: efficiency (lower rate is better)
+          const efficiency = tradeRate.rate;
+          tradeScore += (5 - efficiency) * 3; // 2:1 = 9 points, 3:1 = 6 points, 4:1 = 3 points
+
+          // Port bonus
+          if (tradeRate.portType === 'specific_2to1') {
+            tradeScore += 8; // Significant bonus for 2:1 port
+          } else if (tradeRate.portType === 'general_3to1') {
+            tradeScore += 4; // Moderate bonus for 3:1 port
+          }
+
+          // Frustration bonus (makes bank trades more attractive after P2P failures)
+          const frustrationBonus = frustrationLevel * 2;
+          tradeScore += frustrationBonus;
+
+          // Resource concentration bonus (if we have lots of this resource)
+          if (resourceAmount >= 5) {
+            tradeScore += 3;
+          } else if (resourceAmount >= 4) {
+            tradeScore += 2;
+          }
+
+          // Multi-resource bonus: prefer larger trades when we have surplus
+          if (multiplier >= 2) {
+            // Bonus for trading more when we have abundance
+            if (resourceAmount >= tradeRate.rate * 3) {
+              tradeScore += multiplier * 2; // +2 per extra resource when abundant
+            } else if (resourceAmount >= tradeRate.rate * 2) {
+              tradeScore += multiplier; // +1 per extra resource when moderate
+            }
+          }
+
+          // Certainty bonus (guaranteed to get the resource)
+          const totalResources = player.resources.total;
+          if (totalResources >= 8) {
+            tradeScore += 3; // High value when near discard threshold
+          } else if (totalResources >= 7) {
+            tradeScore += 2;
+          } else {
+            tradeScore += 1;
+          }
+
+          // Multiple needed resources bonus
+          if (multiplier >= 2 && neededAmount >= 2) {
+            tradeScore += 3; // Bonus for getting multiple needed resources at once
+          }
+
+          // Victory urgency bonus
+          const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
+          if (pointsAway <= 2 && Object.keys(goal.neededResources).length === 1) {
+            tradeScore += 5; // High bonus when close to winning and only 1 resource away
+          } else if (pointsAway <= 2) {
+            tradeScore += 2;
+          }
+
+          if (multiplier === 1) {
+            console.log(`         Score: ${tradeScore.toFixed(1)} for ${offeringAmount}:${requestingAmount} (${efficiency}:1 rate)`);
+          } else {
+            console.log(`         Score: ${tradeScore.toFixed(1)} for ${offeringAmount}:${requestingAmount} (${multiplier}x ${efficiency}:1 rate)`);
+          }
+
+          if (tradeScore > bestTradeScore) {
+            bestTradeScore = tradeScore;
+            bestTrade = {
+              shouldTrade: true,
+              tradeType: 'bank',
+              offering: surplusResource,
+              offeringAmount: offeringAmount,
+              requesting: neededResource,
+              requestingAmount: requestingAmount,
+              reasoning: `Bank trade ${offeringAmount}:${requestingAmount} (${tradeRate.rate}:1 rate) ${surplusResource}→${neededResource} for ${goal.targetBuilding} (score: ${tradeScore.toFixed(1)}${tradeRate.portType ? `, ${tradeRate.portType} port` : ''})`
+            };
+          }
         }
       }
     } else {
@@ -779,7 +800,7 @@ function findBestBankTrade(
   }
 
   if (bestTrade) {
-    console.log(`      ✓ Best bank trade: ${bestTrade.offeringAmount}x ${bestTrade.offering} → ${bestTrade.requesting} (score: ${bestTradeScore.toFixed(1)})`);
+    console.log(`      ✓ Best bank trade: ${bestTrade.offeringAmount}x ${bestTrade.offering} → ${bestTrade.requestingAmount}x ${bestTrade.requesting} (score: ${bestTradeScore.toFixed(1)})`);
   }
 
   return bestTrade;

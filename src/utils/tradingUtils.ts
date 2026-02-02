@@ -101,8 +101,8 @@ export function canExecuteBankTrade(
     return { valid: false, reason: 'Cannot trade same resource type' };
   }
 
-  if (requestedAmount !== 1) {
-    return { valid: false, reason: 'Bank trades must request exactly 1 resource' };
+  if (requestedAmount < 1) {
+    return { valid: false, reason: 'Must request at least 1 resource' };
   }
 
   const player = gameState.players.find(p => p.id === playerId);
@@ -127,6 +127,15 @@ export function canExecuteBankTrade(
     return {
       valid: false,
       reason: `Offering amount must be a multiple of ${bestRate.rate}`
+    };
+  }
+
+  // Validate that the requested amount matches the exchange rate
+  const expectedRequestedAmount = offeringAmount / bestRate.rate;
+  if (requestedAmount !== expectedRequestedAmount) {
+    return {
+      valid: false,
+      reason: `At ${bestRate.rate}:1 rate, ${offeringAmount} ${offeringResource} trades for ${expectedRequestedAmount} ${requestedResource}`
     };
   }
 

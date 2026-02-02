@@ -10,7 +10,7 @@ interface TradingModalProps {
   gameState: GameState;
   currentPlayer: Player;
   onClose: () => void;
-  onExecuteBankTrade: (offeringResource: ResourceType, offeringAmount: number, requestedResource: ResourceType) => void;
+  onExecuteBankTrade: (offeringResource: ResourceType, offeringAmount: number, requestedResource: ResourceType, requestedAmount?: number) => void;
   onProposePlayerTrade: (offeredResources: any, requestedResources: any) => void;
   activeTradeProposal?: TradeProposal;
   initialMode?: 'bank' | 'player';
@@ -134,10 +134,6 @@ export const TradingModal: React.FC<TradingModalProps> = ({
       return 'Select resources to request';
     }
 
-    if (totalRequested !== 1) {
-      return 'Bank trades must request exactly 1 resource';
-    }
-
     const offeredResourceType = (Object.keys(offeredResources) as ResourceType[]).find(
       key => offeredResources[key] > 0
     );
@@ -147,6 +143,22 @@ export const TradingModal: React.FC<TradingModalProps> = ({
 
     if (!offeredResourceType || !requestedResourceType) {
       return 'Select both offered and requested resources';
+    }
+
+    // Check for multiple resource types
+    const offeredTypes = (Object.keys(offeredResources) as ResourceType[]).filter(
+      key => offeredResources[key] > 0
+    );
+    const requestedTypes = (Object.keys(requestedResources) as ResourceType[]).filter(
+      key => requestedResources[key] > 0
+    );
+
+    if (offeredTypes.length > 1) {
+      return 'Bank trades can only offer one resource type at a time';
+    }
+
+    if (requestedTypes.length > 1) {
+      return 'Bank trades can only request one resource type at a time';
     }
 
     const validation = canExecuteBankTrade(
@@ -195,7 +207,8 @@ export const TradingModal: React.FC<TradingModalProps> = ({
         onExecuteBankTrade(
           offeredResourceType,
           offeredResources[offeredResourceType],
-          requestedResourceType
+          requestedResourceType,
+          requestedResources[requestedResourceType]
         );
       }
     } else {

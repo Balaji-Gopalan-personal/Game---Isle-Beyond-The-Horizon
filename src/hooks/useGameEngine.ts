@@ -4012,12 +4012,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       return false;
     }
 
+    // Calculate the requested amount based on trade rate
+    const tradeRate = getBestTradeRateForResource(playerId, tradeEval.offering, gameState);
+    const requestedAmount = tradeEval.requestingAmount || (tradeEval.offeringAmount / tradeRate.rate);
+
     const validation = canExecuteBankTrade(
       playerId,
       tradeEval.offering,
       tradeEval.offeringAmount,
       tradeEval.requesting,
-      1,
+      requestedAmount,
       gameState
     );
 
@@ -4026,10 +4030,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
 
     const playerColor = getPlayerColorStyle(player.color);
-    const tradeRate = getBestTradeRateForResource(playerId, tradeEval.offering, gameState);
     const rateDisplay = getTradeRateDisplay(tradeRate);
 
-    const message = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> traded ${tradeEval.offeringAmount} ${tradeEval.offering} for 1 ${tradeEval.requesting} with the bank (${rateDisplay})`;
+    const message = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> traded ${tradeEval.offeringAmount} ${tradeEval.offering} for ${requestedAmount} ${tradeEval.requesting} with the bank (${rateDisplay})`;
     addToLog(message);
 
     // Update trade history
@@ -4041,12 +4044,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         offering: tradeEval.offering!,
         offeringAmount: tradeEval.offeringAmount!,
         requesting: tradeEval.requesting!,
-        requestingAmount: 1
+        requestingAmount: requestedAmount
       });
 
       // Track resources gained/lost
       newHistory.resourcesLost[tradeEval.offering!] = (newHistory.resourcesLost[tradeEval.offering!] || 0) + tradeEval.offeringAmount!;
-      newHistory.resourcesGained[tradeEval.requesting!] = (newHistory.resourcesGained[tradeEval.requesting!] || 0) + 1;
+      newHistory.resourcesGained[tradeEval.requesting!] = (newHistory.resourcesGained[tradeEval.requesting!] || 0) + requestedAmount;
 
       // Lock in the target goal from first trade
       if (!newHistory.targetGoal && tradeEval.reasoning) {
@@ -4068,7 +4071,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           const newResources = {
             ...p.resources,
             [tradeEval.offering!]: p.resources[tradeEval.offering!] - tradeEval.offeringAmount!,
-            [tradeEval.requesting!]: p.resources[tradeEval.requesting!] + 1
+            [tradeEval.requesting!]: p.resources[tradeEval.requesting!] + requestedAmount
           };
           newResources.total = newResources.clay + newResources.lumber + newResources.grain + newResources.fabric + newResources.mineral;
           return { ...p, resources: newResources };
@@ -4732,12 +4735,17 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, [gameState.phase, gameState.turnState.step, gameState.players, gameState.currentPlayer, gameState.robberPosition, gameState.gameSettings, boardCenters, boardSize, robberMovementInitiated, addToLog, getPlayerColorStyle]);
 
   // Trading handlers
-  const handleExecuteBankTrade = useCallback((offeringResource: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral', offeringAmount: number, requestedResource: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral') => {
+  const handleExecuteBankTrade = useCallback((offeringResource: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral', offeringAmount: number, requestedResource: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral', requestedAmount?: number) => {
     const currentPlayer = getCurrentPlayer();
     if (!currentPlayer) return;
 
+    // Calculate requested amount based on trade rate if not provided
+    const tradeRate = getBestTradeRateForResource(currentPlayer.id, offeringResource, gameState);
+    const calculatedRequestedAmount = requestedAmount || (offeringAmount / tradeRate.rate);
+
     const playerColor = getPlayerColorStyle(currentPlayer.color);
-    const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> traded ${offeringAmount} ${offeringResource} for 1 ${requestedResource} with the bank`;
+    const rateDisplay = getTradeRateDisplay(tradeRate);
+    const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> traded ${offeringAmount} ${offeringResource} for ${calculatedRequestedAmount} ${requestedResource} with the bank (${rateDisplay})`;
     addToLog(message);
 
     setGameState(prev => {
@@ -4746,7 +4754,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           const newResources = {
             ...p.resources,
             [offeringResource]: p.resources[offeringResource] - offeringAmount,
-            [requestedResource]: p.resources[requestedResource] + 1
+            [requestedResource]: p.resources[requestedResource] + calculatedRequestedAmount
           };
           newResources.total = newResources.clay + newResources.lumber + newResources.grain + newResources.fabric + newResources.mineral;
           return { ...p, resources: newResources };
@@ -4756,7 +4764,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
       return { ...prev, players: newPlayers };
     });
-  }, [getCurrentPlayer, getPlayerColorStyle, addToLog]);
+  }, [getCurrentPlayer, getPlayerColorStyle, addToLog, gameState]);
 
   const handleProposePlayerTrade = useCallback((offeredResources: any, requestedResources: any) => {
     const currentPlayer = getCurrentPlayer();
