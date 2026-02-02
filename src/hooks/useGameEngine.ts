@@ -2951,7 +2951,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
     // Log after state update completes
     if (logData) {
-      const message = `<span style="color: ${logData.playerColor}; font-weight: bold;">${logData.playerName}</span> gained ${logData.resources.join(' and ')} from Booming Economy`;
+      const capitalizedResources = logData.resources.map(r => r.charAt(0).toUpperCase() + r.slice(1));
+      const resourceText = capitalizedResources.length === 2 && capitalizedResources[0] === capitalizedResources[1]
+        ? `2 ${capitalizedResources[0]}`
+        : capitalizedResources.join(' and ');
+      const message = `<span style="color: ${logData.playerColor}; font-weight: bold;">${logData.playerName}</span> gained ${resourceText} from Booming Economy`;
       setTimeout(() => addToLog(message), 100);
     }
   }, [addToLog, getPlayerColorStyle]);
@@ -3272,13 +3276,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         const timer = setTimeout(() => {
           const resourceTypes: Array<'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral'> = ['clay', 'lumber', 'grain', 'fabric', 'mineral'];
           const resource1 = resourceTypes[Math.floor(Math.random() * resourceTypes.length)];
+          console.log(`DEBUG: AI ${currentPlayer.name} selecting first Booming Economy resource: ${resource1}`);
           handleBoomingEconomyResourceSelection(resource1);
 
           setTimeout(() => {
             const resource2 = resourceTypes[Math.floor(Math.random() * resourceTypes.length)];
+            console.log(`DEBUG: AI ${currentPlayer.name} selecting second Booming Economy resource: ${resource2}`);
             handleBoomingEconomyResourceSelection(resource2);
 
             setTimeout(() => {
+              console.log(`DEBUG: AI ${currentPlayer.name} confirming Booming Economy selection`);
               handleConfirmBoomingEconomy();
             }, 400);
           }, 400);
