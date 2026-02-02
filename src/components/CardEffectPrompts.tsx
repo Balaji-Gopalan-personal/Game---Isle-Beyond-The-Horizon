@@ -4,6 +4,7 @@ import { Player } from '../types/game';
 import { CharacterAvatar } from './CharacterAvatar';
 import { useAssets } from '../contexts/AssetsContext';
 import { getPlayerColorHex } from '../utils/playerColors';
+import { getResourceImage } from '../utils/assetHelpers';
 
 interface OpponentSelectorProps {
   opponents: Player[];
@@ -157,12 +158,13 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
   onConfirm,
   onCancel
 }) => {
+  const { assets } = useAssets();
   const resources = [
-    { type: 'clay' as const, label: 'C', fullName: 'Clay', color: 'bg-red-600 hover:bg-red-700' },
-    { type: 'lumber' as const, label: 'L', fullName: 'Lumber', color: 'bg-green-600 hover:bg-green-700' },
-    { type: 'grain' as const, label: 'G', fullName: 'Grain', color: 'bg-yellow-600 hover:bg-yellow-700' },
-    { type: 'fabric' as const, label: 'F', fullName: 'Fabric', color: 'bg-purple-600 hover:bg-purple-700' },
-    { type: 'mineral' as const, label: 'M', fullName: 'Mineral', color: 'bg-gray-600 hover:bg-gray-700' }
+    { type: 'clay' as const, label: 'C', fullName: 'Clay' },
+    { type: 'lumber' as const, label: 'L', fullName: 'Lumber' },
+    { type: 'grain' as const, label: 'G', fullName: 'Grain' },
+    { type: 'fabric' as const, label: 'F', fullName: 'Fabric' },
+    { type: 'mineral' as const, label: 'M', fullName: 'Mineral' }
   ];
 
   const canConfirm = resourcesSelected.length === 2;
@@ -176,18 +178,34 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
         Select {2 - resourcesSelected.length} resource{2 - resourcesSelected.length !== 1 ? 's' : ''}
         {resourcesSelected.length > 0 && ` (Selected: ${resourcesSelected.join(', ')})`}
       </div>
-      <div className="flex gap-1 justify-center">
-        {resources.map(resource => (
-          <button
-            key={resource.type}
-            onClick={() => onSelectResource(resource.type)}
-            disabled={resourcesSelected.includes(resource.fullName)}
-            className={`${resource.color} text-white font-bold py-2 px-3 rounded transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed`}
-            title={resource.fullName}
-          >
-            {resource.label}
-          </button>
-        ))}
+      <div className="flex gap-2 justify-center">
+        {resources.map(resource => {
+          const isSelected = resourcesSelected.includes(resource.fullName);
+          return (
+            <button
+              key={resource.type}
+              onClick={() => onSelectResource(resource.type)}
+              disabled={isSelected}
+              className={`relative w-8 h-8 rounded border-2 overflow-hidden flex-shrink-0 transition-all duration-200 ${
+                isSelected
+                  ? 'border-blue-500 opacity-50 cursor-not-allowed'
+                  : 'border-gray-300 hover:border-gray-400 cursor-pointer'
+              }`}
+              title={resource.fullName}
+            >
+              <img
+                src={getResourceImage(assets, resource.fullName)?.src}
+                alt={resource.fullName}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute top-0 left-0 right-0 flex justify-center">
+                <span className="text-xs font-bold text-white bg-black bg-opacity-60 px-1 leading-tight">
+                  {resource.label}
+                </span>
+              </div>
+            </button>
+          );
+        })}
       </div>
       {canConfirm && onConfirm && (
         <div className="flex gap-2 mt-3">
@@ -224,12 +242,13 @@ export const ClosedMarketPrompt: React.FC<ClosedMarketPromptProps> = ({
   onConfirm,
   onCancel
 }) => {
+  const { assets } = useAssets();
   const resources = [
-    { type: 'clay' as const, label: 'C', fullName: 'Clay', color: 'bg-red-600 hover:bg-red-700' },
-    { type: 'lumber' as const, label: 'L', fullName: 'Lumber', color: 'bg-green-600 hover:bg-green-700' },
-    { type: 'grain' as const, label: 'G', fullName: 'Grain', color: 'bg-yellow-600 hover:bg-yellow-700' },
-    { type: 'fabric' as const, label: 'F', fullName: 'Fabric', color: 'bg-purple-600 hover:bg-purple-700' },
-    { type: 'mineral' as const, label: 'M', fullName: 'Mineral', color: 'bg-gray-600 hover:bg-gray-700' }
+    { type: 'clay' as const, label: 'C', fullName: 'Clay' },
+    { type: 'lumber' as const, label: 'L', fullName: 'Lumber' },
+    { type: 'grain' as const, label: 'G', fullName: 'Grain' },
+    { type: 'fabric' as const, label: 'F', fullName: 'Fabric' },
+    { type: 'mineral' as const, label: 'M', fullName: 'Mineral' }
   ];
 
   return (
@@ -239,19 +258,35 @@ export const ClosedMarketPrompt: React.FC<ClosedMarketPromptProps> = ({
       </div>
       <div className="text-xs text-gray-600 text-center mb-2">
         Take all of one resource type from all players
-        {selectedResource && ` (Selected: ${selectedResource})`}
+        {selectedResource && ` (Selected: ${selectedResource.charAt(0).toUpperCase() + selectedResource.slice(1)})`}
       </div>
-      <div className="flex gap-1 justify-center">
-        {resources.map(resource => (
-          <button
-            key={resource.type}
-            onClick={() => onSelectResource(resource.type)}
-            className={`${resource.color} text-white font-bold py-2 px-3 rounded transition-all duration-200 text-sm ${selectedResource === resource.type ? 'ring-2 ring-white ring-offset-2' : ''}`}
-            title={resource.fullName}
-          >
-            {resource.label}
-          </button>
-        ))}
+      <div className="flex gap-2 justify-center">
+        {resources.map(resource => {
+          const isSelected = selectedResource === resource.type;
+          return (
+            <button
+              key={resource.type}
+              onClick={() => onSelectResource(resource.type)}
+              className={`relative w-8 h-8 rounded border-2 overflow-hidden flex-shrink-0 transition-all duration-200 ${
+                isSelected
+                  ? 'border-blue-500 ring-2 ring-blue-400 cursor-pointer'
+                  : 'border-gray-300 hover:border-gray-400 cursor-pointer'
+              }`}
+              title={resource.fullName}
+            >
+              <img
+                src={getResourceImage(assets, resource.fullName)?.src}
+                alt={resource.fullName}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute top-0 left-0 right-0 flex justify-center">
+                <span className="text-xs font-bold text-white bg-black bg-opacity-60 px-1 leading-tight">
+                  {resource.label}
+                </span>
+              </div>
+            </button>
+          );
+        })}
       </div>
       {selectedResource && onConfirm && (
         <div className="flex gap-2 mt-3">
