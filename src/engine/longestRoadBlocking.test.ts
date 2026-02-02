@@ -1,5 +1,5 @@
-import { calculateLongestRoadPath } from './gameplayActions';
-import { Road } from '../types/game';
+import { calculateLongestRoadPath, getRoadsAtVertex, checkForRoadDisruptions } from './gameplayActions';
+import { Road, GameState } from '../types/game';
 
 function runTest(
   testName: string,
@@ -50,6 +50,15 @@ export function runLongestRoadBlockingTests() {
 
   totalTests++;
   if (testMultipleBlockingPoints()) passedTests++;
+
+  totalTests++;
+  if (testGetRoadsAtVertex()) passedTests++;
+
+  totalTests++;
+  if (testVillageDisruptsNetwork()) passedTests++;
+
+  totalTests++;
+  if (testOwnVillageNoDisruption()) passedTests++;
 
   console.log('\n╔═══════════════════════════════════════════════╗');
   console.log(`║  RESULTS: ${passedTests}/${totalTests} tests passed`);
@@ -234,4 +243,148 @@ function testMultipleBlockingPoints(): boolean {
     vertices,
     1
   );
+}
+
+function testGetRoadsAtVertex(): boolean {
+  console.log('\n=== TEST: Get Roads at Vertex ===');
+
+  const roads: Road[] = [
+    { id: '1__2', playerId: 'player1', from: 1, to: 2 },
+    { id: '2__3', playerId: 'player1', from: 2, to: 3 },
+    { id: '2__4', playerId: 'player2', from: 2, to: 4 },
+    { id: '4__5', playerId: 'player1', from: 4, to: 5 },
+  ];
+
+  const roadsAtVertex2 = getRoadsAtVertex(2, roads);
+  const roadsAtVertex2Player1 = getRoadsAtVertex(2, roads, 'player1');
+
+  console.log(`Roads at vertex 2: ${roadsAtVertex2.length} (expected: 3)`);
+  console.log(`Roads at vertex 2 for player1: ${roadsAtVertex2Player1.length} (expected: 2)`);
+
+  const passed = roadsAtVertex2.length === 3 && roadsAtVertex2Player1.length === 2;
+
+  if (passed) {
+    console.log('✅ TEST PASSED');
+  } else {
+    console.error('❌ TEST FAILED');
+  }
+
+  return passed;
+}
+
+function testVillageDisruptsNetwork(): boolean {
+  console.log('\n=== TEST: Village Disrupts Opponent Road Network ===');
+
+  const vertices: Record<number, { id: number; occupiedBy: string | null; neighbors: number[] }> = {
+    1: { id: 1, occupiedBy: 'player1', neighbors: [2] },
+    2: { id: 2, occupiedBy: null, neighbors: [1, 3, 4] },
+    3: { id: 3, occupiedBy: null, neighbors: [2, 5] },
+    4: { id: 4, occupiedBy: null, neighbors: [2, 6] },
+    5: { id: 5, occupiedBy: null, neighbors: [3] },
+    6: { id: 6, occupiedBy: null, neighbors: [4] },
+  };
+
+  const roads: Road[] = [
+    { id: '1__2', playerId: 'player1', from: 1, to: 2 },
+    { id: '2__3', playerId: 'player1', from: 2, to: 3 },
+    { id: '3__5', playerId: 'player1', from: 3, to: 5 },
+    { id: '2__4', playerId: 'player1', from: 2, to: 4 },
+    { id: '4__6', playerId: 'player1', from: 4, to: 6 },
+  ];
+
+  const gameState: Partial<GameState> = {
+    roads,
+    villages: [],
+  };
+
+  const currentLengths = new Map([['player1', 4]]);
+
+  const player1LengthBefore = calculateLongestRoadPath('player1', roads, vertices);
+  console.log(`Player1 road length before disruption: ${player1LengthBefore} (expected: 4)`);
+
+  const verticesAfterVillage = {
+    ...vertices,
+    2: { id: 2, occupiedBy: 'player2', neighbors: [1, 3, 4] },
+  };
+
+  const disruptions = checkForRoadDisruptions(
+    2,
+    'player2',
+    gameState as GameState,
+    verticesAfterVillage,
+    currentLengths
+  );
+
+  console.log(`Number of disruptions detected: ${disruptions.length} (expected: 1)`);
+
+  if (disruptions.length > 0) {
+    console.log(`Disrupted player: ${disruptions[0].playerId} (expected: player1)`);
+    console.log(`Old length: ${disruptions[0].oldLength} (expected: 4)`);
+    console.log(`New length: ${disruptions[0].newLength} (expected: 2)`);
+  }
+
+  const passed = disruptions.length === 1 &&
+                 disruptions[0].playerId === 'player1' &&
+                 disruptions[0].oldLength === 4 &&
+                 disruptions[0].newLength === 2;
+
+  if (passed) {
+    console.log('✅ TEST PASSED');
+  } else {
+    console.error('❌ TEST FAILED');
+  }
+
+  return passed;
+}
+
+function testOwnVillageNoDisruption(): boolean {
+  console.log('\n=== TEST: Own Village Does Not Disrupt Own Network ===');
+
+  const vertices: Record<number, { id: number; occupiedBy: string | null; neighbors: number[] }> = {
+    1: { id: 1, occupiedBy: 'player1', neighbors: [2] },
+    2: { id: 2, occupiedBy: null, neighbors: [1, 3] },
+    3: { id: 3, occupiedBy: null, neighbors: [2, 4] },
+    4: { id: 4, occupiedBy: null, neighbors: [3] },
+  };
+
+  const roads: Road[] = [
+    { id: '1__2', playerId: 'player1', from: 1, to: 2 },
+    { id: '2__3', playerId: 'player1', from: 2, to: 3 },
+    { id: '3__4', playerId: 'player1', from: 3, to: 4 },
+  ];
+
+  const gameState: Partial<GameState> = {
+    roads,
+    villages: [],
+  };
+
+  const currentLengths = new Map([['player1', 3]]);
+
+  const verticesAfterVillage = {
+    ...vertices,
+    2: { id: 2, occupiedBy: 'player1', neighbors: [1, 3] },
+  };
+
+  const disruptions = checkForRoadDisruptions(
+    2,
+    'player1',
+    gameState as GameState,
+    verticesAfterVillage,
+    currentLengths
+  );
+
+  console.log(`Number of disruptions detected: ${disruptions.length} (expected: 0)`);
+
+  const player1LengthAfter = calculateLongestRoadPath('player1', roads, verticesAfterVillage);
+  console.log(`Player1 road length after own village: ${player1LengthAfter} (expected: 3)`);
+
+  const passed = disruptions.length === 0 && player1LengthAfter === 3;
+
+  if (passed) {
+    console.log('✅ TEST PASSED');
+  } else {
+    console.error('❌ TEST FAILED');
+  }
+
+  return passed;
 }

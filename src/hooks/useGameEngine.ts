@@ -6,7 +6,7 @@ import { AICharacter } from '../data/aiCharacters';
 import { loadBoardGraph, loadBoardForSize } from '../graph/loadBoard';
 import { canPlaceVillage, legalRoadEdgesFrom, edgeTouchesVertex, whyNotVillage, initializeValidators } from '../engine/validators';
 import { placeVillage_P1, placeRoad_P1_byEdgeId, aiTakeTurn_P1 } from '../engine/phase1';
-import { calculateLongestRoadPath, getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages, buildVerticesWithOwnership } from '../engine/gameplayActions';
+import { calculateLongestRoadPath, getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages, buildVerticesWithOwnership, checkForRoadDisruptions, recalculateAllPlayersRoadLengths, RoadDisruption } from '../engine/gameplayActions';
 import { makeRandomBuildDecision, makeStrategicBuildDecision, getAvailableBuildingTypes } from '../engine/aiBuilding';
 import { selectStrategicRoadLocation, selectStrategicVillageLocation, selectStrategicEstateLocation, selectStrategicDiscardResources } from '../engine/aiLocationStrategy';
 import { findDesertCentre, isValidRobberDestination, getPlayersWithAdjacentBuildings, selectRandomRobberDestination, stealRandomResource, selectRandomStealTarget, CentreData } from '../engine/robberActions';
@@ -961,9 +961,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, [gameState.phase, gameState.currentPlayer, gameState.players, gameState.turnState.step, gameState.turnState.currentPlayerId, diceRollPhaseComplete, isRollingDice, waitingForConfirmation, aiActionLoopActive, startAIActionLoop, gameState]);
 
   // Helper function to check if a player qualifies for longest road bonus
-  const checkLongestRoadBonus = useCallback((playerId: string, newLength: number) => {
+  const checkLongestRoadBonus = useCallback((
+    playerId: string,
+    newLength: number,
+    customRoadLengths?: Map<string, number>
+  ) => {
     const minLength = gameState.gameSettings?.longestRoadSize || 5;
     const bonus = gameState.gameSettings?.longestRoadBonus || 2;
+    const roadLengthsToUse = customRoadLengths || gameState.longestRoadLengths;
 
     // Check if this player now qualifies and no one else has it
     if (newLength >= minLength) {
@@ -983,7 +988,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       } else if (currentHolder.id !== playerId) {
         // Check if this player beats the current holder
-        const currentHolderLength = gameState.longestRoadLengths.get(currentHolder.id) || 0;
+        const currentHolderLength = roadLengthsToUse.get(currentHolder.id) || 0;
         if (newLength > currentHolderLength) {
           const player = gameState.players.find(p => p.id === playerId);
           return {
@@ -3558,31 +3563,86 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       type: 'settlement'
     };
 
-    // Variable to capture trading port messages
+    // Variable to capture trading port messages and disruption info
     let tradingPortMessages: Array<{message: string, playerId: string}> = [];
+    let roadDisruptions: RoadDisruption[] = [];
+    let updatedRoadLengths: Map<string, number> = new Map();
 
     setGameState(prev => {
+      const updatedVerticesOccupiedBy = { ...prev.verticesOccupiedBy, [vertexId]: currentPlayer.id };
+      const boardGraph = loadBoardGraph(boardSize);
+      const vertices = buildVerticesWithOwnership(boardGraph, updatedVerticesOccupiedBy);
+
+      roadDisruptions = checkForRoadDisruptions(
+        vertexId,
+        currentPlayer.id,
+        prev,
+        vertices,
+        prev.longestRoadLengths
+      );
+
+      updatedRoadLengths = recalculateAllPlayersRoadLengths(
+        { ...prev, verticesOccupiedBy: updatedVerticesOccupiedBy },
+        vertices
+      );
+
+      let updatedPlayers = prev.players.map(p =>
+        p.id === currentPlayer.id
+          ? {
+              ...p,
+              resources: {
+                ...p.resources,
+                clay: p.resources.clay - 1,
+                lumber: p.resources.lumber - 1,
+                grain: p.resources.grain - 1,
+                fabric: p.resources.fabric - 1,
+                total: p.resources.total - 4
+              },
+              villageCount: p.villageCount + 1,
+              score: p.score + 1
+            }
+          : p
+      );
+
+      const currentHolder = updatedPlayers.find(p => p.hasLongestRoad);
+      if (currentHolder && roadDisruptions.some(d => d.playerId === currentHolder.id)) {
+        const holderNewLength = updatedRoadLengths.get(currentHolder.id) || 0;
+        const minLength = prev.gameSettings?.longestRoadSize || 5;
+
+        if (holderNewLength < minLength) {
+          updatedPlayers = updatedPlayers.map(p =>
+            p.id === currentHolder.id
+              ? { ...p, hasLongestRoad: false, score: p.score - (prev.gameSettings?.longestRoadBonus || 2) }
+              : p
+          );
+        } else {
+          const otherPlayers = Array.from(updatedRoadLengths.entries())
+            .filter(([pid]) => pid !== currentHolder.id);
+          const someoneHasLonger = otherPlayers.some(([, length]) => length > holderNewLength);
+
+          if (someoneHasLonger) {
+            const [newHolderId, newHolderLength] = otherPlayers.reduce((max, curr) =>
+              curr[1] > max[1] ? curr : max
+            );
+
+            updatedPlayers = updatedPlayers.map(p => {
+              if (p.id === currentHolder.id) {
+                return { ...p, hasLongestRoad: false, score: p.score - (prev.gameSettings?.longestRoadBonus || 2) };
+              } else if (p.id === newHolderId) {
+                return { ...p, hasLongestRoad: true, score: p.score + (prev.gameSettings?.longestRoadBonus || 2) };
+              }
+              return p;
+            });
+          }
+        }
+      }
+
       const newState = {
         ...prev,
         villages: [...prev.villages, newVillage],
-        verticesOccupiedBy: { ...prev.verticesOccupiedBy, [vertexId]: currentPlayer.id },
-        players: prev.players.map(p =>
-          p.id === currentPlayer.id
-            ? {
-                ...p,
-                resources: {
-                  ...p.resources,
-                  clay: p.resources.clay - 1,
-                  lumber: p.resources.lumber - 1,
-                  grain: p.resources.grain - 1,
-                  fabric: p.resources.fabric - 1,
-                  total: p.resources.total - 4
-                },
-                villageCount: p.villageCount + 1,
-                score: p.score + 1
-              }
-            : p
-        ),
+        verticesOccupiedBy: updatedVerticesOccupiedBy,
+        players: updatedPlayers,
+        longestRoadLengths: updatedRoadLengths,
         turnState: {
           ...prev.turnState,
           step: 'main',
@@ -3593,7 +3653,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
 
-      // Check for trading port access with the updated state and capture messages
       tradingPortMessages = checkAndLogTradingPortAccess(currentPlayer.id, vertexId, newState);
 
       return newState;
@@ -3603,9 +3662,17 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const villageMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> built a village at vertex ${vertexId} and earned 1 point`;
     addToLog(villageMessage);
 
-    // Add trading port messages after state update completes
     tradingPortMessages.forEach(msg => {
       addColoredLog(msg.message, msg.playerId);
+    });
+
+    roadDisruptions.forEach(disruption => {
+      const disruptedPlayer = gameState.players.find(p => p.id === disruption.playerId);
+      if (disruptedPlayer) {
+        const disruptedPlayerColor = getPlayerColorStyle(disruptedPlayer.color);
+        const disruptionMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span>'s village disrupted <span style="color: ${disruptedPlayerColor}; font-weight: bold;">${disruptedPlayer.name}</span>'s road network (${disruption.oldLength} → ${disruption.newLength} segments)`;
+        addToLog(disruptionMessage);
+      }
     });
   }, [gameState, boardSize, addToLog, getPlayerColorStyle, checkAndLogTradingPortAccess]);
 
@@ -3765,34 +3832,88 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       type: 'settlement'
     };
 
-    // Variable to capture trading port messages
+    // Variable to capture trading port messages and disruption info
     let tradingPortMessages: Array<{message: string, playerId: string}> = [];
+    let roadDisruptions: RoadDisruption[] = [];
+    let updatedRoadLengths: Map<string, number> = new Map();
 
     setGameState(prev => {
+      const updatedVerticesOccupiedBy = { ...prev.verticesOccupiedBy, [vertexId]: playerId };
+      const boardGraph = loadBoardGraph(boardSize);
+      const vertices = buildVerticesWithOwnership(boardGraph, updatedVerticesOccupiedBy);
+
+      roadDisruptions = checkForRoadDisruptions(
+        vertexId,
+        playerId,
+        prev,
+        vertices,
+        prev.longestRoadLengths
+      );
+
+      updatedRoadLengths = recalculateAllPlayersRoadLengths(
+        { ...prev, verticesOccupiedBy: updatedVerticesOccupiedBy },
+        vertices
+      );
+
+      let updatedPlayers = prev.players.map(p =>
+        p.id === playerId
+          ? {
+              ...p,
+              resources: {
+                ...p.resources,
+                clay: p.resources.clay - 1,
+                lumber: p.resources.lumber - 1,
+                grain: p.resources.grain - 1,
+                fabric: p.resources.fabric - 1,
+                total: p.resources.total - 4
+              },
+              villageCount: p.villageCount + 1,
+              score: p.score + 1
+            }
+          : p
+      );
+
+      const currentHolder = updatedPlayers.find(p => p.hasLongestRoad);
+      if (currentHolder && roadDisruptions.some(d => d.playerId === currentHolder.id)) {
+        const holderNewLength = updatedRoadLengths.get(currentHolder.id) || 0;
+        const minLength = prev.gameSettings?.longestRoadSize || 5;
+
+        if (holderNewLength < minLength) {
+          updatedPlayers = updatedPlayers.map(p =>
+            p.id === currentHolder.id
+              ? { ...p, hasLongestRoad: false, score: p.score - (prev.gameSettings?.longestRoadBonus || 2) }
+              : p
+          );
+        } else {
+          const otherPlayers = Array.from(updatedRoadLengths.entries())
+            .filter(([pid]) => pid !== currentHolder.id);
+          const someoneHasLonger = otherPlayers.some(([, length]) => length > holderNewLength);
+
+          if (someoneHasLonger) {
+            const [newHolderId, newHolderLength] = otherPlayers.reduce((max, curr) =>
+              curr[1] > max[1] ? curr : max
+            );
+
+            updatedPlayers = updatedPlayers.map(p => {
+              if (p.id === currentHolder.id) {
+                return { ...p, hasLongestRoad: false, score: p.score - (prev.gameSettings?.longestRoadBonus || 2) };
+              } else if (p.id === newHolderId) {
+                return { ...p, hasLongestRoad: true, score: p.score + (prev.gameSettings?.longestRoadBonus || 2) };
+              }
+              return p;
+            });
+          }
+        }
+      }
+
       const newState = {
         ...prev,
         villages: [...prev.villages, newVillage],
-        verticesOccupiedBy: { ...prev.verticesOccupiedBy, [vertexId]: playerId },
-        players: prev.players.map(p =>
-          p.id === playerId
-            ? {
-                ...p,
-                resources: {
-                  ...p.resources,
-                  clay: p.resources.clay - 1,
-                  lumber: p.resources.lumber - 1,
-                  grain: p.resources.grain - 1,
-                  fabric: p.resources.fabric - 1,
-                  total: p.resources.total - 4
-                },
-                villageCount: p.villageCount + 1,
-                score: p.score + 1
-              }
-            : p
-        )
+        verticesOccupiedBy: updatedVerticesOccupiedBy,
+        players: updatedPlayers,
+        longestRoadLengths: updatedRoadLengths
       };
 
-      // Check for trading port access with the updated state and capture messages
       tradingPortMessages = checkAndLogTradingPortAccess(playerId, vertexId, newState);
 
       return newState;
@@ -3802,9 +3923,17 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const villageMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> built a village at vertex ${vertexId} and earned 1 point`;
     addToLog(villageMessage);
 
-    // Add trading port messages after state update completes
     tradingPortMessages.forEach(msg => {
       addColoredLog(msg.message, msg.playerId);
+    });
+
+    roadDisruptions.forEach(disruption => {
+      const disruptedPlayer = gameState.players.find(p => p.id === disruption.playerId);
+      if (disruptedPlayer) {
+        const disruptedPlayerColor = getPlayerColorStyle(disruptedPlayer.color);
+        const disruptionMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span>'s village disrupted <span style="color: ${disruptedPlayerColor}; font-weight: bold;">${disruptedPlayer.name}</span>'s road network (${disruption.oldLength} → ${disruption.newLength} segments)`;
+        addToLog(disruptionMessage);
+      }
     });
 
     return true;

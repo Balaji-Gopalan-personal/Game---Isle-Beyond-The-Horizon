@@ -230,3 +230,74 @@ export function getValidVillagePlacements(
 export function getPlayerVillages(playerId: string, gameState: GameState): Village[] {
   return gameState.villages.filter(v => v.playerId === playerId && v.type === 'settlement');
 }
+
+export function getRoadsAtVertex(
+  vertexId: number,
+  roads: Road[],
+  playerId?: string
+): Road[] {
+  const roadsAtVertex = roads.filter(r => r.from === vertexId || r.to === vertexId);
+
+  if (playerId) {
+    return roadsAtVertex.filter(r => r.playerId === playerId);
+  }
+
+  return roadsAtVertex;
+}
+
+export interface RoadDisruption {
+  playerId: string;
+  oldLength: number;
+  newLength: number;
+}
+
+export function recalculateAllPlayersRoadLengths(
+  gameState: GameState,
+  vertices: Record<number, { id: number; occupiedBy: string | null; neighbors: number[] }>
+): Map<string, number> {
+  const roadLengths = new Map<string, number>();
+
+  const playerIds = new Set(gameState.roads.map(r => r.playerId));
+
+  for (const playerId of playerIds) {
+    const length = calculateLongestRoadPath(playerId, gameState.roads, vertices, false);
+    roadLengths.set(playerId, length);
+  }
+
+  return roadLengths;
+}
+
+export function checkForRoadDisruptions(
+  vertexId: number,
+  placingPlayerId: string,
+  gameState: GameState,
+  vertices: Record<number, { id: number; occupiedBy: string | null; neighbors: number[] }>,
+  currentLongestRoadLengths: Map<string, number>
+): RoadDisruption[] {
+  const disruptions: RoadDisruption[] = [];
+
+  const playerIds = new Set(gameState.roads.map(r => r.playerId));
+
+  for (const playerId of playerIds) {
+    if (playerId === placingPlayerId) {
+      continue;
+    }
+
+    const roadsAtVertex = getRoadsAtVertex(vertexId, gameState.roads, playerId);
+
+    if (roadsAtVertex.length >= 2) {
+      const oldLength = currentLongestRoadLengths.get(playerId) || 0;
+      const newLength = calculateLongestRoadPath(playerId, gameState.roads, vertices, false);
+
+      if (newLength < oldLength) {
+        disruptions.push({
+          playerId,
+          oldLength,
+          newLength
+        });
+      }
+    }
+  }
+
+  return disruptions;
+}
