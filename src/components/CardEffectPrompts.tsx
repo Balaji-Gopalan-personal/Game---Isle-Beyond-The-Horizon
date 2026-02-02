@@ -180,15 +180,18 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
       </div>
       <div className="flex gap-2 justify-center">
         {resources.map(resource => {
-          const isSelected = resourcesSelected.includes(resource.fullName);
+          const selectionCount = resourcesSelected.filter(r => r === resource.fullName).length;
+          const hasSelections = selectionCount > 0;
           return (
             <button
               key={resource.type}
               onClick={() => onSelectResource(resource.type)}
-              disabled={isSelected}
+              disabled={canConfirm}
               className={`relative w-8 h-8 rounded border-2 overflow-hidden flex-shrink-0 transition-all duration-200 ${
-                isSelected
-                  ? 'border-blue-500 opacity-50 cursor-not-allowed'
+                canConfirm
+                  ? 'opacity-50 cursor-not-allowed border-gray-300'
+                  : hasSelections
+                  ? 'border-blue-500 cursor-pointer hover:border-blue-600'
                   : 'border-gray-300 hover:border-gray-400 cursor-pointer'
               }`}
               title={resource.fullName}
@@ -203,6 +206,13 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
                   {resource.label}
                 </span>
               </div>
+              {selectionCount > 0 && (
+                <div className="absolute bottom-0 right-0 w-4 h-4 bg-blue-600 rounded-tl flex items-center justify-center">
+                  <span className="text-[10px] font-bold text-white">
+                    {selectionCount}
+                  </span>
+                </div>
+              )}
             </button>
           );
         })}
