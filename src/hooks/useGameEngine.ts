@@ -2886,7 +2886,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, []);
 
   const handleConfirmBoomingEconomy = useCallback(() => {
-    let logData: { playerName: string; playerColor: string; resources: string[] } | null = null;
+    console.log(`🎁 handleConfirmBoomingEconomy called`);
 
     setGameState(prev => {
       const resourcesSelected = (prev.turnState.placementContext.resourcesSelected || []) as string[];
@@ -2900,6 +2900,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       }
 
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
+      if (!currentPlayer) {
+        console.warn(`   WARNING: Could not find current player`);
+        return prev;
+      }
 
       const updatedPlayers = prev.players.map(p => {
         if (p.id === prev.currentPlayer) {
@@ -2929,20 +2933,24 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return p;
       });
 
-      // Capture logging data (don't log inside state updater)
-      if (currentPlayer) {
-        logData = {
-          playerName: currentPlayer.name,
-          playerColor: getPlayerColorStyle(currentPlayer.color),
-          resources: resourcesSelected
-        };
-        console.log(`   📋 Prepared log message for ${currentPlayer.name}: gained ${resourcesSelected.join(', ')}`);
-      } else {
-        console.warn(`   WARNING: Could not find current player for logging`);
-      }
+      // Prepare and schedule log message INSIDE state updater to ensure it happens
+      const capitalizedResources = resourcesSelected.map(r => r.charAt(0).toUpperCase() + r.slice(1));
+      const resourceText = capitalizedResources.length === 2 && capitalizedResources[0] === capitalizedResources[1]
+        ? `2 ${capitalizedResources[0]}`
+        : capitalizedResources.join(' and ');
+      const playerColor = getPlayerColorStyle(currentPlayer.color);
+      const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> gained ${resourceText} from Booming Economy`;
+
+      console.log(`   📋 Prepared log message for ${currentPlayer.name}: gained ${resourcesSelected.join(', ')}`);
+
+      // Schedule the log to be added after state update
+      setTimeout(() => {
+        console.log(`   📝 Adding to Events log: ${currentPlayer.name} gained ${resourceText}`);
+        addToLog(message);
+      }, 150);
 
       // Find the card to move to discard
-      const cardToDiscard = currentPlayer?.developmentCardsInHand.find(c => c.id === pendingCardId);
+      const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
       return {
         ...prev,
@@ -2961,22 +2969,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
-
-    // Log after state update completes
-    if (logData) {
-      const capitalizedResources = logData.resources.map(r => r.charAt(0).toUpperCase() + r.slice(1));
-      const resourceText = capitalizedResources.length === 2 && capitalizedResources[0] === capitalizedResources[1]
-        ? `2 ${capitalizedResources[0]}`
-        : capitalizedResources.join(' and ');
-      const message = `<span style="color: ${logData.playerColor}; font-weight: bold;">${logData.playerName}</span> gained ${resourceText} from Booming Economy`;
-      console.log(`   🚀 Scheduling log for Events feed: "${logData.playerName} gained ${resourceText}"`);
-      setTimeout(() => {
-        console.log(`   📝 Actually adding to log now: "${logData.playerName} gained ${resourceText}"`);
-        addToLog(message);
-      }, 100);
-    } else {
-      console.warn(`   ⚠️ No logData to log!`);
-    }
   }, [addToLog, getPlayerColorStyle]);
 
   const handleClosedMarketResourceSelection = useCallback((resourceType: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral') => {
