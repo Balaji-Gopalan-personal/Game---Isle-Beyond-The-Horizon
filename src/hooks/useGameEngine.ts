@@ -2989,98 +2989,113 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, []);
 
   const handleConfirmClosedMarket = useCallback(() => {
-    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
-    if (!currentPlayer) return;
+    let logData: { playerName: string; playerColor: string; totalTransferred: number; resourceType: string; transfers: { from: string; fromColor: string; amount: number }[] } | null = null;
 
-    const resourceType = gameState.turnState.placementContext.selectedResource as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral';
-    const pendingCardId = gameState.turnState.placementContext.pendingCardId;
-    if (!resourceType) return;
+    setGameState(prev => {
+      const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
+      if (!currentPlayer) return prev;
 
-    let totalTransferred = 0;
-    const transfers: { from: string; amount: number }[] = [];
+      const resourceType = prev.turnState.placementContext.selectedResource as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral';
+      const pendingCardId = prev.turnState.placementContext.pendingCardId;
+      if (!resourceType) return prev;
 
-    const updatedPlayers = gameState.players.map(p => {
-      if (p.id === currentPlayer.id) {
+      let totalTransferred = 0;
+      const transfers: { from: string; fromColor: string; amount: number }[] = [];
+
+      const updatedPlayers = prev.players.map(p => {
+        if (p.id === currentPlayer.id) {
+          return p;
+        }
+
+        const amountToTransfer = p.resources[resourceType];
+        if (amountToTransfer > 0) {
+          totalTransferred += amountToTransfer;
+          transfers.push({
+            from: p.name,
+            fromColor: getPlayerColorStyle(p.color),
+            amount: amountToTransfer
+          });
+
+          return {
+            ...p,
+            resources: {
+              ...p.resources,
+              [resourceType]: 0,
+              total: p.resources.total - amountToTransfer
+            }
+          };
+        }
         return p;
-      }
+      });
 
-      const amountToTransfer = p.resources[resourceType];
-      if (amountToTransfer > 0) {
-        totalTransferred += amountToTransfer;
-        transfers.push({ from: p.name, amount: amountToTransfer });
-
-        return {
-          ...p,
-          resources: {
-            ...p.resources,
-            [resourceType]: 0,
-            total: p.resources.total - amountToTransfer
+      const finalPlayers = updatedPlayers.map(p => {
+        if (p.id === currentPlayer.id) {
+          // Remove the card now that it's successfully played
+          if (pendingCardId) {
+            return {
+              ...p,
+              resources: {
+                ...p.resources,
+                [resourceType]: p.resources[resourceType] + totalTransferred,
+                total: p.resources.total + totalTransferred
+              },
+              developmentCardsInHand: p.developmentCardsInHand.filter(c => c.id !== pendingCardId),
+              developmentCards: p.developmentCards - 1
+            };
           }
-        };
-      }
-      return p;
-    });
-
-    const finalPlayers = updatedPlayers.map(p => {
-      if (p.id === currentPlayer.id) {
-        // Remove the card now that it's successfully played
-        if (pendingCardId) {
           return {
             ...p,
             resources: {
               ...p.resources,
               [resourceType]: p.resources[resourceType] + totalTransferred,
               total: p.resources.total + totalTransferred
-            },
-            developmentCardsInHand: p.developmentCardsInHand.filter(c => c.id !== pendingCardId),
-            developmentCards: p.developmentCards - 1
+            }
           };
         }
-        return {
-          ...p,
-          resources: {
-            ...p.resources,
-            [resourceType]: p.resources[resourceType] + totalTransferred,
-            total: p.resources.total + totalTransferred
+        return p;
+      });
+
+      // Find the card to move to discard
+      const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
+
+      // Capture data for logging
+      logData = {
+        playerName: currentPlayer.name,
+        playerColor: getPlayerColorStyle(currentPlayer.color),
+        totalTransferred,
+        resourceType,
+        transfers
+      };
+
+      return {
+        ...prev,
+        players: finalPlayers,
+        developmentCardDiscard: cardToDiscard
+          ? [...prev.developmentCardDiscard, { ...cardToDiscard, location: 'discard' as const }]
+          : prev.developmentCardDiscard,
+        turnState: {
+          ...prev.turnState,
+          step: 'play_dev_cards',
+          placementContext: {
+            ...prev.turnState.placementContext,
+            selectedResource: undefined,
+            pendingCardId: undefined
           }
-        };
-      }
-      return p;
-    });
-
-    // Find the card to move to discard
-    const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
-
-    setGameState(prev => ({
-      ...prev,
-      players: finalPlayers,
-      developmentCardDiscard: cardToDiscard
-        ? [...prev.developmentCardDiscard, { ...cardToDiscard, location: 'discard' as const }]
-        : prev.developmentCardDiscard,
-      turnState: {
-        ...prev.turnState,
-        step: 'play_dev_cards',
-        placementContext: {
-          ...prev.turnState.placementContext,
-          selectedResource: undefined,
-          pendingCardId: undefined
         }
-      }
-    }));
-
-    const playerColor = getPlayerColorStyle(currentPlayer.color);
-    const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> took ${totalTransferred} ${resourceType} from other players`;
-    addToLog(message);
-
-    transfers.forEach(transfer => {
-      const transferPlayer = gameState.players.find(p => p.name === transfer.from);
-      if (transferPlayer) {
-        const transferPlayerColor = getPlayerColorStyle(transferPlayer.color);
-        const detailMessage = `<span style="color: ${transferPlayerColor}; font-weight: bold;">${transfer.from}</span> gave up ${transfer.amount} ${resourceType}`;
-        setTimeout(() => addToLog(detailMessage), 100);
-      }
+      };
     });
-  }, [gameState, addToLog, getPlayerColorStyle]);
+
+    // Log after state update completes
+    if (logData) {
+      const message = `<span style="color: ${logData.playerColor}; font-weight: bold;">${logData.playerName}</span> took ${logData.totalTransferred} ${logData.resourceType} from other players`;
+      setTimeout(() => addToLog(message), 100);
+
+      logData.transfers.forEach((transfer, index) => {
+        const detailMessage = `<span style="color: ${transfer.fromColor}; font-weight: bold;">${transfer.from}</span> gave up ${transfer.amount} ${logData.resourceType}`;
+        setTimeout(() => addToLog(detailMessage), 200 + (index * 50));
+      });
+    }
+  }, [addToLog, getPlayerColorStyle]);
 
   const handleResourceSwapPlayerSelection = useCallback((targetPlayerId: string) => {
     console.log('DEBUG: Resource Swap target player selected:', targetPlayerId);
@@ -3098,58 +3113,71 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, []);
 
   const handleConfirmResourceSwap = useCallback(() => {
-    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
-    const targetPlayerId = gameState.turnState.placementContext.selectedPlayerId;
-    const targetPlayer = gameState.players.find(p => p.id === targetPlayerId);
-    const pendingCardId = gameState.turnState.placementContext.pendingCardId;
+    let logData: { currentPlayerName: string; currentPlayerColor: string; targetPlayerName: string; targetPlayerColor: string } | null = null;
 
-    if (!currentPlayer || !targetPlayer) return;
+    setGameState(prev => {
+      const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
+      const targetPlayerId = prev.turnState.placementContext.selectedPlayerId;
+      const targetPlayer = prev.players.find(p => p.id === targetPlayerId);
+      const pendingCardId = prev.turnState.placementContext.pendingCardId;
 
-    const tempResources = { ...currentPlayer.resources };
+      if (!currentPlayer || !targetPlayer) return prev;
 
-    const updatedPlayers = gameState.players.map(p => {
-      if (p.id === currentPlayer.id) {
-        // Remove the card now that it's successfully played
-        if (pendingCardId) {
-          return {
-            ...p,
-            resources: { ...targetPlayer.resources },
-            developmentCardsInHand: p.developmentCardsInHand.filter(c => c.id !== pendingCardId),
-            developmentCards: p.developmentCards - 1
-          };
+      const tempResources = { ...currentPlayer.resources };
+
+      const updatedPlayers = prev.players.map(p => {
+        if (p.id === currentPlayer.id) {
+          // Remove the card now that it's successfully played
+          if (pendingCardId) {
+            return {
+              ...p,
+              resources: { ...targetPlayer.resources },
+              developmentCardsInHand: p.developmentCardsInHand.filter(c => c.id !== pendingCardId),
+              developmentCards: p.developmentCards - 1
+            };
+          }
+          return { ...p, resources: { ...targetPlayer.resources } };
+        } else if (p.id === targetPlayer.id) {
+          return { ...p, resources: tempResources };
         }
-        return { ...p, resources: { ...targetPlayer.resources } };
-      } else if (p.id === targetPlayer.id) {
-        return { ...p, resources: tempResources };
-      }
-      return p;
+        return p;
+      });
+
+      // Find the card to move to discard
+      const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
+
+      // Capture data for logging
+      logData = {
+        currentPlayerName: currentPlayer.name,
+        currentPlayerColor: getPlayerColorStyle(currentPlayer.color),
+        targetPlayerName: targetPlayer.name,
+        targetPlayerColor: getPlayerColorStyle(targetPlayer.color)
+      };
+
+      return {
+        ...prev,
+        players: updatedPlayers,
+        developmentCardDiscard: cardToDiscard
+          ? [...prev.developmentCardDiscard, { ...cardToDiscard, location: 'discard' as const }]
+          : prev.developmentCardDiscard,
+        turnState: {
+          ...prev.turnState,
+          step: 'play_dev_cards',
+          placementContext: {
+            ...prev.turnState.placementContext,
+            selectedPlayerId: undefined,
+            pendingCardId: undefined
+          }
+        }
+      };
     });
 
-    // Find the card to move to discard
-    const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
-
-    setGameState(prev => ({
-      ...prev,
-      players: updatedPlayers,
-      developmentCardDiscard: cardToDiscard
-        ? [...prev.developmentCardDiscard, { ...cardToDiscard, location: 'discard' as const }]
-        : prev.developmentCardDiscard,
-      turnState: {
-        ...prev.turnState,
-        step: 'play_dev_cards',
-        placementContext: {
-          ...prev.turnState.placementContext,
-          selectedPlayerId: undefined,
-          pendingCardId: undefined
-        }
-      }
-    }));
-
-    const currentPlayerColor = getPlayerColorStyle(currentPlayer.color);
-    const targetPlayerColor = getPlayerColorStyle(targetPlayer.color);
-    const message = `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> swapped all resources with <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`;
-    addToLog(message);
-  }, [gameState, addToLog, getPlayerColorStyle]);
+    // Log after state update completes
+    if (logData) {
+      const message = `<span style="color: ${logData.currentPlayerColor}; font-weight: bold;">${logData.currentPlayerName}</span> swapped all resources with <span style="color: ${logData.targetPlayerColor}; font-weight: bold;">${logData.targetPlayerName}</span>`;
+      setTimeout(() => addToLog(message), 100);
+    }
+  }, [addToLog, getPlayerColorStyle]);
 
   const handleCancelCardEffect = useCallback(() => {
     setGameState(prev => ({
@@ -3173,70 +3201,82 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   const handleFreeUpgradeVillageSelection = useCallback((vertexId: number) => {
     console.log('DEBUG: Free Upgrade village selected:', vertexId);
 
-    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
-    const pendingCardId = gameState.turnState.placementContext.pendingCardId;
-    if (!currentPlayer) return;
+    let logData: { playerName: string; playerColor: string } | null = null;
 
-    const village = gameState.villages.find(v => v.vertexId === vertexId && v.playerId === currentPlayer.id && v.type === 'settlement');
-    if (!village) {
-      addToLog('Invalid village selection');
-      return;
-    }
+    setGameState(prev => {
+      const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
+      const pendingCardId = prev.turnState.placementContext.pendingCardId;
+      if (!currentPlayer) return prev;
 
-    const updatedVillages = gameState.villages.map(v => {
-      if (v.id === village.id) {
-        return { ...v, type: 'city' as const };
+      const village = prev.villages.find(v => v.vertexId === vertexId && v.playerId === currentPlayer.id && v.type === 'settlement');
+      if (!village) {
+        setTimeout(() => addToLog('Invalid village selection'), 100);
+        return prev;
       }
-      return v;
-    });
 
-    const updatedPlayers = gameState.players.map(p => {
-      if (p.id === currentPlayer.id) {
-        // Remove the card now that it's successfully played
-        if (pendingCardId) {
+      const updatedVillages = prev.villages.map(v => {
+        if (v.id === village.id) {
+          return { ...v, type: 'city' as const };
+        }
+        return v;
+      });
+
+      const updatedPlayers = prev.players.map(p => {
+        if (p.id === currentPlayer.id) {
+          // Remove the card now that it's successfully played
+          if (pendingCardId) {
+            return {
+              ...p,
+              score: p.score + 1,
+              villageCount: p.villageCount - 1,
+              cityCount: p.cityCount + 1,
+              developmentCardsInHand: p.developmentCardsInHand.filter(c => c.id !== pendingCardId),
+              developmentCards: p.developmentCards - 1
+            };
+          }
           return {
             ...p,
             score: p.score + 1,
             villageCount: p.villageCount - 1,
-            cityCount: p.cityCount + 1,
-            developmentCardsInHand: p.developmentCardsInHand.filter(c => c.id !== pendingCardId),
-            developmentCards: p.developmentCards - 1
+            cityCount: p.cityCount + 1
           };
         }
-        return {
-          ...p,
-          score: p.score + 1,
-          villageCount: p.villageCount - 1,
-          cityCount: p.cityCount + 1
-        };
-      }
-      return p;
+        return p;
+      });
+
+      // Find the card to move to discard
+      const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
+
+      // Capture data for logging
+      logData = {
+        playerName: currentPlayer.name,
+        playerColor: getPlayerColorStyle(currentPlayer.color)
+      };
+
+      return {
+        ...prev,
+        players: updatedPlayers,
+        villages: updatedVillages,
+        developmentCardDiscard: cardToDiscard
+          ? [...prev.developmentCardDiscard, { ...cardToDiscard, location: 'discard' as const }]
+          : prev.developmentCardDiscard,
+        turnState: {
+          ...prev.turnState,
+          step: 'play_dev_cards',
+          placementContext: {
+            ...prev.turnState.placementContext,
+            pendingCardId: undefined
+          }
+        }
+      };
     });
 
-    // Find the card to move to discard
-    const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
-
-    setGameState(prev => ({
-      ...prev,
-      players: updatedPlayers,
-      villages: updatedVillages,
-      developmentCardDiscard: cardToDiscard
-        ? [...prev.developmentCardDiscard, { ...cardToDiscard, location: 'discard' as const }]
-        : prev.developmentCardDiscard,
-      turnState: {
-        ...prev.turnState,
-        step: 'play_dev_cards',
-        placementContext: {
-          ...prev.turnState.placementContext,
-          pendingCardId: undefined
-        }
-      }
-    }));
-
-    const playerColor = getPlayerColorStyle(currentPlayer.color);
-    const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> upgraded a Village to an Estate for free and earned 1 point`;
-    addToLog(message);
-  }, [gameState, addToLog, getPlayerColorStyle]);
+    // Log after state update completes
+    if (logData) {
+      const message = `<span style="color: ${logData.playerColor}; font-weight: bold;">${logData.playerName}</span> upgraded a Village to an Estate for free and earned 1 point`;
+      setTimeout(() => addToLog(message), 100);
+    }
+  }, [addToLog, getPlayerColorStyle]);
 
   // Auto-handle play_dev_cards phase for AI players
   useEffect(() => {
@@ -4776,19 +4816,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
   // Trading handlers
   const handleExecuteBankTrade = useCallback((offeringResource: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral', offeringAmount: number, requestedResource: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral', requestedAmount?: number) => {
-    const currentPlayer = getCurrentPlayer();
-    if (!currentPlayer) return;
-
-    // Calculate requested amount based on trade rate if not provided
-    const tradeRate = getBestTradeRateForResource(currentPlayer.id, offeringResource, gameState);
-    const calculatedRequestedAmount = requestedAmount || (offeringAmount / tradeRate.rate);
-
-    const playerColor = getPlayerColorStyle(currentPlayer.color);
-    const rateDisplay = getTradeRateDisplay(tradeRate);
-    const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> traded ${offeringAmount} ${offeringResource} for ${calculatedRequestedAmount} ${requestedResource} with the bank (${rateDisplay})`;
-    addToLog(message);
+    let logData: { playerName: string; playerColor: string; offeringAmount: number; offeringResource: string; requestedAmount: number; requestedResource: string; rateDisplay: string } | null = null;
 
     setGameState(prev => {
+      const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
+      if (!currentPlayer) return prev;
+
+      // Calculate requested amount based on trade rate if not provided
+      const tradeRate = getBestTradeRateForResource(currentPlayer.id, offeringResource, prev);
+      const calculatedRequestedAmount = requestedAmount || (offeringAmount / tradeRate.rate);
+
       const newPlayers = prev.players.map(p => {
         if (p.id === currentPlayer.id) {
           const newResources = {
@@ -4802,60 +4839,91 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return p;
       });
 
+      // Capture data for logging
+      logData = {
+        playerName: currentPlayer.name,
+        playerColor: getPlayerColorStyle(currentPlayer.color),
+        offeringAmount,
+        offeringResource,
+        requestedAmount: calculatedRequestedAmount,
+        requestedResource,
+        rateDisplay: getTradeRateDisplay(tradeRate)
+      };
+
       return { ...prev, players: newPlayers };
     });
-  }, [getCurrentPlayer, getPlayerColorStyle, addToLog, gameState]);
+
+    // Log after state update completes
+    if (logData) {
+      const message = `<span style="color: ${logData.playerColor}; font-weight: bold;">${logData.playerName}</span> traded ${logData.offeringAmount} ${logData.offeringResource} for ${logData.requestedAmount} ${logData.requestedResource} with the bank (${logData.rateDisplay})`;
+      setTimeout(() => addToLog(message), 100);
+    }
+  }, [getPlayerColorStyle, addToLog]);
 
   const handleProposePlayerTrade = useCallback((offeredResources: any, requestedResources: any) => {
-    const currentPlayer = getCurrentPlayer();
-    if (!currentPlayer) return;
+    let logData: { playerName: string; playerColor: string; offeredList: string; requestedList: string } | null = null;
 
-    const otherPlayers = gameState.players.filter(p => p.id !== currentPlayer.id);
+    setGameState(prev => {
+      const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
+      if (!currentPlayer) return prev;
 
-    const sortedPlayers = [...gameState.players].sort((a, b) => a.order - b.order);
-    const proposerIndex = sortedPlayers.findIndex(p => p.id === currentPlayer.id);
+      const otherPlayers = prev.players.filter(p => p.id !== currentPlayer.id);
 
-    const respondingPlayerOrder: string[] = [];
-    for (let i = 1; i < sortedPlayers.length; i++) {
-      const index = (proposerIndex + i) % sortedPlayers.length;
-      respondingPlayerOrder.push(sortedPlayers[index].id);
-    }
+      const sortedPlayers = [...prev.players].sort((a, b) => a.order - b.order);
+      const proposerIndex = sortedPlayers.findIndex(p => p.id === currentPlayer.id);
 
-    const tradeProposal = {
-      proposingPlayerId: currentPlayer.id,
-      offeredResources,
-      requestedResources,
-      respondingPlayers: otherPlayers.map(p => p.id),
-      responses: {} as Record<string, 'accepted' | 'rejected' | 'pending'>,
-      currentRespondingPlayerIndex: 0,
-      respondingPlayerOrder
-    };
+      const respondingPlayerOrder: string[] = [];
+      for (let i = 1; i < sortedPlayers.length; i++) {
+        const index = (proposerIndex + i) % sortedPlayers.length;
+        respondingPlayerOrder.push(sortedPlayers[index].id);
+      }
 
-    otherPlayers.forEach(player => {
-      tradeProposal.responses[player.id] = 'pending';
+      const tradeProposal = {
+        proposingPlayerId: currentPlayer.id,
+        offeredResources,
+        requestedResources,
+        respondingPlayers: otherPlayers.map(p => p.id),
+        responses: {} as Record<string, 'accepted' | 'rejected' | 'pending'>,
+        currentRespondingPlayerIndex: 0,
+        respondingPlayerOrder
+      };
+
+      otherPlayers.forEach(player => {
+        tradeProposal.responses[player.id] = 'pending';
+      });
+
+      // Capture data for logging
+      const offeredList = Object.entries(offeredResources)
+        .filter(([_, amount]) => (amount as number) > 0)
+        .map(([resource, amount]) => `${amount} ${resource}`)
+        .join(', ');
+      const requestedList = Object.entries(requestedResources)
+        .filter(([_, amount]) => (amount as number) > 0)
+        .map(([resource, amount]) => `${amount} ${resource}`)
+        .join(', ');
+
+      logData = {
+        playerName: currentPlayer.name,
+        playerColor: getPlayerColorStyle(currentPlayer.color),
+        offeredList,
+        requestedList
+      };
+
+      return {
+        ...prev,
+        turnState: {
+          ...prev.turnState,
+          tradeProposal
+        }
+      };
     });
 
-    setGameState(prev => ({
-      ...prev,
-      turnState: {
-        ...prev.turnState,
-        tradeProposal
-      }
-    }));
-
-    const playerColor = getPlayerColorStyle(currentPlayer.color);
-    const offeredList = Object.entries(offeredResources)
-      .filter(([_, amount]) => (amount as number) > 0)
-      .map(([resource, amount]) => `${amount} ${resource}`)
-      .join(', ');
-    const requestedList = Object.entries(requestedResources)
-      .filter(([_, amount]) => (amount as number) > 0)
-      .map(([resource, amount]) => `${amount} ${resource}`)
-      .join(', ');
-
-    const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> proposed trade: offering ${offeredList} for ${requestedList}`;
-    addToLog(message);
-  }, [gameState.players, getCurrentPlayer, getPlayerColorStyle, addToLog]);
+    // Log after state update completes
+    if (logData) {
+      const message = `<span style="color: ${logData.playerColor}; font-weight: bold;">${logData.playerName}</span> proposed trade: offering ${logData.offeredList} for ${logData.requestedList}`;
+      setTimeout(() => addToLog(message), 100);
+    }
+  }, [getPlayerColorStyle, addToLog]);
 
   useEffect(() => {
     const tradeProposal = gameState.turnState.tradeProposal;
@@ -5012,37 +5080,24 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, [gameState.turnState.tradeProposal, gameState.players, getPlayerColorStyle]);
 
   const handleHumanAcceptAITrade = useCallback(() => {
-    const tradeProposal = gameState.turnState.tradeProposal;
-    if (!tradeProposal) return;
-
-    const humanPlayer = gameState.players.find(p => p.isHuman);
-    if (!humanPlayer) return;
-
-    const proposingPlayer = gameState.players.find(p => p.id === tradeProposal.proposingPlayerId);
-    if (!proposingPlayer) return;
-
-    const hasEnoughResources = Object.entries(tradeProposal.requestedResources).every(
-      ([resource, amount]) => humanPlayer.resources[resource as keyof typeof humanPlayer.resources] >= (amount as number)
-    );
-
-    if (!hasEnoughResources) return;
-
-    const proposingColor = getPlayerColorStyle(proposingPlayer.color);
-    const acceptingColor = getPlayerColorStyle(humanPlayer.color);
-
-    const offeredList = Object.entries(tradeProposal.offeredResources)
-      .filter(([_, amount]) => (amount as number) > 0)
-      .map(([resource, amount]) => `${amount} ${resource}`)
-      .join(', ');
-    const requestedList = Object.entries(tradeProposal.requestedResources)
-      .filter(([_, amount]) => (amount as number) > 0)
-      .map(([resource, amount]) => `${amount} ${resource}`)
-      .join(', ');
-
-    const message = `<span style="color: ${proposingColor}; font-weight: bold;">${proposingPlayer.name}</span> traded ${offeredList} with <span style="color: ${acceptingColor}; font-weight: bold;">${humanPlayer.name}</span> for ${requestedList}`;
-    addToLog(message);
+    let logData: { proposingName: string; proposingColor: string; acceptingName: string; acceptingColor: string; offeredList: string; requestedList: string } | null = null;
 
     setGameState(prev => {
+      const tradeProposal = prev.turnState.tradeProposal;
+      if (!tradeProposal) return prev;
+
+      const humanPlayer = prev.players.find(p => p.isHuman);
+      if (!humanPlayer) return prev;
+
+      const proposingPlayer = prev.players.find(p => p.id === tradeProposal.proposingPlayerId);
+      if (!proposingPlayer) return prev;
+
+      const hasEnoughResources = Object.entries(tradeProposal.requestedResources).every(
+        ([resource, amount]) => humanPlayer.resources[resource as keyof typeof humanPlayer.resources] >= (amount as number)
+      );
+
+      if (!hasEnoughResources) return prev;
+
       const newPlayers = prev.players.map(p => {
         if (p.id === proposingPlayer.id) {
           const newResources = { ...p.resources };
@@ -5071,6 +5126,25 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return p;
       });
 
+      // Capture data for logging
+      const offeredList = Object.entries(tradeProposal.offeredResources)
+        .filter(([_, amount]) => (amount as number) > 0)
+        .map(([resource, amount]) => `${amount} ${resource}`)
+        .join(', ');
+      const requestedList = Object.entries(tradeProposal.requestedResources)
+        .filter(([_, amount]) => (amount as number) > 0)
+        .map(([resource, amount]) => `${amount} ${resource}`)
+        .join(', ');
+
+      logData = {
+        proposingName: proposingPlayer.name,
+        proposingColor: getPlayerColorStyle(proposingPlayer.color),
+        acceptingName: humanPlayer.name,
+        acceptingColor: getPlayerColorStyle(humanPlayer.color),
+        offeredList,
+        requestedList
+      };
+
       return {
         ...prev,
         players: newPlayers,
@@ -5080,18 +5154,21 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
-  }, [gameState, getPlayerColorStyle, addToLog]);
+
+    // Log after state update completes
+    if (logData) {
+      const message = `<span style="color: ${logData.proposingColor}; font-weight: bold;">${logData.proposingName}</span> traded ${logData.offeredList} with <span style="color: ${logData.acceptingColor}; font-weight: bold;">${logData.acceptingName}</span> for ${logData.requestedList}`;
+      setTimeout(() => addToLog(message), 100);
+    }
+  }, [getPlayerColorStyle, addToLog]);
 
   const handleHumanRejectAITrade = useCallback(() => {
-    const tradeProposal = gameState.turnState.tradeProposal;
-    if (!tradeProposal) return;
-
-    const humanPlayer = gameState.players.find(p => p.isHuman);
-    if (!humanPlayer) return;
-
     setGameState(prev => {
       const currentProposal = prev.turnState.tradeProposal;
       if (!currentProposal) return prev;
+
+      const humanPlayer = prev.players.find(p => p.isHuman);
+      if (!humanPlayer) return prev;
 
       const newResponses = { ...currentProposal.responses, [humanPlayer.id]: 'rejected' };
       const newIndex = currentProposal.currentRespondingPlayerIndex + 1;
@@ -5148,7 +5225,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
-  }, [gameState, getPlayerColorStyle]);
+  }, [getPlayerColorStyle]);
 
   return {
     gameState,
