@@ -3221,7 +3221,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }));
 
     const playerColor = getPlayerColorStyle(currentPlayer.color);
-    const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> upgraded a Village to an Estate for free`;
+    const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> upgraded a Village to an Estate for free and earned 1 point`;
     addToLog(message);
   }, [gameState, addToLog, getPlayerColorStyle]);
 
