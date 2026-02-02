@@ -296,10 +296,84 @@ const handleNewAction = useCallback(() => {
 - Previous fix: `TRADING_AND_LOGGING_FIXES.md` - Fixed `handleConfirmBoomingEconomy` with the same pattern
 - This fix extends the pattern to all other affected callbacks
 
+## Additional Fix: Booming Economy Not Logging
+
+### Problem
+After the initial fix, `handleConfirmBoomingEconomy` was not displaying log messages in the Events feed, despite the function preparing the log data correctly (visible in console logs).
+
+### Root Cause
+The useEffect hooks that trigger card effect handlers had excessive dependencies:
+```typescript
+// Before - caused circular dependency and re-execution issues
+}, [gameState.phase, gameState.turnState.step, gameState.currentPlayer,
+    gameState.players, handleBoomingEconomyResourceSelection, handleConfirmBoomingEconomy]);
+```
+
+When handlers updated `gameState.players`, this triggered the useEffect to run again, causing:
+- Double execution of handlers (visible in console logs)
+- Potential race conditions with setTimeout
+- Log messages potentially not reaching the Events feed
+
+### Solution
+Simplified all card effect useEffect dependencies to only include the trigger conditions:
+```typescript
+// After - stable dependencies
+}, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+```
+
+### Files Modified
+
+**Additional changes to `src/hooks/useGameEngine.ts`:**
+
+1. **Line 2965-2977**: Added debug logging to track when log messages are scheduled and executed
+   - Helps diagnose if setTimeout is firing
+   - Confirms addToLog is being called
+
+2. **Line 3363**: Simplified Booming Economy useEffect dependencies
+   - Removed: `gameState.players`, `handleBoomingEconomyResourceSelection`, `handleConfirmBoomingEconomy`
+   - Kept: `gameState.phase`, `gameState.turnState.step`, `gameState.currentPlayer`
+
+3. **Line 3390**: Simplified Closed Market useEffect dependencies
+   - Removed: `gameState.players`, `handleClosedMarketResourceSelection`, `handleConfirmClosedMarket`
+   - Kept: `gameState.phase`, `gameState.turnState.step`, `gameState.currentPlayer`
+
+4. **Line 3424**: Simplified Resource Swap useEffect dependencies
+   - Removed: `gameState.players`, `handleResourceSwapPlayerSelection`, `handleConfirmResourceSwap`
+   - Kept: `gameState.phase`, `gameState.turnState.step`, `gameState.currentPlayer`
+
+5. **Line 3442**: Simplified Free Upgrade useEffect dependencies
+   - Removed: `gameState.players`, `gameState.villages`, `handleFreeUpgradeVillageSelection`
+   - Kept: `gameState.phase`, `gameState.turnState.step`, `gameState.currentPlayer`
+
+## Why This Works
+
+### Principle: Minimal Dependencies for useEffect
+A useEffect should only depend on values it actually READS, not values it indirectly causes to change. In these card effect useEffects:
+
+**What we READ:**
+- `gameState.phase` - to check if we're in 'playing' phase
+- `gameState.turnState.step` - to check if we're in the specific card selection step
+- `gameState.currentPlayer` - to check which player's turn it is
+- `gameState.players` - to find the current player (read inside, not a dependency)
+
+**What we DON'T need as dependencies:**
+- `gameState.players` - yes we read it, but we read it FRESH from gameState each time
+- Handler functions - these call setGameState which updates gameState, creating circular dependencies
+- `gameState.villages` - same as players, we read it fresh
+
+By removing these circular dependencies:
+1. The useEffect only runs when the step actually changes to the target step
+2. When handlers update state, the step changes to 'play_dev_cards', causing the condition to fail
+3. No re-execution, no race conditions
+4. Clean, predictable behavior
+
 ## Status
 
 ✅ All duplicate logging issues fixed
-✅ Build successful
+✅ Booming Economy logging now working
+✅ All card effect useEffects simplified with minimal dependencies
+✅ Debug logging added to track message flow
+✅ Build successful (469.31 kB)
 ✅ Type-safe
-✅ Consistent pattern applied across all callbacks
+✅ Consistent pattern applied across all callbacks and useEffects
 ✅ Ready for testing

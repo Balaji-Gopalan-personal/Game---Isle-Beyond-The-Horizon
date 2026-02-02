@@ -2969,7 +2969,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         ? `2 ${capitalizedResources[0]}`
         : capitalizedResources.join(' and ');
       const message = `<span style="color: ${logData.playerColor}; font-weight: bold;">${logData.playerName}</span> gained ${resourceText} from Booming Economy`;
-      setTimeout(() => addToLog(message), 100);
+      console.log(`   🚀 Scheduling log for Events feed: "${logData.playerName} gained ${resourceText}"`);
+      setTimeout(() => {
+        console.log(`   📝 Actually adding to log now: "${logData.playerName} gained ${resourceText}"`);
+        addToLog(message);
+      }, 100);
+    } else {
+      console.warn(`   ⚠️ No logData to log!`);
     }
   }, [addToLog, getPlayerColorStyle]);
 
@@ -3354,7 +3360,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return () => clearTimeout(timer);
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.players, handleBoomingEconomyResourceSelection, handleConfirmBoomingEconomy]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
 
   // Auto-handle Closed Market selection for AI players
   useEffect(() => {
@@ -3381,7 +3387,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return () => clearTimeout(timer);
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.players, handleClosedMarketResourceSelection, handleConfirmClosedMarket]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
 
   // Auto-handle Resource Swap selection for AI players
   useEffect(() => {
@@ -3415,7 +3421,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return () => clearTimeout(timer);
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.players, handleResourceSwapPlayerSelection, handleConfirmResourceSwap]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
 
   // Auto-handle Free Upgrade selection for AI players
   useEffect(() => {
@@ -3433,7 +3439,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return () => clearTimeout(timer);
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.players, gameState.villages, handleFreeUpgradeVillageSelection]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
 
   const handleEndTurn = useCallback(() => {
     console.log('DEBUG: handleEndTurn called');
