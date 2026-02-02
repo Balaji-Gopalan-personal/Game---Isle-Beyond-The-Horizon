@@ -502,3 +502,487 @@ function hasViableBuildingGoal(player: Player, gameState: GameState): boolean {
 
   return false;
 }
+
+// Strategic AI resource selection for Booming Economy card
+export interface ResourceSelection {
+  resources: [string, string];
+  reasoning: string;
+}
+
+export function selectBoomingEconomyResources(
+  player: Player,
+  gameState: GameState,
+  difficulty: 'easy' | 'normal' | 'hard'
+): ResourceSelection {
+  console.log(`\n🌟 [${player.name}] SELECTING BOOMING ECONOMY RESOURCES (${difficulty} difficulty)`);
+
+  // Import identifyTradeGoals function logic inline
+  const goals = identifyPlayerTradeGoals(player, gameState);
+
+  if (goals.length === 0) {
+    console.log(`   ⚠️ No clear building goals - selecting diverse resources`);
+    return selectDiverseResources(player, difficulty);
+  }
+
+  const topGoal = goals[0];
+  console.log(`   🎯 Top building goal: ${topGoal.targetBuilding} (priority ${topGoal.priority})`);
+
+  // Score each resource type based on needs
+  const resourceScores: Array<{ resource: string; score: number; reason: string }> = [];
+  const resourceTypes = ['clay', 'lumber', 'grain', 'fabric', 'mineral'] as const;
+
+  for (const resource of resourceTypes) {
+    let score = 0;
+    const reasons: string[] = [];
+
+    // High priority: resources needed for top goal
+    const neededForTop = (topGoal.neededResources as any)[resource] || 0;
+    if (neededForTop > 0) {
+      score += neededForTop * 20;
+      reasons.push(`${neededForTop} needed for ${topGoal.targetBuilding}`);
+    }
+
+    // Medium priority: resources needed for secondary goals
+    for (let i = 1; i < Math.min(goals.length, 3); i++) {
+      const neededForGoal = (goals[i].neededResources as any)[resource] || 0;
+      if (neededForGoal > 0) {
+        score += neededForGoal * 5;
+        reasons.push(`${neededForGoal} for ${goals[i].targetBuilding}`);
+      }
+    }
+
+    // Bonus: resources we have zero of (diversity)
+    const currentAmount = (player.resources as any)[resource];
+    if (currentAmount === 0) {
+      score += 8;
+      reasons.push('zero in hand (diversity)');
+    } else if (currentAmount === 1 && neededForTop > 0) {
+      score += 3;
+      reasons.push('low quantity');
+    }
+
+    // Penalty: resources we have plenty of (unless needed)
+    if (currentAmount >= 4 && neededForTop === 0) {
+      score -= 10;
+      reasons.push('surplus');
+    }
+
+    resourceScores.push({
+      resource,
+      score,
+      reason: reasons.join(', ')
+    });
+  }
+
+  // Sort by score
+  resourceScores.sort((a, b) => b.score - a.score);
+
+  console.log(`   📊 Resource scores:`);
+  resourceScores.forEach((rs, idx) => {
+    const current = (player.resources as any)[rs.resource];
+    console.log(`     ${idx + 1}. ${rs.resource}: ${rs.score.toFixed(1)} (have ${current}) - ${rs.reason}`);
+  });
+
+  // Apply difficulty-based selection
+  let selected: string[];
+
+  if (difficulty === 'hard') {
+    // 100% optimal: always pick top 2
+    selected = [resourceScores[0].resource, resourceScores[1].resource];
+    console.log(`   ✓ Hard difficulty: Selected top 2 (optimal)`);
+  } else if (difficulty === 'normal') {
+    // 80% optimal: 80% pick top 2, 20% pick from top 4
+    if (Math.random() < 0.8) {
+      selected = [resourceScores[0].resource, resourceScores[1].resource];
+      console.log(`   ✓ Normal difficulty: Selected top 2 (80% optimal choice)`);
+    } else {
+      const topFour = resourceScores.slice(0, 4);
+      const first = topFour[Math.floor(Math.random() * topFour.length)];
+      const remaining = topFour.filter(r => r.resource !== first.resource);
+      const second = remaining[Math.floor(Math.random() * remaining.length)];
+      selected = [first.resource, second.resource];
+      console.log(`   ✓ Normal difficulty: Selected from top 4 (20% suboptimal choice)`);
+    }
+  } else {
+    // 60% optimal: 60% pick top 2, 40% more random
+    if (Math.random() < 0.6) {
+      selected = [resourceScores[0].resource, resourceScores[1].resource];
+      console.log(`   ✓ Easy difficulty: Selected top 2 (60% optimal choice)`);
+    } else {
+      const topHalf = resourceScores.slice(0, 3);
+      const first = topHalf[Math.floor(Math.random() * topHalf.length)];
+      const remaining = resourceScores.filter(r => r.resource !== first.resource);
+      const second = remaining[Math.floor(Math.random() * remaining.length)];
+      selected = [first.resource, second.resource];
+      console.log(`   ✓ Easy difficulty: Random selection (40% suboptimal choice)`);
+    }
+  }
+
+  const reasoning = `Selected ${selected[0]} and ${selected[1]} for ${topGoal.targetBuilding}`;
+  console.log(`   🎁 Final selection: ${selected[0]}, ${selected[1]}`);
+
+  return {
+    resources: [selected[0], selected[1]] as [string, string],
+    reasoning
+  };
+}
+
+// Strategic AI resource selection for Closed Market card
+export function selectClosedMarketResource(
+  player: Player,
+  gameState: GameState,
+  difficulty: 'easy' | 'normal' | 'hard'
+): string {
+  console.log(`\n🚫 [${player.name}] SELECTING CLOSED MARKET RESOURCE (${difficulty} difficulty)`);
+
+  // Find the game leader (opponent with highest score)
+  const leader = getGameLeader(gameState);
+  if (!leader || leader.id === player.id) {
+    console.log(`   ⚠️ No clear leader - selecting opponent's most abundant resource`);
+    return selectOpponentsMostAbundantResource(player, gameState, difficulty);
+  }
+
+  console.log(`   🎯 Target: ${leader.name} (leader with ${leader.score + leader.secretPoints} points)`);
+
+  // Score each resource based on how much it hurts the leader
+  const resourceScores: Array<{ resource: string; score: number; reason: string }> = [];
+  const resourceTypes = ['clay', 'lumber', 'grain', 'fabric', 'mineral'] as const;
+
+  for (const resource of resourceTypes) {
+    let score = 0;
+    const reasons: string[] = [];
+
+    const leaderAmount = (leader.resources as any)[resource];
+
+    // High priority: resources leader has most of
+    if (leaderAmount >= 3) {
+      score += leaderAmount * 5;
+      reasons.push(`leader has ${leaderAmount}`);
+    } else if (leaderAmount >= 1) {
+      score += leaderAmount * 2;
+      reasons.push(`leader has ${leaderAmount}`);
+    }
+
+    // Check what leader might be building toward
+    const villageNeeds = ['clay', 'lumber', 'grain', 'fabric'];
+    const estateNeeds = ['grain', 'mineral'];
+
+    if (villageNeeds.includes(resource)) {
+      const hasOtherVillageResources = villageNeeds.filter(r => r !== resource && (leader.resources as any)[r] >= 1).length;
+      if (hasOtherVillageResources >= 2) {
+        score += 8;
+        reasons.push('blocks village construction');
+      }
+    }
+
+    if (estateNeeds.includes(resource)) {
+      if (resource === 'mineral' && leader.resources.mineral >= 2) {
+        score += 10;
+        reasons.push('blocks estate (mineral critical)');
+      } else if (resource === 'grain' && leader.resources.grain >= 1) {
+        score += 6;
+        reasons.push('blocks estate (grain needed)');
+      }
+    }
+
+    resourceScores.push({
+      resource,
+      score,
+      reason: reasons.length > 0 ? reasons.join(', ') : 'minimal impact'
+    });
+  }
+
+  resourceScores.sort((a, b) => b.score - a.score);
+
+  console.log(`   📊 Resource impact scores:`);
+  resourceScores.forEach((rs, idx) => {
+    const leaderAmount = (leader.resources as any)[rs.resource];
+    console.log(`     ${idx + 1}. ${rs.resource}: ${rs.score.toFixed(1)} (leader has ${leaderAmount}) - ${rs.reason}`);
+  });
+
+  // Apply difficulty-based selection
+  let selected: string;
+
+  if (difficulty === 'hard') {
+    selected = resourceScores[0].resource;
+    console.log(`   ✓ Hard difficulty: Selected most impactful (optimal)`);
+  } else if (difficulty === 'normal') {
+    if (Math.random() < 0.8) {
+      selected = resourceScores[0].resource;
+      console.log(`   ✓ Normal difficulty: Selected most impactful (80% optimal)`);
+    } else {
+      const topThree = resourceScores.slice(0, 3);
+      selected = topThree[Math.floor(Math.random() * topThree.length)].resource;
+      console.log(`   ✓ Normal difficulty: Selected from top 3 (20% suboptimal)`);
+    }
+  } else {
+    if (Math.random() < 0.6) {
+      selected = resourceScores[0].resource;
+      console.log(`   ✓ Easy difficulty: Selected most impactful (60% optimal)`);
+    } else {
+      selected = resourceScores[Math.floor(Math.random() * resourceScores.length)].resource;
+      console.log(`   ✓ Easy difficulty: Random selection (40% suboptimal)`);
+    }
+  }
+
+  console.log(`   🎯 Final selection: ${selected}`);
+  return selected;
+}
+
+// Strategic AI player selection for Resource Swap card (swaps ALL resources with target)
+export function selectResourceSwapTarget(
+  player: Player,
+  gameState: GameState,
+  difficulty: 'easy' | 'normal' | 'hard'
+): { targetPlayerId: string; reasoning: string } {
+  console.log(`\n🔄 [${player.name}] SELECTING RESOURCE SWAP TARGET (${difficulty} difficulty)`);
+
+  const otherPlayers = gameState.players.filter(p => p.id !== player.id);
+  if (otherPlayers.length === 0) {
+    console.log(`   ⚠️ No other players available`);
+    return { targetPlayerId: '', reasoning: 'No targets available' };
+  }
+
+  const goals = identifyPlayerTradeGoals(player, gameState);
+  const topGoal = goals.length > 0 ? goals[0] : null;
+
+  if (topGoal) {
+    console.log(`   🎯 Current building goal: ${topGoal.targetBuilding} (priority ${topGoal.priority})`);
+  }
+
+  // Score each potential target
+  const scoredTargets = otherPlayers.map(target => {
+    let score = 0;
+    const reasons: string[] = [];
+
+    // Factor 1: Resource count difference
+    const myTotal = player.resources.total;
+    const targetTotal = target.resources.total;
+    const countDiff = targetTotal - myTotal;
+
+    if (countDiff > 0) {
+      score += countDiff * 2;
+      reasons.push(`gain ${countDiff} net resources`);
+    } else if (countDiff < 0) {
+      score += countDiff;
+      reasons.push(`lose ${-countDiff} net resources`);
+    }
+
+    // Factor 2: Resource quality (how well do their resources fit my goals?)
+    if (topGoal) {
+      let myGoalFit = 0;
+      let theirGoalFit = 0;
+
+      const resourceTypes = ['clay', 'lumber', 'grain', 'fabric', 'mineral'] as const;
+      for (const resource of resourceTypes) {
+        const needed = (topGoal.neededResources as any)[resource] || 0;
+        const iHave = (player.resources as any)[resource];
+        const theyHave = (target.resources as any)[resource];
+
+        if (needed > 0) {
+          // I need this resource
+          if (theyHave >= needed) {
+            theirGoalFit += needed * 5;
+          } else if (theyHave > iHave) {
+            theirGoalFit += (theyHave - iHave) * 3;
+          }
+        }
+
+        // Calculate how well I currently fit the goal
+        if (needed > 0 && iHave > 0) {
+          myGoalFit += Math.min(iHave, needed) * 5;
+        }
+      }
+
+      const goalImprovement = theirGoalFit - myGoalFit;
+      if (goalImprovement > 0) {
+        score += goalImprovement;
+        reasons.push(`better fit for ${topGoal.targetBuilding}`);
+      } else if (goalImprovement < 0) {
+        score += goalImprovement * 0.5;
+        reasons.push(`worse fit for ${topGoal.targetBuilding}`);
+      }
+    }
+
+    // Factor 3: Avoid swapping with players who are close to winning
+    const pointsToWin = gameState.gameSettings.pointsToWin;
+    const targetPointsAway = pointsToWin - (target.score + target.secretPoints);
+    if (targetPointsAway <= 2) {
+      score -= 10;
+      reasons.push('target near victory (avoid)');
+    }
+
+    // Factor 4: Prefer resource-rich targets if we're poor
+    if (myTotal <= 3 && targetTotal >= 6) {
+      score += 5;
+      reasons.push('resource-rich target');
+    }
+
+    return {
+      player: target,
+      score,
+      reasoning: reasons.length > 0 ? reasons.join(', ') : 'neutral swap'
+    };
+  });
+
+  scoredTargets.sort((a, b) => b.score - a.score);
+
+  console.log(`   📊 Target scores:`);
+  scoredTargets.forEach((st, idx) => {
+    console.log(`     ${idx + 1}. ${st.player.name}: ${st.score.toFixed(1)} (${st.player.resources.total} resources) - ${st.reasoning}`);
+  });
+
+  // Apply difficulty-based selection
+  let selected: typeof scoredTargets[0];
+
+  if (difficulty === 'hard') {
+    selected = scoredTargets[0];
+    console.log(`   ✓ Hard difficulty: Selected best target (100% optimal)`);
+  } else if (difficulty === 'normal') {
+    if (Math.random() < 0.8) {
+      selected = scoredTargets[0];
+      console.log(`   ✓ Normal difficulty: Selected best target (80% optimal)`);
+    } else {
+      const topThree = scoredTargets.slice(0, Math.min(3, scoredTargets.length));
+      selected = topThree[Math.floor(Math.random() * topThree.length)];
+      console.log(`   ✓ Normal difficulty: Selected from top 3 (20% suboptimal)`);
+    }
+  } else {
+    if (Math.random() < 0.6) {
+      selected = scoredTargets[0];
+      console.log(`   ✓ Easy difficulty: Selected best target (60% optimal)`);
+    } else {
+      selected = scoredTargets[Math.floor(Math.random() * scoredTargets.length)];
+      console.log(`   ✓ Easy difficulty: Random selection (40% suboptimal)`);
+    }
+  }
+
+  console.log(`   🔄 Final target: ${selected.player.name} (${selected.reasoning})`);
+
+  return {
+    targetPlayerId: selected.player.id,
+    reasoning: `Swapping with ${selected.player.name}: ${selected.reasoning}`
+  };
+}
+
+// Helper: Identify trade goals (simplified version of identifyTradeGoals from aiTradingStrategy)
+function identifyPlayerTradeGoals(player: Player, gameState: GameState): Array<{
+  targetBuilding: string;
+  neededResources: Partial<Record<string, number>>;
+  priority: number;
+}> {
+  const goals: Array<{
+    targetBuilding: string;
+    neededResources: Partial<Record<string, number>>;
+    priority: number;
+  }> = [];
+
+  const pointsToWin = gameState.gameSettings.pointsToWin;
+  const currentPoints = player.score + player.secretPoints;
+  const isEarlyGame = currentPoints < 5;
+  const villageCount = gameState.villages.filter(v => v.playerId === player.id && v.type === 'settlement').length;
+
+  // Village goal
+  const villageNeeds: Partial<Record<string, number>> = {};
+  if (player.resources.clay < 1) villageNeeds.clay = 1 - player.resources.clay;
+  if (player.resources.lumber < 1) villageNeeds.lumber = 1 - player.resources.lumber;
+  if (player.resources.grain < 1) villageNeeds.grain = 1 - player.resources.grain;
+  if (player.resources.fabric < 1) villageNeeds.fabric = 1 - player.resources.fabric;
+
+  const villageNeededCount = Object.keys(villageNeeds).length;
+  if (villageNeededCount <= 3) {
+    let priority = 10;
+    if (isEarlyGame && villageCount < 3) priority = 15;
+    else if (villageCount < 4) priority = 12;
+    goals.push({ targetBuilding: 'village', neededResources: villageNeeds, priority });
+  }
+
+  // Estate goal
+  const estateNeeds: Partial<Record<string, number>> = {};
+  if (player.resources.grain < 2) estateNeeds.grain = 2 - player.resources.grain;
+  if (player.resources.mineral < 3) estateNeeds.mineral = 3 - player.resources.mineral;
+
+  const estateNeededCount = Object.keys(estateNeeds).length;
+  if (estateNeededCount <= 2) {
+    let priority = 12;
+    if (isEarlyGame && villageCount < 3) priority = 6;
+    const hasUpgradeableVillage = gameState.villages.some(v => v.playerId === player.id && v.type === 'settlement');
+    if (hasUpgradeableVillage && villageCount >= 2) priority += 2;
+    goals.push({ targetBuilding: 'estate', neededResources: estateNeeds, priority });
+  }
+
+  // Road goal
+  const roadNeeds: Partial<Record<string, number>> = {};
+  if (player.resources.clay < 1) roadNeeds.clay = 1 - player.resources.clay;
+  if (player.resources.lumber < 1) roadNeeds.lumber = 1 - player.resources.lumber;
+
+  const roadNeededCount = Object.keys(roadNeeds).length;
+  if (roadNeededCount <= 1) {
+    let priority = 6;
+    if (isEarlyGame && villageCount < 3) priority = 4;
+    goals.push({ targetBuilding: 'road', neededResources: roadNeeds, priority });
+  }
+
+  // Dev card goal
+  const devCardNeeds: Partial<Record<string, number>> = {};
+  if (player.resources.grain < 1) devCardNeeds.grain = 1 - player.resources.grain;
+  if (player.resources.fabric < 1) devCardNeeds.fabric = 1 - player.resources.fabric;
+  if (player.resources.mineral < 1) devCardNeeds.mineral = 1 - player.resources.mineral;
+
+  const devCardNeededCount = Object.keys(devCardNeeds).length;
+  if (devCardNeededCount <= 2) {
+    let priority = 8;
+    if (isEarlyGame && villageCount < 3) priority = 5;
+    goals.push({ targetBuilding: 'dev_card', neededResources: devCardNeeds, priority });
+  }
+
+  goals.sort((a, b) => b.priority - a.priority);
+  return goals;
+}
+
+// Helper: Select diverse resources when no clear goal
+function selectDiverseResources(player: Player, difficulty: 'easy' | 'normal' | 'hard'): ResourceSelection {
+  const resourceTypes = ['clay', 'lumber', 'grain', 'fabric', 'mineral'] as const;
+  const amounts = resourceTypes.map(r => ({ resource: r, amount: (player.resources as any)[r] }));
+  amounts.sort((a, b) => a.amount - b.amount);
+
+  // Pick the 2 resources we have least of
+  const selected = [amounts[0].resource, amounts[1].resource];
+
+  return {
+    resources: [selected[0], selected[1]] as [string, string],
+    reasoning: 'Diversifying resource portfolio'
+  };
+}
+
+// Helper: Select opponent's most abundant resource
+function selectOpponentsMostAbundantResource(player: Player, gameState: GameState, difficulty: 'easy' | 'normal' | 'hard'): string {
+  const resourceTypes = ['clay', 'lumber', 'grain', 'fabric', 'mineral'] as const;
+  const totalsByResource: Record<string, number> = {
+    clay: 0,
+    lumber: 0,
+    grain: 0,
+    fabric: 0,
+    mineral: 0
+  };
+
+  // Sum up all opponents' resources
+  for (const opponent of gameState.players) {
+    if (opponent.id === player.id) continue;
+    for (const resource of resourceTypes) {
+      totalsByResource[resource] += (opponent.resources as any)[resource];
+    }
+  }
+
+  // Find the most common
+  let maxResource = 'clay';
+  let maxAmount = 0;
+  for (const resource of resourceTypes) {
+    if (totalsByResource[resource] > maxAmount) {
+      maxAmount = totalsByResource[resource];
+      maxResource = resource;
+    }
+  }
+
+  return maxResource;
+}

@@ -11,7 +11,7 @@ import { makeRandomBuildDecision, makeStrategicBuildDecision, getAvailableBuildi
 import { selectStrategicRoadLocation, selectStrategicVillageLocation, selectStrategicEstateLocation, selectStrategicDiscardResources } from '../engine/aiLocationStrategy';
 import { findDesertCentre, isValidRobberDestination, getPlayersWithAdjacentBuildings, selectRandomRobberDestination, stealRandomResource, selectRandomStealTarget, CentreData } from '../engine/robberActions';
 import { selectRobberPlacement } from '../engine/aiRobberStrategy';
-import { shouldPlayDevCardAfterRoll } from '../engine/aiDevCardStrategy';
+import { shouldPlayDevCardAfterRoll, selectBoomingEconomyResources, selectClosedMarketResource, selectResourceSwapTarget } from '../engine/aiDevCardStrategy';
 import { evaluateTradeOpportunity, TurnTradeHistory } from '../engine/aiTradingStrategy';
 import { createTurnPlan, shouldContinueTurn } from '../engine/aiTurnOrchestrator';
 import { createInitialDeck, shuffleDeck } from '../data/developmentCards';
@@ -2892,7 +2892,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const resourcesSelected = (prev.turnState.placementContext.resourcesSelected || []) as string[];
       const pendingCardId = prev.turnState.placementContext.pendingCardId;
 
-      if (resourcesSelected.length !== 2) return prev;
+      console.log(`DEBUG: Confirming Booming Economy with ${resourcesSelected.length} resources selected:`, resourcesSelected);
+
+      if (resourcesSelected.length !== 2) {
+        console.warn(`WARNING: Cannot confirm Booming Economy - expected 2 resources, got ${resourcesSelected.length}`);
+        return prev;
+      }
 
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
 
@@ -2900,9 +2905,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         if (p.id === prev.currentPlayer) {
           const newResources = { ...p.resources };
           resourcesSelected.forEach(res => {
+            const before = newResources[res as keyof typeof newResources];
             newResources[res as keyof typeof newResources]++;
             newResources.total++;
+            const after = newResources[res as keyof typeof newResources];
+            console.log(`   Adding ${res}: ${before} → ${after}`);
           });
+
+          console.log(`   ✓ Resources granted. Total resources: ${newResources.total}`);
 
           // Remove the card now that it's successfully played
           if (pendingCardId) {
@@ -2926,6 +2936,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           playerColor: getPlayerColorStyle(currentPlayer.color),
           resources: resourcesSelected
         };
+        console.log(`   📋 Prepared log message for ${currentPlayer.name}: gained ${resourcesSelected.join(', ')}`);
+      } else {
+        console.warn(`   WARNING: Could not find current player for logging`);
       }
 
       // Find the card to move to discard
@@ -3273,22 +3286,30 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         gameState.turnState.step === 'booming_economy_selection') {
       const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
       if (currentPlayer && !currentPlayer.isHuman) {
+        console.log(`\n💰 ${currentPlayer.name} is selecting 2 free resources from Booming Economy...`);
+
         const timer = setTimeout(() => {
-          const resourceTypes: Array<'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral'> = ['clay', 'lumber', 'grain', 'fabric', 'mineral'];
-          const resource1 = resourceTypes[Math.floor(Math.random() * resourceTypes.length)];
-          console.log(`DEBUG: AI ${currentPlayer.name} selecting first Booming Economy resource: ${resource1}`);
-          handleBoomingEconomyResourceSelection(resource1);
+          // Use strategic selection based on AI difficulty
+          const difficulty = currentPlayer.difficulty || 'normal';
+          const selection = selectBoomingEconomyResources(currentPlayer, gameState, difficulty);
 
+          const [resource1, resource2] = selection.resources;
+          console.log(`   ✓ ${currentPlayer.name} selected ${resource1} and ${resource2}`);
+          console.log(`   📋 Reasoning: ${selection.reasoning}`);
+
+          // Add both resources at once to avoid race condition
+          handleBoomingEconomyResourceSelection(resource1 as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral');
+
+          // Small delay to ensure first selection is processed
           setTimeout(() => {
-            const resource2 = resourceTypes[Math.floor(Math.random() * resourceTypes.length)];
-            console.log(`DEBUG: AI ${currentPlayer.name} selecting second Booming Economy resource: ${resource2}`);
-            handleBoomingEconomyResourceSelection(resource2);
+            handleBoomingEconomyResourceSelection(resource2 as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral');
 
+            // Confirm after both selections
             setTimeout(() => {
-              console.log(`DEBUG: AI ${currentPlayer.name} confirming Booming Economy selection`);
+              console.log(`   🎁 Confirming selection...`);
               handleConfirmBoomingEconomy();
-            }, 400);
-          }, 400);
+            }, 300);
+          }, 200);
         }, 600);
         return () => clearTimeout(timer);
       }
@@ -3301,12 +3322,19 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         gameState.turnState.step === 'closed_market_selection') {
       const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
       if (currentPlayer && !currentPlayer.isHuman) {
+        console.log(`\n🚫 ${currentPlayer.name} is selecting a resource to close from trading...`);
+
         const timer = setTimeout(() => {
-          const resourceTypes: Array<'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral'> = ['clay', 'lumber', 'grain', 'fabric', 'mineral'];
-          const resource = resourceTypes[Math.floor(Math.random() * resourceTypes.length)];
-          handleClosedMarketResourceSelection(resource);
+          // Use strategic selection based on AI difficulty
+          const difficulty = currentPlayer.difficulty || 'normal';
+          const selectedResource = selectClosedMarketResource(currentPlayer, gameState, difficulty);
+
+          console.log(`   ✓ ${currentPlayer.name} selected ${selectedResource} to close from trading`);
+
+          handleClosedMarketResourceSelection(selectedResource as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral');
 
           setTimeout(() => {
+            console.log(`   🎯 Confirming Closed Market selection...`);
             handleConfirmClosedMarket();
           }, 400);
         }, 800);
@@ -3321,15 +3349,27 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         gameState.turnState.step === 'resource_swap_selection') {
       const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
       if (currentPlayer && !currentPlayer.isHuman) {
+        console.log(`\n🔄 ${currentPlayer.name} is selecting a player to swap all resources with...`);
+
         const timer = setTimeout(() => {
           const otherPlayers = gameState.players.filter(p => p.id !== currentPlayer.id);
           if (otherPlayers.length > 0) {
-            const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
-            handleResourceSwapPlayerSelection(targetPlayer.id);
+            // Use strategic selection based on AI difficulty
+            const difficulty = currentPlayer.difficulty || 'normal';
+            const selection = selectResourceSwapTarget(currentPlayer, gameState, difficulty);
 
-            setTimeout(() => {
-              handleConfirmResourceSwap();
-            }, 400);
+            if (selection.targetPlayerId) {
+              const targetPlayer = gameState.players.find(p => p.id === selection.targetPlayerId);
+              console.log(`   ✓ ${currentPlayer.name} selected ${targetPlayer?.name}`);
+              console.log(`   📋 Reasoning: ${selection.reasoning}`);
+
+              handleResourceSwapPlayerSelection(selection.targetPlayerId);
+
+              setTimeout(() => {
+                console.log(`   🔄 Confirming Resource Swap...`);
+                handleConfirmResourceSwap();
+              }, 400);
+            }
           }
         }, 800);
         return () => clearTimeout(timer);
