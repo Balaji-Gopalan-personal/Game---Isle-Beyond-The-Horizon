@@ -2987,8 +2987,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, []);
 
   const handleConfirmClosedMarket = useCallback(() => {
-    let logData: { playerName: string; playerColor: string; totalTransferred: number; resourceType: string; transfers: { from: string; fromColor: string; amount: number }[] } | null = null;
-
     setGameState(prev => {
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       if (!currentPlayer) return prev;
@@ -3056,14 +3054,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
-      // Capture data for logging
-      logData = {
-        playerName: currentPlayer.name,
-        playerColor: getPlayerColorStyle(currentPlayer.color),
-        totalTransferred,
-        resourceType,
-        transfers
-      };
+      // Log inside the state update where we have guaranteed access to all data
+      const playerColor = getPlayerColorStyle(currentPlayer.color);
+      const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> took ${totalTransferred} ${resourceType} from other players`;
+      setTimeout(() => addToLog(message), 100);
+
+      transfers.forEach((transfer, index) => {
+        const detailMessage = `<span style="color: ${transfer.fromColor}; font-weight: bold;">${transfer.from}</span> gave up ${transfer.amount} ${resourceType}`;
+        setTimeout(() => addToLog(detailMessage), 200 + (index * 50));
+      });
 
       return {
         ...prev,
@@ -3082,17 +3081,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
-
-    // Log after state update completes
-    if (logData) {
-      const message = `<span style="color: ${logData.playerColor}; font-weight: bold;">${logData.playerName}</span> took ${logData.totalTransferred} ${logData.resourceType} from other players`;
-      setTimeout(() => addToLog(message), 100);
-
-      logData.transfers.forEach((transfer, index) => {
-        const detailMessage = `<span style="color: ${transfer.fromColor}; font-weight: bold;">${transfer.from}</span> gave up ${transfer.amount} ${logData.resourceType}`;
-        setTimeout(() => addToLog(detailMessage), 200 + (index * 50));
-      });
-    }
   }, [addToLog, getPlayerColorStyle]);
 
   const handleResourceSwapPlayerSelection = useCallback((targetPlayerId: string) => {
@@ -3111,8 +3099,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, []);
 
   const handleConfirmResourceSwap = useCallback(() => {
-    let logData: { currentPlayerName: string; currentPlayerColor: string; targetPlayerName: string; targetPlayerColor: string } | null = null;
-
     setGameState(prev => {
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       const targetPlayerId = prev.turnState.placementContext.selectedPlayerId;
@@ -3144,13 +3130,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
-      // Capture data for logging
-      logData = {
-        currentPlayerName: currentPlayer.name,
-        currentPlayerColor: getPlayerColorStyle(currentPlayer.color),
-        targetPlayerName: targetPlayer.name,
-        targetPlayerColor: getPlayerColorStyle(targetPlayer.color)
-      };
+      // Log inside the state update where we have guaranteed access to all data
+      const currentPlayerColor = getPlayerColorStyle(currentPlayer.color);
+      const targetPlayerColor = getPlayerColorStyle(targetPlayer.color);
+      const message = `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> swapped all resources with <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`;
+      setTimeout(() => addToLog(message), 100);
 
       return {
         ...prev,
@@ -3169,12 +3153,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
-
-    // Log after state update completes
-    if (logData) {
-      const message = `<span style="color: ${logData.currentPlayerColor}; font-weight: bold;">${logData.currentPlayerName}</span> swapped all resources with <span style="color: ${logData.targetPlayerColor}; font-weight: bold;">${logData.targetPlayerName}</span>`;
-      setTimeout(() => addToLog(message), 100);
-    }
   }, [addToLog, getPlayerColorStyle]);
 
   const handleCancelCardEffect = useCallback(() => {
@@ -3198,8 +3176,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
   const handleFreeUpgradeVillageSelection = useCallback((vertexId: number) => {
     console.log('DEBUG: Free Upgrade village selected:', vertexId);
-
-    let logData: { playerName: string; playerColor: string } | null = null;
 
     setGameState(prev => {
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
@@ -3245,11 +3221,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
-      // Capture data for logging
-      logData = {
-        playerName: currentPlayer.name,
-        playerColor: getPlayerColorStyle(currentPlayer.color)
-      };
+      // Log inside the state update where we have guaranteed access to all data
+      const playerColor = getPlayerColorStyle(currentPlayer.color);
+      const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> upgraded a Village to an Estate for free and earned 1 point`;
+      setTimeout(() => addToLog(message), 100);
 
       return {
         ...prev,
@@ -3268,12 +3243,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
-
-    // Log after state update completes
-    if (logData) {
-      const message = `<span style="color: ${logData.playerColor}; font-weight: bold;">${logData.playerName}</span> upgraded a Village to an Estate for free and earned 1 point`;
-      setTimeout(() => addToLog(message), 100);
-    }
   }, [addToLog, getPlayerColorStyle]);
 
   // Auto-handle play_dev_cards phase for AI players
@@ -3357,7 +3326,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   // Auto-handle Closed Market selection for AI players
   useEffect(() => {
     if (gameState.phase === 'playing' &&
-        gameState.turnState.step === 'closed_market_selection') {
+        gameState.turnState.step === 'closed_market_selection' &&
+        !gameState.turnState.placementContext.selectedResource) {  // Guard to prevent re-triggering
       const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
       if (currentPlayer && !currentPlayer.isHuman) {
         console.log(`\n🚫 ${currentPlayer.name} is selecting a resource to close from trading...`);
@@ -3379,12 +3349,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return () => clearTimeout(timer);
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedResource, handleClosedMarketResourceSelection, handleConfirmClosedMarket]);
 
   // Auto-handle Resource Swap selection for AI players
   useEffect(() => {
     if (gameState.phase === 'playing' &&
-        gameState.turnState.step === 'resource_swap_selection') {
+        gameState.turnState.step === 'resource_swap_selection' &&
+        !gameState.turnState.placementContext.selectedPlayerId) {  // Guard to prevent re-triggering
       const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
       if (currentPlayer && !currentPlayer.isHuman) {
         console.log(`\n🔄 ${currentPlayer.name} is selecting a player to swap all resources with...`);
@@ -3413,7 +3384,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return () => clearTimeout(timer);
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedPlayerId, handleResourceSwapPlayerSelection, handleConfirmResourceSwap]);
 
   // Auto-handle Free Upgrade selection for AI players
   useEffect(() => {
@@ -3431,7 +3402,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return () => clearTimeout(timer);
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.villages, handleFreeUpgradeVillageSelection]);
 
   const handleEndTurn = useCallback(() => {
     console.log('DEBUG: handleEndTurn called');
