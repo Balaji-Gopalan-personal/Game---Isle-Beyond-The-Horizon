@@ -15,19 +15,19 @@ const loadImage = (src: string): Promise<HTMLImageElement | null> => {
 const loadCategory = async (
   assets: Record<string, string>,
   categoryName: string
-): Promise<Record<string, HTMLImageElement>> => {
+): Promise<Record<string, string>> => {
   const entries = Object.entries(assets);
   const promises = entries.map(([key, path]) =>
     loadImage(path).then(img => ({ key, img, path }))
   );
 
   const results = await Promise.all(promises);
-  const loadedCategory: Record<string, HTMLImageElement> = {};
+  const loadedCategory: Record<string, string> = {};
   let failedCount = 0;
 
   results.forEach(({ key, img, path }) => {
     if (img) {
-      loadedCategory[key] = img;
+      loadedCategory[key] = path;
     } else {
       failedCount++;
       console.error(`Failed to load ${categoryName} asset: ${key} (${path})`);
@@ -41,7 +41,7 @@ const loadCategory = async (
   return loadedCategory;
 };
 
-export async function preloadCharacterAssets(): Promise<Record<string, HTMLImageElement>> {
+export async function preloadCharacterAssets(): Promise<Record<string, string>> {
   console.log('Preloading character assets...');
   const characters = await loadCategory(Assets.characters, 'character');
   console.log(`Loaded ${Object.keys(characters).length} character assets`);
@@ -49,9 +49,9 @@ export async function preloadCharacterAssets(): Promise<Record<string, HTMLImage
 }
 
 export async function preloadGameAssets(deckType: 'standard' | 'expanded'): Promise<{
-  resources: Record<string, HTMLImageElement>;
-  board: Record<string, HTMLImageElement>;
-  developmentCards: Record<string, HTMLImageElement>;
+  resources: Record<string, string>;
+  board: Record<string, string>;
+  developmentCards: Record<string, string>;
 }> {
   console.log('Preloading game assets...');
 

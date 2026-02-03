@@ -1,6 +1,6 @@
 import { LoadedAssets } from '../contexts/AssetsContext';
 
-export function getCharacterImage(assets: LoadedAssets, imagePath: string): HTMLImageElement | undefined {
+export function getCharacterImage(assets: LoadedAssets, imagePath: string): string | undefined {
   const filename = imagePath.split('/').pop()?.replace(/\.(png|jpg)$/, '').toLowerCase();
   if (!filename) return undefined;
 
@@ -61,7 +61,7 @@ export function getCharacterImage(assets: LoadedAssets, imagePath: string): HTML
   return key ? assets.characters[key] : undefined;
 }
 
-export function getDevelopmentCardImage(assets: LoadedAssets, imagePath: string): HTMLImageElement | undefined {
+export function getDevelopmentCardImage(assets: LoadedAssets, imagePath: string): string | undefined {
   if (!assets.developmentCards) return undefined;
 
   const filename = imagePath.split('/').pop()?.replace(/\.png$/, '');
@@ -82,7 +82,7 @@ export function getDevelopmentCardImage(assets: LoadedAssets, imagePath: string)
   return key ? assets.developmentCards[key] : undefined;
 }
 
-export function getResourceImage(assets: LoadedAssets, resourceType: string): HTMLImageElement | undefined {
+export function getResourceImage(assets: LoadedAssets, resourceType: string): string | undefined {
   if (!assets.resources) return undefined;
 
   const keyMap: Record<string, string> = {
@@ -104,7 +104,7 @@ export function getResourceImage(assets: LoadedAssets, resourceType: string): HT
   return key ? assets.resources[key] : undefined;
 }
 
-export function getBoardImage(assets: LoadedAssets, imageType: 'ocean' | 'landmass'): HTMLImageElement | undefined {
+export function getBoardImage(assets: LoadedAssets, imageType: 'ocean' | 'landmass'): string | undefined {
   if (!assets.board) return undefined;
   return assets.board[imageType];
 }

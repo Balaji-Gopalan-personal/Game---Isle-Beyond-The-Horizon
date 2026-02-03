@@ -65,7 +65,7 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
                     </div>
                   )}
                   <img
-                    src={getDevelopmentCardImage(assets, card.imageUrl)?.src}
+                    src={getDevelopmentCardImage(assets, card.imageUrl)}
                     alt={card.name}
                     className={`w-56 h-auto ${imageLoading ? 'hidden' : 'block'}`}
                     onError={handleImageError}

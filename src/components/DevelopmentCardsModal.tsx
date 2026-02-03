@@ -51,7 +51,7 @@ export function DevelopmentCardsModal({ isOpen, onClose, cards, playerName }: De
                   >
                     <div className="aspect-[3/4] relative bg-gradient-to-br from-amber-100 to-yellow-200 flex items-center justify-center">
                       <img
-                        src={getDevelopmentCardImage(assets, card.imageUrl)?.src}
+                        src={getDevelopmentCardImage(assets, card.imageUrl)}
                         alt={card.name}
                         className="w-full h-full object-cover"
                         onError={(e) => {

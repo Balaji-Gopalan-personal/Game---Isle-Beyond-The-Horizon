@@ -33,7 +33,7 @@ export function CharacterAvatar({ character, color, name, size = 'md', className
 
   const sizeClasses = sizeMap[size];
   const displayName = name || character?.name || 'Player';
-  const avatarSrc = character ? getCharacterImage(assets, character.imageUrl)?.src : undefined;
+  const avatarSrc = character ? getCharacterImage(assets, character.imageUrl) : undefined;
 
   if (imageError || !avatarSrc) {
     return (

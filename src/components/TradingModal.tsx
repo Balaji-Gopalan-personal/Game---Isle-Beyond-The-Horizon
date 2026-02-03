@@ -319,7 +319,7 @@ export const TradingModal: React.FC<TradingModalProps> = ({
                       title={resourceLabels[resource]}
                     >
                       <img
-                        src={getResourceImage(assets, resource)?.src}
+                        src={getResourceImage(assets, resource)}
                         alt={resourceLabels[resource]}
                         className="w-full h-full object-cover"
                       />
@@ -380,7 +380,7 @@ export const TradingModal: React.FC<TradingModalProps> = ({
                       title={resourceLabels[resource]}
                     >
                       <img
-                        src={getResourceImage(assets, resource)?.src}
+                        src={getResourceImage(assets, resource)}
                         alt={resourceLabels[resource]}
                         className="w-full h-full object-cover"
                       />

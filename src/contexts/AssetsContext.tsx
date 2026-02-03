@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 export type LoadedAssets = {
-  characters: Record<string, HTMLImageElement>;
-  resources?: Record<string, HTMLImageElement>;
-  board?: Record<string, HTMLImageElement>;
-  developmentCards?: Record<string, HTMLImageElement>;
+  characters: Record<string, string>;
+  resources?: Record<string, string>;
+  board?: Record<string, string>;
+  developmentCards?: Record<string, string>;
 };
 
 interface AssetsContextType {

@@ -197,7 +197,7 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
               title={resource.fullName}
             >
               <img
-                src={getResourceImage(assets, resource.fullName)?.src}
+                src={getResourceImage(assets, resource.fullName)}
                 alt={resource.fullName}
                 className="w-full h-full object-cover"
               />
@@ -285,7 +285,7 @@ export const ClosedMarketPrompt: React.FC<ClosedMarketPromptProps> = ({
               title={resource.fullName}
             >
               <img
-                src={getResourceImage(assets, resource.fullName)?.src}
+                src={getResourceImage(assets, resource.fullName)}
                 alt={resource.fullName}
                 className="w-full h-full object-cover"
               />

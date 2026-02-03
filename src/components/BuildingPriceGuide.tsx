@@ -86,7 +86,7 @@ export function BuildingPriceGuide() {
                       title={cost.resource}
                     >
                       <img
-                        src={getResourceImage(assets, cost.resource)?.src}
+                        src={getResourceImage(assets, cost.resource)}
                         alt={cost.resource}
                         className="w-full h-full object-cover"
                       />

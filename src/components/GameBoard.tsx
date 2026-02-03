@@ -121,8 +121,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   });
 
   const getResourceImageSrc = (resourceType: string): string | undefined => {
-    const img = getResourceImage(assets, resourceType);
-    return img?.src;
+    return getResourceImage(assets, resourceType);
   };
 
   const getResourceColor = (resourceType: string) => {
@@ -219,7 +218,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       <div
         className="absolute inset-0 rounded-lg"
         style={{
-          backgroundImage: `url(${getBoardImage(assets, 'ocean')?.src})`,
+          backgroundImage: `url(${getBoardImage(assets, 'ocean')})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
@@ -312,7 +311,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             {/* Landmass pattern for island background */}
             <pattern id="pattern-landmass" patternUnits="objectBoundingBox" width="1" height="1" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
               <image
-                href={getBoardImage(assets, 'landmass')?.src}
+                href={getBoardImage(assets, 'landmass')}
                 x="0"
                 y="0"
                 width="100"

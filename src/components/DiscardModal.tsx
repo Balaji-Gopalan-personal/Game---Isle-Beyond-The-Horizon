@@ -134,7 +134,7 @@ export const DiscardModal: React.FC<DiscardModalProps> = ({
                   title={resourceLabels[resource]}
                 >
                   <img
-                    src={getResourceImage(assets, resource)?.src}
+                    src={getResourceImage(assets, resource)}
                     alt={resourceLabels[resource]}
                     className="w-full h-full object-cover"
                   />

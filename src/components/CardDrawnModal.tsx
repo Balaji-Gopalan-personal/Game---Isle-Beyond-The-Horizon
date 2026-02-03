@@ -94,7 +94,7 @@ export const CardDrawnModal: React.FC<CardDrawnModalProps> = ({
                     </div>
                   )}
                   <img
-                    src={getDevelopmentCardImage(assets, card.imageUrl)?.src}
+                    src={getDevelopmentCardImage(assets, card.imageUrl)}
                     alt={card.name}
                     className={`w-64 h-auto ${imageLoading ? 'hidden' : 'block'}`}
                     onError={handleImageError}
