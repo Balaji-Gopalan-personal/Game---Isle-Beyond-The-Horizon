@@ -1,36 +1,28 @@
 import { Assets } from './assetRegistry';
-
-const loadImage = (src: string): Promise<HTMLImageElement | null> => {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => {
-      console.warn(`Failed to load image: ${src}`);
-      resolve(null);
-    };
-    img.src = src;
-  });
-};
+import { convertImageToDataUri } from '../utils/imageConverter';
 
 const loadCategory = async (
   assets: Record<string, string>,
   categoryName: string
 ): Promise<Record<string, string>> => {
   const entries = Object.entries(assets);
-  const promises = entries.map(([key, path]) =>
-    loadImage(path).then(img => ({ key, img, path }))
+  const results = await Promise.allSettled(
+    entries.map(async ([key, path]) => {
+      const dataUri = await convertImageToDataUri(path);
+      return { key, dataUri };
+    })
   );
 
-  const results = await Promise.all(promises);
   const loadedCategory: Record<string, string> = {};
   let failedCount = 0;
 
-  results.forEach(({ key, img, path }) => {
-    if (img) {
-      loadedCategory[key] = path;
+  results.forEach((result, index) => {
+    const [key, path] = entries[index];
+    if (result.status === 'fulfilled') {
+      loadedCategory[key] = result.value.dataUri;
     } else {
       failedCount++;
-      console.error(`Failed to load ${categoryName} asset: ${key} (${path})`);
+      console.error(`Failed to load ${categoryName} asset: ${key} (${path})`, result.reason);
     }
   });
 
@@ -38,6 +30,7 @@ const loadCategory = async (
     console.warn(`${failedCount} ${categoryName} asset(s) failed to load`);
   }
 
+  console.log(`Converted ${Object.keys(loadedCategory).length} ${categoryName} assets to data URIs`);
   return loadedCategory;
 };
 
