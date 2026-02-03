@@ -2892,20 +2892,42 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   const handleConfirmBoomingEconomy = useCallback(() => {
     console.log(`🎁 handleConfirmBoomingEconomy called`);
 
+    // Capture logging data BEFORE state update to avoid duplicates in StrictMode
+    const resourcesSelected = (gameState.turnState.placementContext.resourcesSelected || []) as string[];
+    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
+
+    console.log(`DEBUG: Confirming Booming Economy with ${resourcesSelected.length} resources selected:`, resourcesSelected);
+
+    if (resourcesSelected.length !== 2 || !currentPlayer) {
+      if (resourcesSelected.length !== 2) {
+        console.warn(`WARNING: Cannot confirm Booming Economy - expected 2 resources, got ${resourcesSelected.length}`);
+      }
+      if (!currentPlayer) {
+        console.warn(`   WARNING: Could not find current player`);
+      }
+      return;
+    }
+
+    // Prepare log message data
+    const capitalizedResources = resourcesSelected.map(r => r.charAt(0).toUpperCase() + r.slice(1));
+    const resourceText = capitalizedResources.length === 2 && capitalizedResources[0] === capitalizedResources[1]
+      ? `2 ${capitalizedResources[0]}`
+      : capitalizedResources.join(' and ');
+    const playerColor = getPlayerColorStyle(currentPlayer.color);
+
+    console.log(`   📋 Prepared log message for ${currentPlayer.name}: gained ${resourcesSelected.join(', ')}`);
+
+    // Update state (pure function, no side effects)
     setGameState(prev => {
       const resourcesSelected = (prev.turnState.placementContext.resourcesSelected || []) as string[];
       const pendingCardId = prev.turnState.placementContext.pendingCardId;
 
-      console.log(`DEBUG: Confirming Booming Economy with ${resourcesSelected.length} resources selected:`, resourcesSelected);
-
       if (resourcesSelected.length !== 2) {
-        console.warn(`WARNING: Cannot confirm Booming Economy - expected 2 resources, got ${resourcesSelected.length}`);
         return prev;
       }
 
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       if (!currentPlayer) {
-        console.warn(`   WARNING: Could not find current player`);
         return prev;
       }
 
@@ -2937,22 +2959,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return p;
       });
 
-      // Prepare and schedule log message INSIDE state updater to ensure it happens
-      const capitalizedResources = resourcesSelected.map(r => r.charAt(0).toUpperCase() + r.slice(1));
-      const resourceText = capitalizedResources.length === 2 && capitalizedResources[0] === capitalizedResources[1]
-        ? `2 ${capitalizedResources[0]}`
-        : capitalizedResources.join(' and ');
-      const playerColor = getPlayerColorStyle(currentPlayer.color);
-      const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> gained ${resourceText} from Booming Economy`;
-
-      console.log(`   📋 Prepared log message for ${currentPlayer.name}: gained ${resourcesSelected.join(', ')}`);
-
-      // Schedule the log to be added after state update
-      setTimeout(() => {
-        console.log(`   📝 Adding to Events log: ${currentPlayer.name} gained ${resourceText}`);
-        addToLog(message);
-      }, 150);
-
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
@@ -2973,7 +2979,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
-  }, [addToLog, getPlayerColorStyle]);
+
+    // Log AFTER state update (outside the updater function)
+    const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> gained ${resourceText} from Booming Economy`;
+    setTimeout(() => {
+      console.log(`   📝 Adding to Events log: ${currentPlayer.name} gained ${resourceText}`);
+      addToLog(message);
+    }, 150);
+  }, [gameState, addToLog, getPlayerColorStyle]);
 
   const handleClosedMarketResourceSelection = useCallback((resourceType: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral') => {
     console.log('DEBUG: Closed Market resource type selected:', resourceType);
@@ -2991,6 +3004,31 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, []);
 
   const handleConfirmClosedMarket = useCallback(() => {
+    // Capture logging data BEFORE state update to avoid duplicates in StrictMode
+    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
+    const resourceType = gameState.turnState.placementContext.selectedResource as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral';
+
+    if (!currentPlayer || !resourceType) return;
+
+    // Calculate transfers for logging
+    let totalTransferred = 0;
+    const transfers: { from: string; fromColor: string; amount: number }[] = [];
+
+    gameState.players.forEach(p => {
+      if (p.id !== currentPlayer.id) {
+        const amountToTransfer = p.resources[resourceType];
+        if (amountToTransfer > 0) {
+          totalTransferred += amountToTransfer;
+          transfers.push({
+            from: p.name,
+            fromColor: getPlayerColorStyle(p.color),
+            amount: amountToTransfer
+          });
+        }
+      }
+    });
+
+    // Update state (pure function, no side effects)
     setGameState(prev => {
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       if (!currentPlayer) return prev;
@@ -3000,7 +3038,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       if (!resourceType) return prev;
 
       let totalTransferred = 0;
-      const transfers: { from: string; fromColor: string; amount: number }[] = [];
 
       const updatedPlayers = prev.players.map(p => {
         if (p.id === currentPlayer.id) {
@@ -3010,11 +3047,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         const amountToTransfer = p.resources[resourceType];
         if (amountToTransfer > 0) {
           totalTransferred += amountToTransfer;
-          transfers.push({
-            from: p.name,
-            fromColor: getPlayerColorStyle(p.color),
-            amount: amountToTransfer
-          });
 
           return {
             ...p,
@@ -3058,16 +3090,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
-      // Log inside the state update where we have guaranteed access to all data
-      const playerColor = getPlayerColorStyle(currentPlayer.color);
-      const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> took ${totalTransferred} ${resourceType} from other players`;
-      setTimeout(() => addToLog(message), 100);
-
-      transfers.forEach((transfer, index) => {
-        const detailMessage = `<span style="color: ${transfer.fromColor}; font-weight: bold;">${transfer.from}</span> gave up ${transfer.amount} ${resourceType}`;
-        setTimeout(() => addToLog(detailMessage), 200 + (index * 50));
-      });
-
       return {
         ...prev,
         players: finalPlayers,
@@ -3085,7 +3107,17 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
-  }, [addToLog, getPlayerColorStyle]);
+
+    // Log AFTER state update (outside the updater function)
+    const playerColor = getPlayerColorStyle(currentPlayer.color);
+    const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> took ${totalTransferred} ${resourceType} from other players`;
+    setTimeout(() => addToLog(message), 100);
+
+    transfers.forEach((transfer, index) => {
+      const detailMessage = `<span style="color: ${transfer.fromColor}; font-weight: bold;">${transfer.from}</span> gave up ${transfer.amount} ${resourceType}`;
+      setTimeout(() => addToLog(detailMessage), 200 + (index * 50));
+    });
+  }, [gameState, addToLog, getPlayerColorStyle]);
 
   const handleResourceSwapPlayerSelection = useCallback((targetPlayerId: string) => {
     console.log('DEBUG: Resource Swap target player selected:', targetPlayerId);
@@ -3103,6 +3135,18 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, []);
 
   const handleConfirmResourceSwap = useCallback(() => {
+    // Capture logging data BEFORE state update to avoid duplicates in StrictMode
+    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
+    const targetPlayerId = gameState.turnState.placementContext.selectedPlayerId;
+    const targetPlayer = gameState.players.find(p => p.id === targetPlayerId);
+
+    if (!currentPlayer || !targetPlayer) return;
+
+    // Prepare log message data
+    const currentPlayerColor = getPlayerColorStyle(currentPlayer.color);
+    const targetPlayerColor = getPlayerColorStyle(targetPlayer.color);
+
+    // Update state (pure function, no side effects)
     setGameState(prev => {
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       const targetPlayerId = prev.turnState.placementContext.selectedPlayerId;
@@ -3134,12 +3178,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
-      // Log inside the state update where we have guaranteed access to all data
-      const currentPlayerColor = getPlayerColorStyle(currentPlayer.color);
-      const targetPlayerColor = getPlayerColorStyle(targetPlayer.color);
-      const message = `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> swapped all resources with <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`;
-      setTimeout(() => addToLog(message), 100);
-
       return {
         ...prev,
         players: updatedPlayers,
@@ -3157,7 +3195,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
-  }, [addToLog, getPlayerColorStyle]);
+
+    // Log AFTER state update (outside the updater function)
+    const message = `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> swapped all resources with <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`;
+    setTimeout(() => addToLog(message), 100);
+  }, [gameState, addToLog, getPlayerColorStyle]);
 
   const handleCancelCardEffect = useCallback(() => {
     setGameState(prev => ({
@@ -3181,6 +3223,21 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   const handleFreeUpgradeVillageSelection = useCallback((vertexId: number) => {
     console.log('DEBUG: Free Upgrade village selected:', vertexId);
 
+    // Capture logging data BEFORE state update to avoid duplicates in StrictMode
+    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
+    if (!currentPlayer) return;
+
+    const village = gameState.villages.find(v => v.vertexId === vertexId && v.playerId === currentPlayer.id && v.type === 'settlement');
+    if (!village) {
+      // Log error case outside state updater
+      setTimeout(() => addToLog('Invalid village selection'), 100);
+      return;
+    }
+
+    // Prepare log message data
+    const playerColor = getPlayerColorStyle(currentPlayer.color);
+
+    // Update state (pure function, no side effects)
     setGameState(prev => {
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       const pendingCardId = prev.turnState.placementContext.pendingCardId;
@@ -3188,7 +3245,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
       const village = prev.villages.find(v => v.vertexId === vertexId && v.playerId === currentPlayer.id && v.type === 'settlement');
       if (!village) {
-        setTimeout(() => addToLog('Invalid village selection'), 100);
         return prev;
       }
 
@@ -3225,11 +3281,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
-      // Log inside the state update where we have guaranteed access to all data
-      const playerColor = getPlayerColorStyle(currentPlayer.color);
-      const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> upgraded a Village to an Estate for free and earned 1 point`;
-      setTimeout(() => addToLog(message), 100);
-
       return {
         ...prev,
         players: updatedPlayers,
@@ -3247,7 +3298,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
-  }, [addToLog, getPlayerColorStyle]);
+
+    // Log AFTER state update (outside the updater function)
+    const message = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> upgraded a Village to an Estate for free and earned 1 point`;
+    setTimeout(() => addToLog(message), 100);
+  }, [gameState, addToLog, getPlayerColorStyle]);
 
   // Auto-handle play_dev_cards phase for AI players
   useEffect(() => {
@@ -4691,149 +4746,144 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         setRobberMovementInitiated(true);
 
         setTimeout(() => {
-          // Get fresh state and calculate robber placement
-          setGameState(prev => {
-            console.log('DEBUG: Current robber position in state:', prev.robberPosition);
-            console.log('DEBUG: boardCenters length:', boardCenters.length);
+          // Calculate robber placement BEFORE state update to avoid duplicates in StrictMode
+          const freshState = {
+            ...gameState,
+            boardCenters: gameState.boardCenters && gameState.boardCenters.length > 0
+              ? gameState.boardCenters
+              : boardCenters
+          };
 
-            // Create a fresh state object with boardCenters for the strategy functions
-            const freshState = {
+          console.log('DEBUG: Current robber position in state:', freshState.robberPosition);
+          console.log('DEBUG: boardCenters length:', boardCenters.length);
+
+          const robberPlacement = selectRobberPlacement(
+            currentPlayer,
+            freshState,
+            boardSize,
+            currentPlayer.difficulty || 'normal'
+          );
+
+          if (!robberPlacement || robberPlacement.hexId === null) {
+            console.error('DEBUG: No valid robber destination found');
+            setGameState(prev => ({
               ...prev,
-              boardCenters: prev.boardCenters && prev.boardCenters.length > 0
-                ? prev.boardCenters
-                : boardCenters // Fallback to React state
-            };
-
-            const robberPlacement = selectRobberPlacement(
-              currentPlayer,
-              freshState, // Use state with guaranteed boardCenters
-              boardSize,
-              currentPlayer.difficulty || 'normal'
-            );
-
-            if (!robberPlacement || robberPlacement.hexId === null) {
-              console.error('DEBUG: No valid robber destination found');
-              setTimeout(() => setRobberMovementInitiated(false), 0);
-              return {
-                ...prev,
-                turnState: {
-                  ...prev.turnState,
-                  step: 'play_dev_cards'
-                }
-              };
-            }
-
-            const newCentreId = robberPlacement.hexId;
-
-            // Verify the move is valid (extra safety check)
-            if (newCentreId === prev.robberPosition) {
-              console.error('ERROR: AI tried to move robber to same position!', newCentreId);
-              setTimeout(() => setRobberMovementInitiated(false), 0);
-              return {
-                ...prev,
-                turnState: {
-                  ...prev.turnState,
-                  step: 'play_dev_cards'
-                }
-              };
-            }
-
-            // Log robber movement
-            const playerColor = getPlayerColorStyle(currentPlayer.color);
-            const moveMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> moved the robber from centre ${prev.robberPosition} to centre ${newCentreId}`;
-            setTimeout(() => addToLog(moveMessage), 0);
-
-            // Check for steal targets using boardCenters from React state
-            const eligibleTargets = getPlayersWithAdjacentBuildings(
-              newCentreId,
-              boardCenters as CentreData[], // Use React state boardCenters
-              prev,
-              currentPlayer.id
-            );
-
-            if (eligibleTargets.length > 0) {
-              // Determine steal target
-              let targetPlayerId = robberPlacement.targetPlayerId;
-
-              // Validate target
-              if (targetPlayerId && !eligibleTargets.some(t => t.id === targetPlayerId)) {
-                console.warn(`AI selected invalid steal target, selecting random target instead.`);
-                targetPlayerId = selectRandomStealTarget(eligibleTargets)?.id;
-              } else if (!targetPlayerId) {
-                targetPlayerId = selectRandomStealTarget(eligibleTargets)?.id;
+              turnState: {
+                ...prev.turnState,
+                step: 'play_dev_cards'
               }
+            }));
+            setTimeout(() => setRobberMovementInitiated(false), 0);
+            return;
+          }
 
-              const targetPlayer = targetPlayerId ? prev.players.find(p => p.id === targetPlayerId) : null;
+          const newCentreId = robberPlacement.hexId;
 
-              if (targetPlayer && targetPlayer.resources.total > 0) {
-                const stealResult = stealRandomResource(targetPlayer, currentPlayer);
+          // Verify the move is valid (extra safety check)
+          if (newCentreId === freshState.robberPosition) {
+            console.error('ERROR: AI tried to move robber to same position!', newCentreId);
+            setGameState(prev => ({
+              ...prev,
+              turnState: {
+                ...prev.turnState,
+                step: 'play_dev_cards'
+              }
+            }));
+            setTimeout(() => setRobberMovementInitiated(false), 0);
+            return;
+          }
 
-                if (stealResult.resource && stealResult.amount > 0) {
-                  // Log the theft
-                  const currentPlayerColor = getPlayerColorStyle(currentPlayer.color);
-                  const targetPlayerColor = getPlayerColorStyle(targetPlayer.color);
-                  const isHumanInvolved = targetPlayer.isHuman;
-                  const stealMessage = isHumanInvolved
-                    ? `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> stole 1 ${stealResult.resource} from <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`
-                    : `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> stole a resource from <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`;
-                  setTimeout(() => addToLog(stealMessage), 100);
+          // Check for steal targets using boardCenters from React state
+          const eligibleTargets = getPlayersWithAdjacentBuildings(
+            newCentreId,
+            boardCenters as CentreData[],
+            freshState,
+            currentPlayer.id
+          );
 
-                  setTimeout(() => setRobberMovementInitiated(false), 0);
+          // Determine steal target
+          let targetPlayerId = robberPlacement.targetPlayerId;
 
-                  // Return state with robber moved and resource stolen
+          // Validate target
+          if (targetPlayerId && !eligibleTargets.some(t => t.id === targetPlayerId)) {
+            console.warn(`AI selected invalid steal target, selecting random target instead.`);
+            targetPlayerId = selectRandomStealTarget(eligibleTargets)?.id;
+          } else if (!targetPlayerId && eligibleTargets.length > 0) {
+            targetPlayerId = selectRandomStealTarget(eligibleTargets)?.id;
+          }
+
+          const targetPlayer = targetPlayerId ? freshState.players.find(p => p.id === targetPlayerId) : null;
+          let stealResult: { resource: string | null; amount: number } | null = null;
+
+          if (targetPlayer && targetPlayer.resources.total > 0) {
+            stealResult = stealRandomResource(targetPlayer, currentPlayer);
+          }
+
+          // Prepare log messages
+          const playerColor = getPlayerColorStyle(currentPlayer.color);
+          const moveMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> moved the robber from centre ${freshState.robberPosition} to centre ${newCentreId}`;
+
+          let stealMessage: string | null = null;
+          if (stealResult && stealResult.resource && stealResult.amount > 0 && targetPlayer) {
+            const currentPlayerColor = getPlayerColorStyle(currentPlayer.color);
+            const targetPlayerColor = getPlayerColorStyle(targetPlayer.color);
+            const isHumanInvolved = targetPlayer.isHuman;
+            stealMessage = isHumanInvolved
+              ? `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> stole 1 ${stealResult.resource} from <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`
+              : `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> stole a resource from <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`;
+          } else if (eligibleTargets.length > 0) {
+            const targetName = targetPlayer?.name || 'target player';
+            stealMessage = `${targetName} has no resources to steal`;
+          } else {
+            stealMessage = 'No players to steal from';
+          }
+
+          // Update state (pure function, no side effects)
+          setGameState(prev => {
+            let updatedPlayers = prev.players;
+
+            if (stealResult && stealResult.resource && stealResult.amount > 0 && targetPlayer) {
+              updatedPlayers = prev.players.map(p => {
+                if (p.id === targetPlayer.id) {
                   return {
-                    ...prev,
-                    robberPosition: newCentreId,
-                    players: prev.players.map(p => {
-                      if (p.id === targetPlayer.id) {
-                        return {
-                          ...p,
-                          resources: {
-                            ...p.resources,
-                            [stealResult.resource!]: p.resources[stealResult.resource!] - stealResult.amount,
-                            total: p.resources.total - stealResult.amount
-                          }
-                        };
-                      } else if (p.id === currentPlayer.id) {
-                        return {
-                          ...p,
-                          resources: {
-                            ...p.resources,
-                            [stealResult.resource!]: p.resources[stealResult.resource!] + stealResult.amount,
-                            total: p.resources.total + stealResult.amount
-                          }
-                        };
-                      }
-                      return p;
-                    }),
-                    turnState: {
-                      ...prev.turnState,
-                      step: 'play_dev_cards'
+                    ...p,
+                    resources: {
+                      ...p.resources,
+                      [stealResult.resource!]: p.resources[stealResult.resource!] - stealResult.amount,
+                      total: p.resources.total - stealResult.amount
+                    }
+                  };
+                } else if (p.id === currentPlayer.id) {
+                  return {
+                    ...p,
+                    resources: {
+                      ...p.resources,
+                      [stealResult.resource!]: p.resources[stealResult.resource!] + stealResult.amount,
+                      total: p.resources.total + stealResult.amount
                     }
                   };
                 }
-              }
-
-              // Target has no resources
-              const targetName = targetPlayer?.name || 'target player';
-              setTimeout(() => addToLog(`${targetName} has no resources to steal`), 100);
-            } else {
-              // No one to steal from
-              setTimeout(() => addToLog('No players to steal from'), 100);
+                return p;
+              });
             }
 
-            setTimeout(() => setRobberMovementInitiated(false), 0);
-
-            // Move robber and proceed
             return {
               ...prev,
               robberPosition: newCentreId,
+              players: updatedPlayers,
               turnState: {
                 ...prev.turnState,
                 step: 'play_dev_cards'
               }
             };
           });
+
+          // Log AFTER state update (outside the updater function)
+          setTimeout(() => addToLog(moveMessage), 0);
+          if (stealMessage) {
+            setTimeout(() => addToLog(stealMessage), 100);
+          }
+          setTimeout(() => setRobberMovementInitiated(false), 0);
         }, 1500);
       }
     }
