@@ -3290,7 +3290,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   // Auto-handle Booming Economy selection for AI players
   useEffect(() => {
     if (gameState.phase === 'playing' &&
-        gameState.turnState.step === 'booming_economy_selection') {
+        gameState.turnState.step === 'booming_economy_selection' &&
+        (!gameState.turnState.placementContext.resourcesSelected || gameState.turnState.placementContext.resourcesSelected.length === 0)) {  // Guard to prevent re-triggering
       const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
       if (currentPlayer && !currentPlayer.isHuman) {
         console.log(`\n💰 ${currentPlayer.name} is selecting 2 free resources from Booming Economy...`);
@@ -3321,7 +3322,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return () => clearTimeout(timer);
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.resourcesSelected, handleBoomingEconomyResourceSelection, handleConfirmBoomingEconomy]);
 
   // Auto-handle Closed Market selection for AI players
   useEffect(() => {
