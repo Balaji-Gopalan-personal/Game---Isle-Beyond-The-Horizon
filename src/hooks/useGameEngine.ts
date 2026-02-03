@@ -1,5 +1,5 @@
 import React from 'react';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { GameState, Player, GameStep, StepTrigger } from '../types/game';
 import { BoardSize, BOARD_STRUCTURES } from '../data/boardStructure';
 import { AICharacter } from '../data/aiCharacters';
@@ -152,6 +152,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     playerColor: string;
   } | null>(null);
   const [cardValidationError, setCardValidationError] = useState<string | null>(null);
+
+  // Ref to track if AI card effect is currently being processed
+  // This prevents duplicate executions when useEffect re-runs due to state changes
+  const aiCardEffectProcessingRef = useRef(false);
 
   // Helper function to add log messages
   const addToLog = useCallback((message: string) => {
@@ -3294,6 +3298,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         (!gameState.turnState.placementContext.resourcesSelected || gameState.turnState.placementContext.resourcesSelected.length === 0)) {  // Guard to prevent re-triggering
       const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
       if (currentPlayer && !currentPlayer.isHuman) {
+        // Prevent duplicate execution if already processing
+        if (aiCardEffectProcessingRef.current) {
+          return;
+        }
+
+        aiCardEffectProcessingRef.current = true;
         console.log(`\n💰 ${currentPlayer.name} is selecting 2 free resources from Booming Economy...`);
 
         const timer = setTimeout(() => {
@@ -3316,10 +3326,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             setTimeout(() => {
               console.log(`   🎁 Confirming selection...`);
               handleConfirmBoomingEconomy();
+              // Clear the processing flag when complete
+              aiCardEffectProcessingRef.current = false;
             }, 300);
           }, 200);
         }, 600);
-        return () => clearTimeout(timer);
+        return () => {
+          clearTimeout(timer);
+          aiCardEffectProcessingRef.current = false;
+        };
       }
     }
   }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.resourcesSelected, handleBoomingEconomyResourceSelection, handleConfirmBoomingEconomy]);
@@ -3331,6 +3346,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         !gameState.turnState.placementContext.selectedResource) {  // Guard to prevent re-triggering
       const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
       if (currentPlayer && !currentPlayer.isHuman) {
+        // Prevent duplicate execution if already processing
+        if (aiCardEffectProcessingRef.current) {
+          return;
+        }
+
+        aiCardEffectProcessingRef.current = true;
         console.log(`\n🚫 ${currentPlayer.name} is selecting a resource to close from trading...`);
 
         const timer = setTimeout(() => {
@@ -3345,9 +3366,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           setTimeout(() => {
             console.log(`   🎯 Confirming Closed Market selection...`);
             handleConfirmClosedMarket();
+            // Clear the processing flag when complete
+            aiCardEffectProcessingRef.current = false;
           }, 400);
         }, 800);
-        return () => clearTimeout(timer);
+        return () => {
+          clearTimeout(timer);
+          aiCardEffectProcessingRef.current = false;
+        };
       }
     }
   }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedResource, handleClosedMarketResourceSelection, handleConfirmClosedMarket]);
@@ -3359,6 +3385,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         !gameState.turnState.placementContext.selectedPlayerId) {  // Guard to prevent re-triggering
       const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
       if (currentPlayer && !currentPlayer.isHuman) {
+        // Prevent duplicate execution if already processing
+        if (aiCardEffectProcessingRef.current) {
+          return;
+        }
+
+        aiCardEffectProcessingRef.current = true;
         console.log(`\n🔄 ${currentPlayer.name} is selecting a player to swap all resources with...`);
 
         const timer = setTimeout(() => {
@@ -3378,11 +3410,22 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
               setTimeout(() => {
                 console.log(`   🔄 Confirming Resource Swap...`);
                 handleConfirmResourceSwap();
+                // Clear the processing flag when complete
+                aiCardEffectProcessingRef.current = false;
               }, 400);
+            } else {
+              // Clear flag if no valid target
+              aiCardEffectProcessingRef.current = false;
             }
+          } else {
+            // Clear flag if no other players
+            aiCardEffectProcessingRef.current = false;
           }
         }, 800);
-        return () => clearTimeout(timer);
+        return () => {
+          clearTimeout(timer);
+          aiCardEffectProcessingRef.current = false;
+        };
       }
     }
   }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedPlayerId, handleResourceSwapPlayerSelection, handleConfirmResourceSwap]);
@@ -3393,14 +3436,26 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         gameState.turnState.step === 'free_upgrade_selection') {
       const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
       if (currentPlayer && !currentPlayer.isHuman) {
+        // Prevent duplicate execution if already processing
+        if (aiCardEffectProcessingRef.current) {
+          return;
+        }
+
+        aiCardEffectProcessingRef.current = true;
+
         const timer = setTimeout(() => {
           const playerVillages = gameState.villages.filter(v => v.playerId === currentPlayer.id && v.type === 'settlement');
           if (playerVillages.length > 0) {
             const village = playerVillages[Math.floor(Math.random() * playerVillages.length)];
             handleFreeUpgradeVillageSelection(village.vertexId);
           }
+          // Clear the processing flag when complete
+          aiCardEffectProcessingRef.current = false;
         }, 800);
-        return () => clearTimeout(timer);
+        return () => {
+          clearTimeout(timer);
+          aiCardEffectProcessingRef.current = false;
+        };
       }
     }
   }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.villages, handleFreeUpgradeVillageSelection]);
