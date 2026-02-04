@@ -63,12 +63,13 @@ export function selectRobberPlacement(
   const scoredPlacements = validHexes.map(hex => {
     const score = scoreRobberPlacement(hex.id, player, gameState, boardSize);
     const targetPlayer = selectStealTarget(hex.id, gameState, player.id, boardSize);
+    const reasoning = generateRobberReasoning(hex, targetPlayer, player, gameState, boardSize);
 
     return {
       hexId: hex.id,
       targetPlayerId: targetPlayer,
       score,
-      reasoning: `Blocking hex ${hex.id} (${hex.resourceType} ${hex.value})`
+      reasoning
     };
   });
 
@@ -90,6 +91,52 @@ export function selectRobberPlacement(
 
   console.log(`   ✓ Selected best: Hex ${scoredPlacements[0].hexId}`);
   return scoredPlacements[0];
+}
+
+function generateRobberReasoning(
+  hex: { id: number; resourceType: string; value: number; vertices: number[] },
+  targetPlayerId: string | undefined,
+  currentPlayer: Player,
+  gameState: GameState,
+  boardSize: BoardSize
+): string {
+  const reasons: string[] = [];
+  const pointsToWin = gameState.gameSettings.pointsToWin;
+
+  if (targetPlayerId) {
+    const targetPlayer = gameState.players.find(p => p.id === targetPlayerId);
+    if (targetPlayer) {
+      const targetPoints = targetPlayer.score + targetPlayer.secretPoints;
+      const pointsAway = pointsToWin - targetPoints;
+
+      const leader = getGameLeader(gameState, currentPlayer.id);
+      const isLeader = leader && targetPlayer.id === leader.id;
+
+      if (pointsAway <= 2) {
+        reasons.push(`block ${targetPlayer.name} (${pointsAway} pts from winning)`);
+      } else if (isLeader) {
+        reasons.push(`block leader ${targetPlayer.name} (${targetPoints} pts)`);
+      } else {
+        reasons.push(`block ${targetPlayer.name}`);
+      }
+    }
+  }
+
+  const productionQuality = hex.value === 6 || hex.value === 8 ? 'high-production' :
+                            hex.value === 5 || hex.value === 9 ? 'good' : 'moderate';
+
+  if (productionQuality !== 'moderate') {
+    reasons.push(`${productionQuality} ${hex.resourceType}`);
+  } else {
+    reasons.push(`${hex.resourceType}`);
+  }
+
+  if (reasons.length === 0) {
+    return `Block ${hex.resourceType} hex`;
+  }
+
+  const capitalizedReasons = reasons.map((r, i) => i === 0 ? r.charAt(0).toUpperCase() + r.slice(1) : r);
+  return capitalizedReasons.join(', ');
 }
 
 function scoreRobberPlacement(

@@ -193,6 +193,90 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     return getPlayerColorHex(color);
   }, []);
 
+  // Helper function to generate AI reasoning for setup phase village placement
+  const generateSetupVillageReasoning = useCallback((vertexId: number, state: any): string => {
+    if (!state.boardCenters || state.boardCenters.length === 0) {
+      return 'Establish initial presence';
+    }
+
+    const reasons: string[] = [];
+
+    // Find adjacent hexes
+    const adjacentHexes = state.boardCenters.filter((center: any) =>
+      center.vertices.includes(vertexId)
+    );
+
+    // Check for high-production hexes
+    const highProductionHexes = adjacentHexes.filter((hex: any) => hex.value === 6 || hex.value === 8);
+    const goodProductionHexes = adjacentHexes.filter((hex: any) => hex.value === 5 || hex.value === 9);
+
+    if (highProductionHexes.length > 0) {
+      reasons.push('high-production location');
+    } else if (goodProductionHexes.length > 0) {
+      reasons.push('good production location');
+    }
+
+    // Check resource diversity
+    const resourceTypes = new Set(adjacentHexes.map((hex: any) => hex.resourceType).filter((r: string) => r !== 'desert'));
+    if (resourceTypes.size >= 3) {
+      reasons.push('diverse resources');
+    }
+
+    // Check for trading port
+    if (state.tradingPorts) {
+      const hasPort = state.tradingPorts.some((port: any) => port.vertices.includes(vertexId));
+      if (hasPort) {
+        reasons.push('trading port access');
+      }
+    }
+
+    if (reasons.length === 0) {
+      return 'Establish initial presence';
+    }
+
+    const capitalizedReasons = reasons.map((r: string, i: number) => i === 0 ? r.charAt(0).toUpperCase() + r.slice(1) : r);
+    return capitalizedReasons.join(', ');
+  }, []);
+
+  // Helper function to generate AI reasoning for setup phase road placement
+  const generateSetupRoadReasoning = useCallback((fromVertex: number, toVertex: number, villageVertex: number | null, state: any): string => {
+    if (!state.boardCenters || state.boardCenters.length === 0) {
+      return 'Expand from village';
+    }
+
+    const reasons: string[] = [];
+
+    // Check if road leads to high-production hex
+    const adjacentHexes = state.boardCenters.filter((center: any) =>
+      center.vertices.includes(toVertex)
+    );
+
+    const highProductionHexes = adjacentHexes.filter((hex: any) => hex.value === 6 || hex.value === 8);
+    if (highProductionHexes.length > 0) {
+      reasons.push('toward high-production hex');
+    }
+
+    // Check for expansion potential
+    const villageHexes = villageVertex ? state.boardCenters.filter((center: any) =>
+      center.vertices.includes(villageVertex)
+    ) : [];
+
+    const roadHexes = adjacentHexes.filter((hex: any) =>
+      !villageHexes.some((vh: any) => vh.id === hex.id)
+    );
+
+    if (roadHexes.length > 0) {
+      reasons.push('expansion potential');
+    }
+
+    if (reasons.length === 0) {
+      return 'Expand from village';
+    }
+
+    const capitalizedReasons = reasons.map((r: string, i: number) => i === 0 ? r.charAt(0).toUpperCase() + r.slice(1) : r);
+    return capitalizedReasons.join(', ');
+  }, []);
+
   // Discard helper functions
   const checkIfDiscardRequired = useCallback((player: Player, maxResourceHold: number): boolean => {
     if (maxResourceHold === 0) return false;
@@ -1706,6 +1790,19 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           timestamp: new Date().toLocaleTimeString()
         });
 
+        // Add AI decision context for village placement in testing mode
+        if (gameState.gameSettings.testingMode && currentPlayer && !currentPlayer.isHuman) {
+          const personality = currentPlayer.character?.name ?
+            getPersonalityForCharacter(currentPlayer.character.name) : 'balanced';
+          const personalityLabel = personality.charAt(0).toUpperCase() + personality.slice(1);
+          const reasoning = generateSetupVillageReasoning(villageVertexId, newState);
+          logMessages.push({
+            message: `<span style="color: #6B7280; font-style: italic; padding-left: 16px; display: block;">${personalityLabel} - Objective: ${reasoning}</span>`,
+            playerId,
+            timestamp: new Date().toLocaleTimeString()
+          });
+        }
+
         // Add resource collection message for Phase 2 with HTML formatting
         if (gameState.phase === 'setup-phase-2' && aiResourceCollection.logMessage) {
           const formattedResourceMessage = aiResourceCollection.logMessage.replace(
@@ -1732,6 +1829,19 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             playerId,
             timestamp: new Date().toLocaleTimeString()
           });
+
+          // Add AI decision context for road placement in testing mode
+          if (gameState.gameSettings.testingMode && currentPlayer && !currentPlayer.isHuman) {
+            const personality = currentPlayer.character?.name ?
+              getPersonalityForCharacter(currentPlayer.character.name) : 'balanced';
+            const personalityLabel = personality.charAt(0).toUpperCase() + personality.slice(1);
+            const reasoning = generateSetupRoadReasoning(fromVertex, toVertex, villageVertexId, newState);
+            logMessages.push({
+              message: `<span style="color: #6B7280; font-style: italic; padding-left: 16px; display: block;">${personalityLabel} - Objective: ${reasoning}</span>`,
+              playerId,
+              timestamp: new Date().toLocaleTimeString()
+            });
+          }
 
           // Add longest road connection message if applicable
           if (gameState.phase === 'setup-phase-2' && newLongestRoadLength === 2 && !aiLongestRoadUpdate?.shouldAward) {
@@ -1819,7 +1929,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
     // All log messages are now added inside the setGameState callback above
     // This ensures atomic updates and prevents message loss due to multiple renders
-  }, [gameState, collectResourcesFromAdjacentCenters, areRoadsConnected, addToLog, addColoredLog, boardGraph, checkLongestRoadBonus, checkAndLogTradingPortAccess, getPlayerColorStyle]);
+  }, [gameState, collectResourcesFromAdjacentCenters, areRoadsConnected, addToLog, addColoredLog, boardGraph, checkLongestRoadBonus, checkAndLogTradingPortAccess, getPlayerColorStyle, generateSetupVillageReasoning, generateSetupRoadReasoning]);
   
   const getCurrentStep = useCallback(() => {
     if (!gameState) return undefined;
