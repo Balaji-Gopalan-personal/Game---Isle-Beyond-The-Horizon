@@ -3368,26 +3368,33 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, []);
 
   const handleFreeUpgradeVillageSelection = useCallback((vertexId: number) => {
-    console.log('DEBUG: Free Upgrade village selected:', vertexId);
+    console.log('🔥 handleFreeUpgradeVillageSelection CALLED with vertexId:', vertexId);
 
     // Store log message data to avoid stale closure issues
     let logMessage = '';
     let shouldLog = false;
     let isError = false;
+    let playerName = '';
 
     // Update state (pure function, no side effects)
     setGameState(prev => {
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       const pendingCardId = prev.turnState.placementContext.pendingCardId;
-      if (!currentPlayer) return prev;
+      if (!currentPlayer) {
+        console.log('🔥 FREE UPGRADE: No current player found!');
+        return prev;
+      }
 
       const village = prev.villages.find(v => v.vertexId === vertexId && v.playerId === currentPlayer.id && v.type === 'settlement');
       if (!village) {
+        console.log('🔥 FREE UPGRADE: Invalid village selection');
         logMessage = 'Invalid village selection';
         shouldLog = true;
         isError = true;
         return prev;
       }
+
+      console.log(`🔥 FREE UPGRADE: Upgrading village ${village.id} for ${currentPlayer.name}`);
 
       const updatedVillages = prev.villages.map(v => {
         if (v.id === village.id) {
@@ -3425,7 +3432,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Prepare log message using current state
       const playerColor = getPlayerColorStyle(currentPlayer.color);
       logMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> upgraded a Village to an Estate for free and earned 1 point`;
+      playerName = currentPlayer.name;
       shouldLog = true;
+
+      console.log(`🔥 FREE UPGRADE: Prepared log message for ${currentPlayer.name}`);
 
       return {
         ...prev,
@@ -3446,8 +3456,20 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     });
 
     // Log AFTER state update (outside the updater function)
+    console.log(`🔥 FREE UPGRADE: State updated. shouldLog=${shouldLog}, playerName="${playerName}", logMessage length=${logMessage.length}`);
     if (shouldLog) {
-      setTimeout(() => addToLog(logMessage), 100);
+      if (isError) {
+        console.log(`🔥 FREE UPGRADE: Logging error message immediately`);
+        addToLog(logMessage);
+      } else {
+        console.log(`🔥 FREE UPGRADE: Scheduling log message with 100ms delay`);
+        setTimeout(() => {
+          console.log(`🔥 FREE UPGRADE: addToLog executing now - ${logMessage.substring(0, 50)}...`);
+          addToLog(logMessage);
+        }, 100);
+      }
+    } else {
+      console.log(`🔥 FREE UPGRADE: shouldLog is FALSE, not logging`);
     }
   }, [addToLog, getPlayerColorStyle]);
 
@@ -3506,9 +3528,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
 
         aiCardEffectProcessingRef.current = true;
-        console.log(`\n💰 ${currentPlayer.name} is selecting 2 free resources from Booming Economy...`);
+        console.log(`\n🔥 BOOMING ECONOMY: Setting up 600ms timeout for ${currentPlayer.name}`);
+        console.log(`💰 ${currentPlayer.name} is selecting 2 free resources from Booming Economy...`);
 
         const timer = setTimeout(() => {
+          console.log(`🔥 BOOMING ECONOMY TIMEOUT EXECUTING for ${currentPlayer.name}`);
           // Use strategic selection based on AI difficulty
           const difficulty = currentPlayer.difficulty || 'normal';
           const selection = selectBoomingEconomyResources(currentPlayer, gameState, difficulty);
@@ -3530,10 +3554,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
               handleConfirmBoomingEconomy();
               // Clear the processing flag when complete
               aiCardEffectProcessingRef.current = false;
+              console.log(`🔥 BOOMING ECONOMY TIMEOUT COMPLETE for ${currentPlayer.name}`);
             }, 300);
           }, 200);
         }, 600);
         return () => {
+          console.log(`🔥 BOOMING ECONOMY CLEANUP: Cancelling timeout for ${currentPlayer.name}`);
           clearTimeout(timer);
           aiCardEffectProcessingRef.current = false;
         };
@@ -3646,15 +3672,20 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       if (currentPlayer && !currentPlayer.isHuman) {
         // Prevent duplicate execution if already processing
         if (aiCardEffectProcessingRef.current) {
+          console.log(`🔥 FREE UPGRADE: Already processing, skipping`);
           return;
         }
 
         aiCardEffectProcessingRef.current = true;
+        console.log(`🔥 FREE UPGRADE: Setting up 800ms timeout for ${currentPlayer.name}`);
 
         const timer = setTimeout(() => {
+          console.log(`🔥 FREE UPGRADE TIMEOUT EXECUTING for ${currentPlayer.name}`);
           const playerVillages = gameState.villages.filter(v => v.playerId === currentPlayer.id && v.type === 'settlement');
+          console.log(`🔥 FREE UPGRADE: Found ${playerVillages.length} villages to upgrade`);
           if (playerVillages.length > 0) {
             const village = playerVillages[Math.floor(Math.random() * playerVillages.length)];
+            console.log(`🔥 FREE UPGRADE: Calling handleFreeUpgradeVillageSelection(${village.vertexId})`);
             handleFreeUpgradeVillageSelection(village.vertexId);
           } else {
             // Edge case: AI has no villages to upgrade
@@ -3664,13 +3695,20 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           }
           // Clear the processing flag when complete
           aiCardEffectProcessingRef.current = false;
+          console.log(`🔥 FREE UPGRADE TIMEOUT COMPLETE for ${currentPlayer.name}`);
         }, 800);
         return () => {
+          console.log(`🔥 FREE UPGRADE CLEANUP: Cancelling timeout for ${currentPlayer.name}`);
           clearTimeout(timer);
           aiCardEffectProcessingRef.current = false;
         };
       }
     }
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+
+  // Debug: Track step changes
+  useEffect(() => {
+    console.log(`🔥 STEP CHANGE: phase=${gameState.phase}, step=${gameState.turnState.step}, currentPlayer=${gameState.currentPlayer}`);
   }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
 
   const handleEndTurn = useCallback(() => {
