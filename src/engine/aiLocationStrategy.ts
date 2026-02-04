@@ -15,6 +15,26 @@ export interface PersonalityWeights {
   blockingWeight: number;
 }
 
+export interface VillageLocationDecision {
+  vertexId: number;
+  reasoning: string;
+  personality: PersonalityTrait;
+}
+
+export interface RoadLocationDecision {
+  fromVertex: number;
+  toVertex: number;
+  edgeId: string;
+  reasoning: string;
+  personality: PersonalityTrait;
+}
+
+export interface EstateLocationDecision {
+  vertexId: number;
+  reasoning: string;
+  personality: PersonalityTrait;
+}
+
 const PERSONALITY_PROFILES: Record<PersonalityTrait, PersonalityWeights> = {
   aggressive: {
     productionWeight: 2.5,
@@ -171,12 +191,108 @@ function getGameLeader(gameState: GameState, excludePlayerId: string): Player | 
   return leader;
 }
 
+function generateVillageReasoning(
+  evaluation: VertexEvaluation & { totalScore: number },
+  personality: PersonalityTrait,
+  gameState: GameState,
+  playerId: string
+): string {
+  const reasons: string[] = [];
+
+  if (evaluation.productionValue > 20) {
+    reasons.push('high-production location');
+  } else if (evaluation.productionValue > 15) {
+    reasons.push('good production location');
+  }
+
+  if (evaluation.resourceDiversity > 3) {
+    reasons.push('diverse resources');
+  }
+
+  if (evaluation.portAccess > 5) {
+    reasons.push('trading port access');
+  }
+
+  const blockingValue = calculateBlockingValue(evaluation.vertexId, gameState, playerId);
+  if (blockingValue > 10) {
+    reasons.push('blocks opponent');
+  }
+
+  if (evaluation.expansionPotential > 15) {
+    reasons.push('expansion potential');
+  }
+
+  if (reasons.length === 0) {
+    return 'Establish presence on the board';
+  }
+
+  const capitalizedReasons = reasons.map((r, i) => i === 0 ? r.charAt(0).toUpperCase() + r.slice(1) : r);
+  return capitalizedReasons.join(', ');
+}
+
+function generateRoadReasoning(
+  evaluation: EdgeEvaluation,
+  personality: PersonalityTrait,
+  prioritizeLongestRoad: boolean
+): string {
+  const reasons: string[] = [];
+
+  if (prioritizeLongestRoad) {
+    reasons.push('extend longest road');
+  }
+
+  if (evaluation.expansionValue > 8) {
+    reasons.push('expansion toward valuable resources');
+  } else if (evaluation.expansionValue > 5) {
+    reasons.push('territory expansion');
+  }
+
+  if (evaluation.productionAccess > 15) {
+    reasons.push('access high-production hex');
+  }
+
+  if (evaluation.portConnectionValue > 5) {
+    reasons.push('connect to trading port');
+  }
+
+  if (reasons.length === 0) {
+    return 'Expand road network';
+  }
+
+  const capitalizedReasons = reasons.map((r, i) => i === 0 ? r.charAt(0).toUpperCase() + r.slice(1) : r);
+  return capitalizedReasons.join(', ');
+}
+
+function generateEstateReasoning(
+  evaluation: { productionValue: number; adjacentEnemies: number },
+  personality: PersonalityTrait
+): string {
+  const reasons: string[] = [];
+
+  if (evaluation.productionValue > 20) {
+    reasons.push('maximize production');
+  } else if (evaluation.productionValue > 15) {
+    reasons.push('boost resource income');
+  }
+
+  if (evaluation.adjacentEnemies > 0) {
+    reasons.push('defensive positioning');
+  }
+
+  if (reasons.length === 0) {
+    return 'Upgrade for more resources';
+  }
+
+  const capitalizedReasons = reasons.map((r, i) => i === 0 ? r.charAt(0).toUpperCase() + r.slice(1) : r);
+  return capitalizedReasons.join(', ');
+}
+
 export function selectStrategicVillageLocation(
   playerId: string,
   gameState: GameState,
   boardSize: BoardSize,
   difficulty: 'easy' | 'normal' | 'hard' = 'normal'
-): number | null {
+): VillageLocationDecision | null {
   const player = gameState.players.find(p => p.id === playerId);
   if (!player) return null;
 
@@ -205,7 +321,13 @@ export function selectStrategicVillageLocation(
   const selected = applyDifficultyRandomness(evaluations, difficulty);
   console.log(`   ✓ Selected: Vertex ${selected.vertexId} (Score: ${selected.totalScore.toFixed(1)})`);
 
-  return selected.vertexId;
+  const reasoning = generateVillageReasoning(selected, personality, gameState, playerId);
+
+  return {
+    vertexId: selected.vertexId,
+    reasoning,
+    personality
+  };
 }
 
 export function selectStrategicRoadLocation(
@@ -214,7 +336,7 @@ export function selectStrategicRoadLocation(
   boardSize: BoardSize,
   difficulty: 'easy' | 'normal' | 'hard' = 'normal',
   prioritizeLongestRoad: boolean = false
-): { fromVertex: number; toVertex: number; edgeId: string } | null {
+): RoadLocationDecision | null {
   const player = gameState.players.find(p => p.id === playerId);
   if (!player) return null;
 
@@ -294,10 +416,15 @@ export function selectStrategicRoadLocation(
 
   if (selectedEdge) {
     console.log(`   ✓ Selected: ${selectedEdge.fromVertex} → ${selectedEdge.toVertex} (Score: ${selectedEdge.evaluation.totalScore.toFixed(1)})`);
+
+    const reasoning = generateRoadReasoning(selectedEdge.evaluation, personality, prioritizeLongestRoad);
+
     return {
       fromVertex: selectedEdge.fromVertex,
       toVertex: selectedEdge.toVertex,
-      edgeId: selectedEdge.edgeId
+      edgeId: selectedEdge.edgeId,
+      reasoning,
+      personality
     };
   }
 
@@ -370,7 +497,7 @@ export function selectStrategicEstateLocation(
   playerId: string,
   gameState: GameState,
   difficulty: 'easy' | 'normal' | 'hard' = 'normal'
-): number | null {
+): EstateLocationDecision | null {
   const player = gameState.players.find(p => p.id === playerId);
   if (!player) return null;
 
@@ -418,7 +545,13 @@ export function selectStrategicEstateLocation(
   const selected = applyDifficultyRandomness(evaluations, difficulty);
   console.log(`   ✓ Selected: Vertex ${selected.vertexId} (Score: ${selected.totalScore.toFixed(1)})`);
 
-  return selected.vertexId;
+  const reasoning = generateEstateReasoning(selected, personality);
+
+  return {
+    vertexId: selected.vertexId,
+    reasoning,
+    personality
+  };
 }
 
 export function selectStrategicDiscardResources(

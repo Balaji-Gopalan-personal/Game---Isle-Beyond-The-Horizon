@@ -8,7 +8,7 @@ import { canPlaceVillage, legalRoadEdgesFrom, edgeTouchesVertex, whyNotVillage, 
 import { placeVillage_P1, placeRoad_P1_byEdgeId, aiTakeTurn_P1 } from '../engine/phase1';
 import { calculateLongestRoadPath, getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages, buildVerticesWithOwnership, checkForRoadDisruptions, recalculateAllPlayersRoadLengths, RoadDisruption } from '../engine/gameplayActions';
 import { makeRandomBuildDecision, makeStrategicBuildDecision, getAvailableBuildingTypes } from '../engine/aiBuilding';
-import { selectStrategicRoadLocation, selectStrategicVillageLocation, selectStrategicEstateLocation, selectStrategicDiscardResources } from '../engine/aiLocationStrategy';
+import { selectStrategicRoadLocation, selectStrategicVillageLocation, selectStrategicEstateLocation, selectStrategicDiscardResources, VillageLocationDecision, RoadLocationDecision, EstateLocationDecision, getPersonalityForCharacter } from '../engine/aiLocationStrategy';
 import { findDesertCentre, isValidRobberDestination, getPlayersWithAdjacentBuildings, selectRandomRobberDestination, stealRandomResource, selectRandomStealTarget, CentreData } from '../engine/robberActions';
 import { selectRobberPlacement } from '../engine/aiRobberStrategy';
 import { shouldPlayDevCardAfterRoll, selectBoomingEconomyResources, selectClosedMarketResource, selectResourceSwapTarget } from '../engine/aiDevCardStrategy';
@@ -152,6 +152,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     playerColor: string;
   } | null>(null);
   const [cardValidationError, setCardValidationError] = useState<string | null>(null);
+  const [aiDevCardDecision, setAiDevCardDecision] = useState<{ reasoning: string; personality: string } | null>(null);
 
   // Ref to track if AI card effect is currently being processed
   // This prevents duplicate executions when useEffect re-runs due to state changes
@@ -165,6 +166,27 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       gameLog: [...prev.gameLog, { message, timestamp }]
     }));
   }, []);
+
+  // Helper function to add AI decision context in testing mode
+  const addAIDecisionContext = useCallback((
+    playerId: string,
+    personality: string,
+    reasoning: string
+  ) => {
+    if (!gameState.gameSettings.testingMode) {
+      return;
+    }
+
+    const player = gameState.players.find(p => p.id === playerId);
+    if (!player || player.isHuman) {
+      return;
+    }
+
+    const personalityLabel = personality.charAt(0).toUpperCase() + personality.slice(1);
+    const contextMessage = `<span style="color: #6B7280; font-style: italic; padding-left: 16px; display: block;">${personalityLabel} - Objective: ${reasoning}</span>`;
+
+    addToLog(contextMessage);
+  }, [gameState.gameSettings.testingMode, gameState.players, addToLog]);
 
   // Helper function to get player color style
   const getPlayerColorStyle = useCallback((color: string) => {
@@ -929,6 +951,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
     if (decision.shouldPlay && decision.cardId) {
       const card = player.developmentCardsInHand.find(c => c.id === decision.cardId);
+      if (card && decision.reasoning) {
+        const personality = player.character?.name ? getPersonalityForCharacter(player.character.name) : 'balanced';
+        setAiDevCardDecision({ reasoning: decision.reasoning, personality });
+      }
       return card || null;
     }
     return null;
@@ -2590,6 +2616,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const playMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> played Expert Negotiator - 2:1 trading available this turn!`;
       addToLog(playMessage);
 
+      if (!currentPlayer.isHuman && aiDevCardDecision) {
+        addAIDecisionContext(currentPlayer.id, aiDevCardDecision.personality, aiDevCardDecision.reasoning);
+        setAiDevCardDecision(null);
+      }
+
       setGameState(prev => ({
         ...prev,
         players: prev.players.map(p => {
@@ -2623,6 +2654,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const playerColor = getPlayerColorStyle(currentPlayer.color);
       const playMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> played ${card.name}`;
       addToLog(playMessage);
+
+      if (!currentPlayer.isHuman && aiDevCardDecision) {
+        addAIDecisionContext(currentPlayer.id, aiDevCardDecision.personality, aiDevCardDecision.reasoning);
+        setAiDevCardDecision(null);
+      }
+
       handlePlayGuardCard(currentPlayer, card.id);
       return;
     }
@@ -2635,6 +2672,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const playerColor = getPlayerColorStyle(currentPlayer.color);
     const playMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> played ${card.name}`;
     addToLog(playMessage);
+
+    if (!currentPlayer.isHuman && aiDevCardDecision) {
+      addAIDecisionContext(currentPlayer.id, aiDevCardDecision.personality, aiDevCardDecision.reasoning);
+      setAiDevCardDecision(null);
+    }
 
     if (isInteractive) {
       // Store card ID in placementContext so we can remove it later
@@ -3967,6 +4009,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const playerColor = getPlayerColorStyle(player.color);
     const roadMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> built a road from vertex ${fromVertex} to ${toVertex}`;
     addToLog(roadMessage);
+    addAIDecisionContext(playerId, roadLocation.personality, roadLocation.reasoning);
 
     // Log longest road achievement after state update
     if (longestRoadUpdate?.shouldAward) {
@@ -3989,12 +4032,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     if (!player) return false;
 
     const difficulty = player.difficulty || 'normal';
-    const vertexId = selectStrategicVillageLocation(playerId, gameState, boardSize, difficulty);
-    if (!vertexId) {
+    const villageDecision = selectStrategicVillageLocation(playerId, gameState, boardSize, difficulty);
+    if (!villageDecision) {
       console.log('DEBUG: No valid village location found');
       return false;
     }
 
+    const vertexId = villageDecision.vertexId;
     const newVillage: Village = {
       id: `village-${vertexId}-${Date.now()}`,
       playerId,
@@ -4092,6 +4136,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const playerColor = getPlayerColorStyle(player.color);
     const villageMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> built a village at vertex ${vertexId} and earned 1 point`;
     addToLog(villageMessage);
+    addAIDecisionContext(playerId, villageDecision.personality, villageDecision.reasoning);
 
     tradingPortMessages.forEach(msg => {
       addColoredLog(msg.message, msg.playerId);
@@ -4115,12 +4160,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     if (!player) return false;
 
     const difficulty = player.difficulty || 'normal';
-    const vertexId = selectStrategicEstateLocation(playerId, gameState, difficulty);
-    if (!vertexId) {
+    const estateDecision = selectStrategicEstateLocation(playerId, gameState, difficulty);
+    if (!estateDecision) {
       console.log('DEBUG: No valid estate location found');
       return false;
     }
 
+    const vertexId = estateDecision.vertexId;
     const village = gameState.villages.find(v =>
       v.playerId === playerId &&
       v.vertexId === vertexId &&
@@ -4155,9 +4201,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const playerColor = getPlayerColorStyle(player.color);
     const estateMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> upgraded village at vertex ${vertexId} to an estate and earned 1 point`;
     addToLog(estateMessage);
+    addAIDecisionContext(playerId, estateDecision.personality, estateDecision.reasoning);
 
     return true;
-  }, [gameState, getPlayerColorStyle, addToLog]);
+  }, [gameState, getPlayerColorStyle, addToLog, addAIDecisionContext]);
 
   // AI Trading handlers
   const handleAIBankTrade = useCallback((playerId: string): boolean => {
@@ -4197,6 +4244,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
     const message = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> traded ${tradeEval.offeringAmount} ${tradeEval.offering} for ${requestedAmount} ${tradeEval.requesting} with the bank (${rateDisplay})`;
     addToLog(message);
+
+    if (tradeEval.reasoning && !player.isHuman) {
+      const personality = player.character?.name ? getPersonalityForCharacter(player.character.name) : 'balanced';
+      addAIDecisionContext(playerId, personality, tradeEval.reasoning);
+    }
 
     // Update trade history
     setTurnTradeHistory(prev => {
@@ -4253,7 +4305,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     });
 
     return true;
-  }, [gameState, turnTradeHistory, getPlayerColorStyle, addToLog]);
+  }, [gameState, turnTradeHistory, getPlayerColorStyle, addToLog, addAIDecisionContext]);
 
   const handleAIPlayerTrade = useCallback((playerId: string): boolean => {
     const player = gameState.players.find(p => p.id === playerId);
@@ -4334,8 +4386,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const message = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> proposed trade: offering ${offeredList} for ${requestedList}`;
     addToLog(message);
 
+    if (!player.isHuman && proposal) {
+      const personality = player.character?.name ? getPersonalityForCharacter(player.character.name) : 'balanced';
+      const requestedResource = Object.keys(proposal.requestedResources).find(r => proposal.requestedResources[r] > 0);
+      const reasoning = requestedResource ? `Acquire ${requestedResource} for building goals` : 'Optimize resource portfolio';
+      addAIDecisionContext(playerId, personality, reasoning);
+    }
+
     return true;
-  }, [gameState, getPlayerColorStyle, addToLog]);
+  }, [gameState, getPlayerColorStyle, addToLog, addAIDecisionContext]);
 
   useEffect(() => {
     if (!aiActionLoopActive) return;
@@ -4882,7 +4941,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           });
 
           // Log AFTER state update (outside the updater function)
-          setTimeout(() => addToLog(moveMessage), 0);
+          setTimeout(() => {
+            addToLog(moveMessage);
+            if (currentPlayer && !currentPlayer.isHuman && robberPlacement.reasoning) {
+              const personality = currentPlayer.character?.name ?
+                getPersonalityForCharacter(currentPlayer.character.name) : 'balanced';
+              addAIDecisionContext(currentPlayer.id, personality, robberPlacement.reasoning);
+            }
+          }, 0);
           if (stealMessage) {
             setTimeout(() => addToLog(stealMessage), 100);
           }
