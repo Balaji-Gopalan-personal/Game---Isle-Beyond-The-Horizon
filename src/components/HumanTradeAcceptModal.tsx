@@ -108,17 +108,17 @@ export const HumanTradeAcceptModal: React.FC<HumanTradeAcceptModalProps> = ({
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-            <h3 className="text-sm font-bold text-green-800 mb-2">You Receive:</h3>
-            <div className="space-y-2">
-              {getResourceList(tradeProposal.offeredResources)}
-            </div>
-          </div>
-
           <div className="bg-red-50 border border-red-200 rounded-lg p-3">
             <h3 className="text-sm font-bold text-red-800 mb-2">You Give:</h3>
             <div className="space-y-2">
               {getResourceList(tradeProposal.requestedResources)}
+            </div>
+          </div>
+
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <h3 className="text-sm font-bold text-green-800 mb-2">You Receive:</h3>
+            <div className="space-y-2">
+              {getResourceList(tradeProposal.offeredResources)}
             </div>
           </div>
         </div>
