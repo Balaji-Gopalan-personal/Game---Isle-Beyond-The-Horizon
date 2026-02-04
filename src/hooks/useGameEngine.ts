@@ -3047,6 +3047,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     // Store log message data to avoid stale closure issues
     let logMessage = '';
     let shouldLog = false;
+    let playerName = '';
 
     // Update state (pure function, no side effects)
     setGameState(prev => {
@@ -3105,6 +3106,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const playerColor = getPlayerColorStyle(currentPlayer.color);
 
       logMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> gained ${resourceText} from Booming Economy`;
+      playerName = currentPlayer.name;
       shouldLog = true;
 
       console.log(`   📋 Prepared log message for ${currentPlayer.name}: gained ${resourcesSelected.join(', ')}`);
@@ -3128,11 +3130,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     });
 
     // Log AFTER state update (outside the updater function)
-    if (shouldLog && logMessage) {
+    console.log(`   ⏱️ State updated. shouldLog=${shouldLog}, playerName=${playerName}, logMessage length=${logMessage.length}`);
+    if (shouldLog) {
       setTimeout(() => {
         console.log(`   📝 Adding to Events log: ${logMessage}`);
         addToLog(logMessage);
-      }, 150);
+      }, 100);
     }
   }, [addToLog, getPlayerColorStyle]);
 
@@ -3536,7 +3539,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.resourcesSelected, handleBoomingEconomyResourceSelection, handleConfirmBoomingEconomy]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.resourcesSelected]);
 
   // Auto-handle Closed Market selection for AI players
   useEffect(() => {
@@ -3575,7 +3578,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedResource, handleClosedMarketResourceSelection, handleConfirmClosedMarket]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedResource]);
 
   // Auto-handle Resource Swap selection for AI players
   useEffect(() => {
@@ -3633,7 +3636,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedPlayerId, handleResourceSwapPlayerSelection, handleConfirmResourceSwap]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedPlayerId]);
 
   // Auto-handle Free Upgrade selection for AI players
   useEffect(() => {
@@ -3668,7 +3671,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.villages, handleFreeUpgradeVillageSelection, handleCancelCardEffect, addToLog]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
 
   const handleEndTurn = useCallback(() => {
     console.log('DEBUG: handleEndTurn called');
