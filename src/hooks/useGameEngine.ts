@@ -162,6 +162,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   // Used to advance to main after card modal closes
   const aiPlayedDevCardThisPhaseRef = useRef(false);
 
+  // Refs to track all nested timeouts for card effects
+  // These are arrays because card effects can have multiple nested timeouts
+  const boomingEconomyTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
+  const closedMarketTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
+  const resourceSwapTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
+  const freeUpgradeTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
+
   // Helper function to add log messages
   const addToLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -3502,7 +3509,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         console.log(`\n🔥 BOOMING ECONOMY: Setting up 600ms timeout for ${currentPlayer.name}`);
         console.log(`💰 ${currentPlayer.name} is selecting 2 free resources from Booming Economy...`);
 
-        const timer = setTimeout(() => {
+        // Clear any existing timeouts from previous runs
+        boomingEconomyTimeoutsRef.current.forEach(t => clearTimeout(t));
+        boomingEconomyTimeoutsRef.current = [];
+
+        const timer1 = setTimeout(() => {
           console.log(`🔥 BOOMING ECONOMY TIMEOUT EXECUTING for ${currentPlayer.name}`);
           // Use strategic selection based on AI difficulty
           const difficulty = currentPlayer.difficulty || 'normal';
@@ -3516,22 +3527,29 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           handleBoomingEconomyResourceSelection(resource1 as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral');
 
           // Small delay to ensure first selection is processed
-          setTimeout(() => {
+          const timer2 = setTimeout(() => {
             handleBoomingEconomyResourceSelection(resource2 as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral');
 
             // Confirm after both selections
-            setTimeout(() => {
+            const timer3 = setTimeout(() => {
               console.log(`   🎁 Confirming selection...`);
               handleConfirmBoomingEconomy();
               // Clear the processing flag when complete
               aiCardEffectProcessingRef.current = false;
               console.log(`🔥 BOOMING ECONOMY TIMEOUT COMPLETE for ${currentPlayer.name}`);
+              // Clear from tracking array
+              boomingEconomyTimeoutsRef.current = [];
             }, 300);
+            boomingEconomyTimeoutsRef.current.push(timer3);
           }, 200);
+          boomingEconomyTimeoutsRef.current.push(timer2);
         }, 600);
+        boomingEconomyTimeoutsRef.current.push(timer1);
+
         return () => {
-          console.log(`🔥 BOOMING ECONOMY CLEANUP: Cancelling timeout for ${currentPlayer.name}`);
-          clearTimeout(timer);
+          console.log(`🔥 BOOMING ECONOMY CLEANUP: Cancelling all timeouts for ${currentPlayer.name}`);
+          boomingEconomyTimeoutsRef.current.forEach(t => clearTimeout(t));
+          boomingEconomyTimeoutsRef.current = [];
           aiCardEffectProcessingRef.current = false;
         };
       }
@@ -3553,7 +3571,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         aiCardEffectProcessingRef.current = true;
         console.log(`\n🚫 ${currentPlayer.name} is selecting a resource to close from trading...`);
 
-        const timer = setTimeout(() => {
+        // Clear any existing timeouts from previous runs
+        closedMarketTimeoutsRef.current.forEach(t => clearTimeout(t));
+        closedMarketTimeoutsRef.current = [];
+
+        const timer1 = setTimeout(() => {
           // Use strategic selection based on AI difficulty
           const difficulty = currentPlayer.difficulty || 'normal';
           const selectedResource = selectClosedMarketResource(currentPlayer, gameState, difficulty);
@@ -3562,15 +3584,22 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
           handleClosedMarketResourceSelection(selectedResource as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral');
 
-          setTimeout(() => {
+          const timer2 = setTimeout(() => {
             console.log(`   🎯 Confirming Closed Market selection...`);
             handleConfirmClosedMarket();
             // Clear the processing flag when complete
             aiCardEffectProcessingRef.current = false;
+            // Clear from tracking array
+            closedMarketTimeoutsRef.current = [];
           }, 400);
+          closedMarketTimeoutsRef.current.push(timer2);
         }, 800);
+        closedMarketTimeoutsRef.current.push(timer1);
+
         return () => {
-          clearTimeout(timer);
+          console.log(`🚫 CLOSED MARKET CLEANUP: Cancelling all timeouts`);
+          closedMarketTimeoutsRef.current.forEach(t => clearTimeout(t));
+          closedMarketTimeoutsRef.current = [];
           aiCardEffectProcessingRef.current = false;
         };
       }
@@ -3592,7 +3621,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         aiCardEffectProcessingRef.current = true;
         console.log(`\n🔄 ${currentPlayer.name} is selecting a player to swap all resources with...`);
 
-        const timer = setTimeout(() => {
+        // Clear any existing timeouts from previous runs
+        resourceSwapTimeoutsRef.current.forEach(t => clearTimeout(t));
+        resourceSwapTimeoutsRef.current = [];
+
+        const timer1 = setTimeout(() => {
           const otherPlayers = gameState.players.filter(p => p.id !== currentPlayer.id);
           if (otherPlayers.length > 0) {
             // Use strategic selection based on AI difficulty
@@ -3606,18 +3639,22 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
               handleResourceSwapPlayerSelection(selection.targetPlayerId);
 
-              setTimeout(() => {
+              const timer2 = setTimeout(() => {
                 console.log(`   🔄 Confirming Resource Swap...`);
                 handleConfirmResourceSwap();
                 // Clear the processing flag when complete
                 aiCardEffectProcessingRef.current = false;
+                // Clear from tracking array
+                resourceSwapTimeoutsRef.current = [];
               }, 400);
+              resourceSwapTimeoutsRef.current.push(timer2);
             } else {
               // Edge case: No valid target found
               console.log(`DEBUG: AI player ${currentPlayer.name} found no valid target for Resource Swap, canceling card`);
               addToLog(`${currentPlayer.name} found no valid target for Resource Swap`);
               handleCancelCardEffect();
               aiCardEffectProcessingRef.current = false;
+              resourceSwapTimeoutsRef.current = [];
             }
           } else {
             // Edge case: No other players (shouldn't happen in normal game)
@@ -3625,10 +3662,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             addToLog(`${currentPlayer.name} has no other players to swap with`);
             handleCancelCardEffect();
             aiCardEffectProcessingRef.current = false;
+            resourceSwapTimeoutsRef.current = [];
           }
         }, 800);
+        resourceSwapTimeoutsRef.current.push(timer1);
+
         return () => {
-          clearTimeout(timer);
+          console.log(`🔄 RESOURCE SWAP CLEANUP: Cancelling all timeouts`);
+          resourceSwapTimeoutsRef.current.forEach(t => clearTimeout(t));
+          resourceSwapTimeoutsRef.current = [];
           aiCardEffectProcessingRef.current = false;
         };
       }
@@ -3650,7 +3692,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         aiCardEffectProcessingRef.current = true;
         console.log(`🔥 FREE UPGRADE: Setting up 800ms timeout for ${currentPlayer.name}`);
 
-        const timer = setTimeout(() => {
+        // Clear any existing timeouts from previous runs
+        freeUpgradeTimeoutsRef.current.forEach(t => clearTimeout(t));
+        freeUpgradeTimeoutsRef.current = [];
+
+        const timer1 = setTimeout(() => {
           console.log(`🔥 FREE UPGRADE TIMEOUT EXECUTING for ${currentPlayer.name}`);
           const playerVillages = gameState.villages.filter(v => v.playerId === currentPlayer.id && v.type === 'settlement');
           console.log(`🔥 FREE UPGRADE: Found ${playerVillages.length} villages to upgrade`);
@@ -3666,11 +3712,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           }
           // Clear the processing flag when complete
           aiCardEffectProcessingRef.current = false;
+          freeUpgradeTimeoutsRef.current = [];
           console.log(`🔥 FREE UPGRADE TIMEOUT COMPLETE for ${currentPlayer.name}`);
         }, 800);
+        freeUpgradeTimeoutsRef.current.push(timer1);
+
         return () => {
-          console.log(`🔥 FREE UPGRADE CLEANUP: Cancelling timeout for ${currentPlayer.name}`);
-          clearTimeout(timer);
+          console.log(`🔥 FREE UPGRADE CLEANUP: Cancelling all timeouts for ${currentPlayer.name}`);
+          freeUpgradeTimeoutsRef.current.forEach(t => clearTimeout(t));
+          freeUpgradeTimeoutsRef.current = [];
           aiCardEffectProcessingRef.current = false;
         };
       }
