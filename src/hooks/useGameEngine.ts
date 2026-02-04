@@ -158,6 +158,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   // This prevents duplicate executions when useEffect re-runs due to state changes
   const aiCardEffectProcessingRef = useRef(false);
 
+  // Ref to track if AI has played a dev card in play_dev_cards phase
+  // Used to advance to main after card modal closes
+  const aiPlayedDevCardThisPhaseRef = useRef(false);
+
   // Helper function to add log messages
   const addToLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -392,6 +396,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       resourcesGained: {},
       resourcesLost: {}
     });
+
+    // Reset AI dev card play tracking
+    aiPlayedDevCardThisPhaseRef.current = false;
 
     setGameState(prevState => {
       const currentIndex = prevState.players.findIndex(p => p.id === prevState.currentPlayer);
@@ -3429,6 +3436,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           if (cardToPlay) {
             console.log(`DEBUG: AI player ${currentPlayer.name} decided to play ${cardToPlay.name}`);
 
+            // Mark that AI played a dev card this phase
+            aiPlayedDevCardThisPhaseRef.current = true;
+
             setPlayedCardForModal({
               card: cardToPlay,
               playerName: currentPlayer.name,
@@ -3453,6 +3463,28 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       }
     }
   }, [gameState.phase, gameState.currentPlayer, gameState.players, gameState.turnState.step, gameState.turnState.currentPlayerId, gameState.villages, aiDecidePlayDevCard, handlePlayDevCard, playedCardForModal]);
+
+  // After AI plays dev card and modal closes, advance to main phase
+  useEffect(() => {
+    if (gameState.phase === 'playing' &&
+        gameState.turnState.step === 'play_dev_cards' &&
+        !playedCardForModal &&
+        aiPlayedDevCardThisPhaseRef.current) {
+      const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
+      if (currentPlayer && !currentPlayer.isHuman) {
+        console.log(`DEBUG: AI dev card modal closed, advancing to main phase`);
+        aiPlayedDevCardThisPhaseRef.current = false;
+
+        setGameState(prev => ({
+          ...prev,
+          turnState: {
+            ...prev.turnState,
+            step: 'main'
+          }
+        }));
+      }
+    }
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.players, playedCardForModal]);
 
   // Auto-handle Booming Economy selection for AI players
   useEffect(() => {
@@ -4502,6 +4534,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       return;
     }
 
+    // Check if there's an active card modal - if so, pause the AI loop
+    if (playedCardForModal) {
+      console.log('DEBUG: AI action loop paused - card modal is showing');
+      return;
+    }
+
     if (aiActionLoopIterations > 20) {
       console.log('DEBUG: AI action loop max iterations reached, ending turn');
       setAiActionLoopActive(false);
@@ -4611,7 +4649,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [aiActionLoopActive, aiActionLoopIterations, gameState, boardSize, handleAIBuildRoad, handleAIBuildVillage, handleAIBuildEstate, handleBuyDevelopmentCard, handleAIBankTrade, handleAIPlayerTrade, advanceToNextPlayer]);
+  }, [aiActionLoopActive, aiActionLoopIterations, gameState, boardSize, playedCardForModal, handleAIBuildRoad, handleAIBuildVillage, handleAIBuildEstate, handleBuyDevelopmentCard, handleAIBankTrade, handleAIPlayerTrade, advanceToNextPlayer]);
 
   // Complete discard phase and transition to move_robber
   const completeDiscardPhase = useCallback(() => {
