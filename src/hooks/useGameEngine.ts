@@ -3554,7 +3554,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.resourcesSelected]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
 
   // Auto-handle Closed Market selection for AI players
   useEffect(() => {
@@ -3604,7 +3604,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedResource]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
 
   // Auto-handle Resource Swap selection for AI players
   useEffect(() => {
@@ -3675,7 +3675,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedPlayerId]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
 
   // Auto-handle Free Upgrade selection for AI players
   useEffect(() => {

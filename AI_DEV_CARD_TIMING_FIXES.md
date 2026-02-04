@@ -6,7 +6,23 @@ Fixed critical timing and state synchronization issues affecting AI development 
 
 ## Problems Identified
 
-### 1. Expert Negotiator Bank Trade Issue
+### 1. UseEffect Dependency Array Causing Premature Cleanup (CRITICAL)
+**Symptom**: Game stuck in card selection phase (e.g., `booming_economy_selection`). Timeouts cancelled before completing.
+
+**Root Cause**: Dependencies included state that changes during timeout execution
+- Booming Economy depended on `resourcesSelected`
+- Closed Market depended on `selectedResource`
+- Resource Swap depended on `selectedPlayerId`
+- When handler functions updated these values, useEffect re-ran
+- Cleanup function cancelled all timeouts before they could complete
+- Game stuck waiting for selections that would never happen
+
+**Solution**: Remove changing state from dependency arrays
+- Keep only trigger conditions: `phase`, `step`, `currentPlayer`
+- Rely on guard conditions in useEffect body to prevent re-triggering
+- Let timeouts complete without interruption
+
+### 2. Expert Negotiator Bank Trade Issue
 **Symptom**: AI would play Expert Negotiator but fail to execute the intended 2:1 bank trade.
 
 **Root Cause**: Race condition in AI turn flow
@@ -16,7 +32,7 @@ Fixed critical timing and state synchronization issues affecting AI development 
 - Phase didn't advance from `play_dev_cards` to `main`
 - AI loop missed the opportunity to execute bank trade
 
-### 2. Nested Timeout Cleanup Issues (All Card Effects)
+### 3. Nested Timeout Cleanup Issues (All Card Effects)
 **Symptom**: Intermittent duplicate log messages and orphaned timeout executions for Booming Economy, Closed Market, Resource Swap, and Free Upgrade.
 
 **Root Cause**: Deep timeout nesting without proper cleanup
@@ -33,7 +49,62 @@ Fixed critical timing and state synchronization issues affecting AI development 
 
 ## Solutions Implemented
 
-### Fix 1: Expert Negotiator - Modal and Phase Synchronization
+### Fix 1: UseEffect Dependency Arrays - Prevent Premature Cleanup
+
+**CRITICAL FIX**: Removed changing state from dependency arrays to prevent cleanup from cancelling active timeouts.
+
+#### Problem Analysis
+When a useEffect depends on state that changes during its own timeout execution:
+1. useEffect runs, starts timeout chain
+2. First timeout fires, calls handler that updates state
+3. State change triggers useEffect re-run
+4. Cleanup function cancels ALL remaining timeouts
+5. Game stuck waiting for actions that will never complete
+
+#### Solution Applied
+**Booming Economy** - Removed `resourcesSelected` from dependencies:
+```typescript
+// BEFORE (broken):
+}, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.resourcesSelected]);
+
+// AFTER (fixed):
+}, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+```
+
+**Closed Market** - Removed `selectedResource` from dependencies:
+```typescript
+// BEFORE (broken):
+}, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedResource]);
+
+// AFTER (fixed):
+}, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+```
+
+**Resource Swap** - Removed `selectedPlayerId` from dependencies:
+```typescript
+// BEFORE (broken):
+}, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedPlayerId]);
+
+// AFTER (fixed):
+}, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+```
+
+**Free Upgrade** - Already correct (no changing state in dependencies):
+```typescript
+}, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+```
+
+#### Why This Works
+- Guard conditions in useEffect body prevent re-triggering:
+  - Booming Economy checks: `!resourcesSelected || resourcesSelected.length === 0`
+  - Closed Market checks: `!selectedResource`
+  - Resource Swap checks: `!selectedPlayerId`
+  - Processing flag check: `aiCardEffectProcessingRef.current`
+- useEffect only runs when phase/step changes, not during internal processing
+- Timeouts complete uninterrupted
+- Cleanup only runs when truly needed (phase change, component unmount)
+
+### Fix 2: Expert Negotiator - Modal and Phase Synchronization
 
 #### Added Modal State Tracking to AI Action Loop
 ```typescript
@@ -86,7 +157,7 @@ useEffect(() => {
 aiPlayedDevCardThisPhaseRef.current = false;
 ```
 
-### Fix 2: Nested Timeout Cleanup - All Card Effects
+### Fix 3: Nested Timeout Cleanup - All Card Effects
 
 #### Added Timeout Tracking Refs
 ```typescript
@@ -257,21 +328,25 @@ Note: Free Upgrade also has a 100ms log timeout inside `handleFreeUpgradeVillage
 **Lines ~3475-3494**: Added phase advancement after AI dev card modal closes
 - New useEffect to transition from `play_dev_cards` to `main`
 
-**Lines ~3496-3563**: Fixed Booming Economy nested timeouts
+**Lines ~3496-3557**: Fixed Booming Economy nested timeouts
 - Track all 3 timeout IDs
 - Clear all timeouts in cleanup
+- **CRITICAL**: Removed `resourcesSelected` from dependency array (line 3557)
 
-**Lines ~3565-3611**: Fixed Closed Market nested timeouts
+**Lines ~3559-3607**: Fixed Closed Market nested timeouts
 - Track both timeout IDs
 - Clear all timeouts in cleanup
+- **CRITICAL**: Removed `selectedResource` from dependency array (line 3607)
 
-**Lines ~3613-3685**: Fixed Resource Swap nested timeouts
+**Lines ~3609-3678**: Fixed Resource Swap nested timeouts
 - Track both timeout IDs
 - Clear all timeouts in cleanup
+- **CRITICAL**: Removed `selectedPlayerId` from dependency array (line 3678)
 
-**Lines ~3687-3732**: Fixed Free Upgrade nested timeouts
+**Lines ~3680-3728**: Fixed Free Upgrade nested timeouts
 - Track timeout ID
 - Clear timeout in cleanup
+- Dependency array already correct (no changing state)
 
 **Lines ~4507-4521**: Added modal pause to AI action loop
 - Check `playedCardForModal` before continuing
@@ -293,9 +368,15 @@ After these fixes:
 ## Conclusion
 
 All AI development card timing and state synchronization issues have been resolved through:
-1. Proper modal state tracking in AI action loop
-2. Automatic phase transitions after card plays
-3. Comprehensive timeout tracking and cleanup for all card effects
-4. Clear separation of concerns between useEffect cleanup and handler cleanup
+1. **CRITICAL**: Fixed useEffect dependency arrays to prevent premature timeout cancellation
+   - Removed changing state from dependencies (resourcesSelected, selectedResource, selectedPlayerId)
+   - Rely on guard conditions instead of dependency re-triggering
+   - Allows timeouts to complete without interruption
+2. Proper modal state tracking in AI action loop
+3. Automatic phase transitions after card plays
+4. Comprehensive timeout tracking and cleanup for all card effects
+5. Clear separation of concerns between useEffect cleanup and handler cleanup
+
+**Most Critical Fix**: The dependency array issue (#1) was causing game-breaking stuck states. Without this fix, any card effect with multiple timeouts would fail after the first state update, leaving the game permanently stuck in the selection phase.
 
 The game now provides a reliable, predictable experience for all development card plays by AI players.
