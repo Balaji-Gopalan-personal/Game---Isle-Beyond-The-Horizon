@@ -62,8 +62,11 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({
   return (
     <div className="bg-white rounded-xl shadow-lg p-2 h-[calc(100vh-120px)] flex flex-col w-full">
       <div className="mb-3 text-center">
-        <h2 className="text-lg font-bold text-gray-800">
-          Players{difficultyLevel ? ` - ${difficultyLevel}` : ''}
+        <h2 className="text-lg font-bold text-gray-800 flex items-center justify-center gap-1.5 whitespace-nowrap">
+          <span>Players{difficultyLevel ? ` - ${difficultyLevel}` : ''}</span>
+          {gameState.testingMode && (
+            <span className="text-xs text-red-600 font-semibold">[TESTING]</span>
+          )}
         </h2>
       </div>
 
