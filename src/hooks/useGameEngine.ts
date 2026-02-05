@@ -1,6 +1,6 @@
 import React from 'react';
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { GameState, Player, GameStep, StepTrigger } from '../types/game';
+import { GameState, Player, GameStep, StepTrigger, TurnStep } from '../types/game';
 import { BoardSize, BOARD_STRUCTURES } from '../data/boardStructure';
 import { AICharacter } from '../data/aiCharacters';
 import { loadBoardGraph, loadBoardForSize } from '../graph/loadBoard';
@@ -2803,17 +2803,59 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
 
     if (isInteractive) {
-      // Store card ID in placementContext so we can remove it later
-      setGameState(prev => ({
-        ...prev,
-        turnState: {
-          ...prev.turnState,
-          placementContext: {
-            ...prev.turnState.placementContext,
-            pendingCardId: card.id
-          }
+      // For interactive cards, set BOTH pendingCardId AND step in a single atomic state update
+      // This prevents race conditions where useEffect fires before pendingCardId is set
+      setGameState(prev => {
+        let newStep: TurnStep = 'play_dev_cards';
+        const newPlacementContext: any = {
+          ...prev.turnState.placementContext,
+          pendingCardId: card.id
+        };
+
+        // Determine the step and any initial context based on card type
+        switch (card.name) {
+          case 'Road Construction':
+            newStep = 'place_road_gameplay';
+            newPlacementContext.freeRoadsRemaining = 2;
+            break;
+          case 'Booming Economy':
+            newStep = 'booming_economy_selection';
+            newPlacementContext.resourcesSelected = [];
+            break;
+          case 'Closed Market':
+            newStep = 'closed_market_selection';
+            break;
+          case 'Resource Swap':
+            newStep = 'resource_swap_selection';
+            break;
+          case 'Free Upgrade':
+            newStep = 'free_upgrade_selection';
+            break;
         }
-      }));
+
+        return {
+          ...prev,
+          turnState: {
+            ...prev.turnState,
+            step: newStep,
+            placementContext: newPlacementContext
+          }
+        };
+      });
+
+      // Add the selection message to the log
+      const selectionMessages: { [key: string]: string } = {
+        'Road Construction': 'can now place 2 free roads',
+        'Booming Economy': 'is selecting 2 free resources',
+        'Closed Market': 'is selecting a resource type to take from all players',
+        'Resource Swap': 'is selecting a player to swap resources with',
+        'Free Upgrade': 'is selecting a Village to upgrade'
+      };
+
+      const selectionMessage = selectionMessages[card.name];
+      if (selectionMessage) {
+        setTimeout(() => addToLog(`<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> ${selectionMessage}`), 100);
+      }
     } else {
       // Non-interactive cards: remove immediately
       setGameState(prev => ({
@@ -2830,30 +2872,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }),
         developmentCardDiscard: [...prev.developmentCardDiscard, { ...card, location: 'discard' as const }]
       }));
-    }
-
-    // Execute card effect based on card type
-    switch (card.name) {
-      case 'Guard':
-        // Already handled above
-        break;
-      case 'Road Construction':
-        handlePlayRoadConstructionCard(currentPlayer);
-        break;
-      case 'Booming Economy':
-        handlePlayBoomingEconomyCard(currentPlayer);
-        break;
-      case 'Closed Market':
-        handlePlayClosedMarketCard(currentPlayer);
-        break;
-      case 'Resource Swap':
-        handlePlayResourceSwapCard(currentPlayer);
-        break;
-      case 'Free Upgrade':
-        handlePlayFreeUpgradeCard(currentPlayer);
-        break;
-      default:
-        console.log('DEBUG: Unknown card type:', card.name);
     }
   }, [gameState, addToLog, getPlayerColorStyle]);
 
@@ -3155,15 +3173,25 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, []);
 
   const handleConfirmClosedMarket = useCallback(() => {
+    console.log('🔍 CLOSED MARKET CONFIRM: Handler called');
     let logData: { mainMessage: string; transfers: { message: string }[] } | null = null;
 
     setGameState(prev => {
+      console.log('🔍 CLOSED MARKET CONFIRM: Inside setGameState callback');
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
-      if (!currentPlayer) return prev;
+      if (!currentPlayer) {
+        console.log('🔍 CLOSED MARKET CONFIRM: No current player found, returning prev');
+        return prev;
+      }
 
       const resourceType = prev.turnState.placementContext.selectedResource as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral';
       const pendingCardId = prev.turnState.placementContext.pendingCardId;
-      if (!resourceType) return prev;
+      console.log('🔍 CLOSED MARKET CONFIRM: resourceType =', resourceType, ', pendingCardId =', pendingCardId);
+
+      if (!resourceType) {
+        console.log('🔍 CLOSED MARKET CONFIRM: No resource type selected, returning prev');
+        return prev;
+      }
 
       let totalTransferred = 0;
       const transfers: { from: string; fromColor: string; amount: number }[] = [];
@@ -3234,6 +3262,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           message: `<span style="color: ${transfer.fromColor}; font-weight: bold;">${transfer.from}</span> gave up ${transfer.amount} ${resourceType}`
         }))
       };
+      console.log('🔍 CLOSED MARKET CONFIRM: logData set with', transfers.length, 'transfers, total =', totalTransferred);
 
       return {
         ...prev,
@@ -3255,10 +3284,19 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
     // Log AFTER state update completes
     if (logData) {
-      setTimeout(() => addToLog(logData.mainMessage), 100);
+      console.log('🔍 CLOSED MARKET CONFIRM: Scheduling log messages, main =', logData.mainMessage.substring(0, 50));
+      setTimeout(() => {
+        console.log('🔍 CLOSED MARKET CONFIRM: Executing main log message');
+        addToLog(logData.mainMessage);
+      }, 100);
       logData.transfers.forEach((transfer, index) => {
-        setTimeout(() => addToLog(transfer.message), 200 + (index * 50));
+        setTimeout(() => {
+          console.log('🔍 CLOSED MARKET CONFIRM: Executing transfer log', index);
+          addToLog(transfer.message);
+        }, 200 + (index * 50));
       });
+    } else {
+      console.log('🔍 CLOSED MARKET CONFIRM: No logData to schedule');
     }
   }, [addToLog, getPlayerColorStyle]);
 
@@ -3278,15 +3316,21 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, []);
 
   const handleConfirmResourceSwap = useCallback(() => {
+    console.log('🔍 RESOURCE SWAP CONFIRM: Handler called');
     let logMessage: string | null = null;
 
     setGameState(prev => {
+      console.log('🔍 RESOURCE SWAP CONFIRM: Inside setGameState callback');
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       const targetPlayerId = prev.turnState.placementContext.selectedPlayerId;
       const targetPlayer = prev.players.find(p => p.id === targetPlayerId);
       const pendingCardId = prev.turnState.placementContext.pendingCardId;
+      console.log('🔍 RESOURCE SWAP CONFIRM: targetPlayerId =', targetPlayerId, ', pendingCardId =', pendingCardId);
 
-      if (!currentPlayer || !targetPlayer) return prev;
+      if (!currentPlayer || !targetPlayer) {
+        console.log('🔍 RESOURCE SWAP CONFIRM: Missing player, returning prev');
+        return prev;
+      }
 
       const tempResources = { ...currentPlayer.resources };
 
@@ -3315,6 +3359,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const currentPlayerColor = getPlayerColorStyle(currentPlayer.color);
       const targetPlayerColor = getPlayerColorStyle(targetPlayer.color);
       logMessage = `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> swapped all resources with <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`;
+      console.log('🔍 RESOURCE SWAP CONFIRM: logMessage set =', logMessage.substring(0, 50));
 
       return {
         ...prev,
@@ -3336,7 +3381,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
     // Log AFTER state update completes
     if (logMessage) {
-      setTimeout(() => addToLog(logMessage), 100);
+      console.log('🔍 RESOURCE SWAP CONFIRM: Scheduling log message');
+      setTimeout(() => {
+        console.log('🔍 RESOURCE SWAP CONFIRM: Executing log message');
+        addToLog(logMessage);
+      }, 100);
+    } else {
+      console.log('🔍 RESOURCE SWAP CONFIRM: No logMessage to schedule');
     }
   }, [addToLog, getPlayerColorStyle]);
 
@@ -3573,7 +3624,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, handleBoomingEconomyResourceSelection, handleConfirmBoomingEconomy]);
 
   // Auto-handle Closed Market selection for AI players
   useEffect(() => {
@@ -3623,7 +3674,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, handleClosedMarketResourceSelection, handleConfirmClosedMarket]);
 
   // Auto-handle Resource Swap selection for AI players
   useEffect(() => {
@@ -3694,7 +3745,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, handleResourceSwapPlayerSelection, handleConfirmResourceSwap, handleCancelCardEffect, addToLog]);
 
   // Auto-handle Free Upgrade selection for AI players
   useEffect(() => {
@@ -3744,7 +3795,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, handleFreeUpgradeVillageSelection, handleCancelCardEffect, addToLog, gameState.villages]);
 
   // Debug: Track step changes
   useEffect(() => {
