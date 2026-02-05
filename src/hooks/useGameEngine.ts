@@ -3155,6 +3155,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, []);
 
   const handleConfirmClosedMarket = useCallback(() => {
+    let logData: { mainMessage: string; transfers: { message: string }[] } | null = null;
+
     setGameState(prev => {
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       if (!currentPlayer) return prev;
@@ -3222,16 +3224,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
-      // Log inside the state update to ensure fresh data
+      // Capture log data to be used after state update
       const playerColor = getPlayerColorStyle(currentPlayer.color);
       const mainLogMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> took ${totalTransferred} ${resourceType} from other players`;
 
-      setTimeout(() => addToLog(mainLogMessage), 100);
-
-      transfers.forEach((transfer, index) => {
-        const detailMessage = `<span style="color: ${transfer.fromColor}; font-weight: bold;">${transfer.from}</span> gave up ${transfer.amount} ${resourceType}`;
-        setTimeout(() => addToLog(detailMessage), 200 + (index * 50));
-      });
+      logData = {
+        mainMessage: mainLogMessage,
+        transfers: transfers.map(transfer => ({
+          message: `<span style="color: ${transfer.fromColor}; font-weight: bold;">${transfer.from}</span> gave up ${transfer.amount} ${resourceType}`
+        }))
+      };
 
       return {
         ...prev,
@@ -3250,6 +3252,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
+
+    // Log AFTER state update completes
+    if (logData) {
+      setTimeout(() => addToLog(logData.mainMessage), 100);
+      logData.transfers.forEach((transfer, index) => {
+        setTimeout(() => addToLog(transfer.message), 200 + (index * 50));
+      });
+    }
   }, [addToLog, getPlayerColorStyle]);
 
   const handleResourceSwapPlayerSelection = useCallback((targetPlayerId: string) => {
@@ -3268,6 +3278,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, []);
 
   const handleConfirmResourceSwap = useCallback(() => {
+    let logMessage: string | null = null;
+
     setGameState(prev => {
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       const targetPlayerId = prev.turnState.placementContext.selectedPlayerId;
@@ -3299,12 +3311,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
-      // Log inside the state update to ensure fresh data
+      // Capture log data to be used after state update
       const currentPlayerColor = getPlayerColorStyle(currentPlayer.color);
       const targetPlayerColor = getPlayerColorStyle(targetPlayer.color);
-      const logMessage = `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> swapped all resources with <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`;
-
-      setTimeout(() => addToLog(logMessage), 100);
+      logMessage = `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> swapped all resources with <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`;
 
       return {
         ...prev,
@@ -3323,6 +3333,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
+
+    // Log AFTER state update completes
+    if (logMessage) {
+      setTimeout(() => addToLog(logMessage), 100);
+    }
   }, [addToLog, getPlayerColorStyle]);
 
   const handleCancelCardEffect = useCallback(() => {
@@ -3346,6 +3361,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
   const handleFreeUpgradeVillageSelection = useCallback((vertexId: number) => {
     console.log('🔥 handleFreeUpgradeVillageSelection CALLED with vertexId:', vertexId);
+
+    let logMessage: string | null = null;
 
     setGameState(prev => {
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
@@ -3397,15 +3414,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
-      // Log inside the state update to ensure fresh data
+      // Capture log data to be used after state update
       const playerColor = getPlayerColorStyle(currentPlayer.color);
-      const logMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> upgraded a Village to an Estate for free and earned 1 point`;
+      logMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> upgraded a Village to an Estate for free and earned 1 point`;
 
       console.log(`🔥 FREE UPGRADE: Prepared log message for ${currentPlayer.name}`);
-      setTimeout(() => {
-        console.log(`🔥 FREE UPGRADE: addToLog executing now - ${logMessage.substring(0, 50)}...`);
-        addToLog(logMessage);
-      }, 100);
 
       return {
         ...prev,
@@ -3424,6 +3437,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
+
+    // Log AFTER state update completes
+    if (logMessage) {
+      console.log(`🔥 FREE UPGRADE: addToLog executing now - ${logMessage.substring(0, 50)}...`);
+      setTimeout(() => addToLog(logMessage), 100);
+    }
   }, [addToLog, getPlayerColorStyle]);
 
   // Auto-handle play_dev_cards phase for AI players
@@ -5402,6 +5421,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   }, [gameState.turnState.tradeProposal, gameState.players, getPlayerColorStyle]);
 
   const handleHumanAcceptAITrade = useCallback(() => {
+    let logMessage: string | null = null;
+
     setGameState(prev => {
       const tradeProposal = prev.turnState.tradeProposal;
       if (!tradeProposal) return prev;
@@ -5446,7 +5467,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return p;
       });
 
-      // Log inside the state update to ensure fresh data
+      // Capture log data to be used after state update
       const offeredList = Object.entries(tradeProposal.offeredResources)
         .filter(([_, amount]) => (amount as number) > 0)
         .map(([resource, amount]) => `${amount} ${resource}`)
@@ -5458,9 +5479,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
       const proposingColor = getPlayerColorStyle(proposingPlayer.color);
       const acceptingColor = getPlayerColorStyle(humanPlayer.color);
-      const message = `<span style="color: ${proposingColor}; font-weight: bold;">${proposingPlayer.name}</span> traded ${offeredList} with <span style="color: ${acceptingColor}; font-weight: bold;">${humanPlayer.name}</span> for ${requestedList}`;
-
-      setTimeout(() => addToLog(message), 100);
+      logMessage = `<span style="color: ${proposingColor}; font-weight: bold;">${proposingPlayer.name}</span> traded ${offeredList} with <span style="color: ${acceptingColor}; font-weight: bold;">${humanPlayer.name}</span> for ${requestedList}`;
 
       return {
         ...prev,
@@ -5471,6 +5490,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
+
+    // Log AFTER state update completes
+    if (logMessage) {
+      setTimeout(() => addToLog(logMessage), 100);
+    }
   }, [getPlayerColorStyle, addToLog]);
 
   const handleHumanRejectAITrade = useCallback(() => {
