@@ -3485,7 +3485,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
       // Prepare log message and schedule it INSIDE the callback where all variables are in scope
       const playerColor = getPlayerColorStyle(currentPlayer.color);
-      const upgradeMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> upgraded a Village to an Estate for free and earned 1 point`;
+      const upgradeMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> upgraded village at vertex ${vertexId} to an Estate for free and earned 1 point`;
 
       console.log(`🔥 FREE UPGRADE: Scheduling log message for ${currentPlayer.name}`);
       setTimeout(() => {
@@ -3555,7 +3555,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return () => clearTimeout(timer);
       }
     }
-  }, [gameState.phase, gameState.currentPlayer, gameState.players, gameState.turnState.step, gameState.turnState.currentPlayerId, gameState.villages, aiDecidePlayDevCard, handlePlayDevCard, playedCardForModal]);
+  }, [gameState.phase, gameState.currentPlayer, gameState.turnState.step, gameState.turnState.currentPlayerId, playedCardForModal]);
 
   // After AI plays dev card and modal closes, advance to main phase
   useEffect(() => {
