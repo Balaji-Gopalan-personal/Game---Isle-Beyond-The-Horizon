@@ -3646,7 +3646,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, handleBoomingEconomyResourceSelection, handleConfirmBoomingEconomy]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.resourcesSelected]);
 
   // Auto-handle Closed Market selection for AI players
   useEffect(() => {
@@ -3702,7 +3702,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, handleClosedMarketResourceSelection, handleConfirmClosedMarket]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedResource]);
 
   // Auto-handle Resource Swap selection for AI players
   useEffect(() => {
@@ -3773,7 +3773,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, handleResourceSwapPlayerSelection, handleConfirmResourceSwap, handleCancelCardEffect, addToLog]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.placementContext.selectedPlayerId]);
 
   // Auto-handle Free Upgrade selection for AI players
   useEffect(() => {
@@ -3823,7 +3823,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         };
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, handleFreeUpgradeVillageSelection, handleCancelCardEffect, addToLog, gameState.villages]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer]);
 
   // Debug: Track step changes
   useEffect(() => {
