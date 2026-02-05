@@ -95,8 +95,10 @@ export function calculateLongestRoadPath(
         const neighborVertex = vertices[neighbor];
 
         if (neighborVertex && neighborVertex.occupiedBy && neighborVertex.occupiedBy !== playerId) {
+          // Count the edge TO the opponent's vertex, but don't explore further
+          maxLength = Math.max(maxLength, 1);
           if (debug) {
-            console.log(`   ${'  '.repeat(depth)}🚫 Blocked at vertex ${neighbor} (owned by ${neighborVertex.occupiedBy})`);
+            console.log(`   ${'  '.repeat(depth)}✓ Road ends at opponent vertex ${neighbor} (owned by ${neighborVertex.occupiedBy}) - counted as +1`);
           }
           continue;
         }
