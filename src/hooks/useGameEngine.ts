@@ -252,40 +252,76 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   // Helper function to generate AI reasoning for setup phase road placement
   const generateSetupRoadReasoning = useCallback((fromVertex: number, toVertex: number, villageVertex: number | null, state: any): string => {
     if (!state.boardCenters || state.boardCenters.length === 0) {
-      return 'Expand from village';
+      return 'Expand from village toward adjacent territory';
     }
 
     const reasons: string[] = [];
+    const details: string[] = [];
 
-    // Check if road leads to high-production hex
-    const adjacentHexes = state.boardCenters.filter((center: any) =>
+    // Get all hexes adjacent to destination vertex
+    const destHexes = state.boardCenters.filter((center: any) =>
       center.vertices.includes(toVertex)
     );
 
-    const highProductionHexes = adjacentHexes.filter((hex: any) => hex.value === 6 || hex.value === 8);
+    // Get hexes adjacent to source vertex (if it's the village or existing road endpoint)
+    const sourceHexes = state.boardCenters.filter((center: any) =>
+      center.vertices.includes(fromVertex)
+    );
+
+    // Check production values
+    const highProductionHexes = destHexes.filter((hex: any) => hex.value === 6 || hex.value === 8);
+    const mediumProductionHexes = destHexes.filter((hex: any) => hex.value === 5 || hex.value === 9);
+
     if (highProductionHexes.length > 0) {
-      reasons.push('toward high-production hex');
+      const resources = highProductionHexes.map((h: any) => h.resourceType).filter(Boolean);
+      reasons.push(`accessing high-probability hexes (${resources.join(', ')})`);
+    } else if (mediumProductionHexes.length > 0) {
+      const resources = mediumProductionHexes.map((h: any) => h.resourceType).filter(Boolean);
+      reasons.push(`toward good production hexes (${resources.join(', ')})`);
     }
 
-    // Check for expansion potential
+    // Check for new territory access (hexes not adjacent to source)
+    const newHexes = destHexes.filter((hex: any) =>
+      !sourceHexes.some((sh: any) => sh.id === hex.id)
+    );
+
+    if (newHexes.length > 0) {
+      const newResources = newHexes.map((h: any) => h.resourceType).filter(Boolean);
+      if (newResources.length > 0) {
+        reasons.push(`opening access to ${newResources.join(' and ')} territory`);
+      } else {
+        reasons.push('expanding territorial reach');
+      }
+    }
+
+    // Check for resource diversity
     const villageHexes = villageVertex ? state.boardCenters.filter((center: any) =>
       center.vertices.includes(villageVertex)
     ) : [];
 
-    const roadHexes = adjacentHexes.filter((hex: any) =>
-      !villageHexes.some((vh: any) => vh.id === hex.id)
+    const villageResources = new Set(villageHexes.map((h: any) => h.resourceType).filter(Boolean));
+    const newResources = destHexes.map((h: any) => h.resourceType).filter((r: any) => r && !villageResources.has(r));
+
+    if (newResources.length > 0) {
+      reasons.push(`diversifying access to ${newResources.join(', ')}`);
+    }
+
+    // Check for longest road potential (if moving away from village)
+    const boardData = loadBoardForSize(state.boardSize || 'standard');
+    const destNeighbors = boardData.adjacencyMap[toVertex] || [];
+    const availableNeighbors = destNeighbors.filter((n: number) =>
+      !state.verticesOccupiedBy[n] && n !== fromVertex
     );
 
-    if (roadHexes.length > 0) {
-      reasons.push('expansion potential');
+    if (availableNeighbors.length >= 2) {
+      reasons.push('strong future expansion options');
     }
 
     if (reasons.length === 0) {
-      return 'Expand from village';
+      return 'Extend road network from village';
     }
 
-    const capitalizedReasons = reasons.map((r: string, i: number) => i === 0 ? r.charAt(0).toUpperCase() + r.slice(1) : r);
-    return capitalizedReasons.join(', ');
+    return reasons.join('; ');
   }, []);
 
   // Discard helper functions
@@ -3593,6 +3629,12 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           console.log(`   ✓ ${currentPlayer.name} selected ${resource1} and ${resource2}`);
           console.log(`   📋 Reasoning: ${selection.reasoning}`);
 
+          // Log AI decision context in testing mode
+          if (gameState.gameSettings.testingMode) {
+            const personality = currentPlayer.character?.name ? getPersonalityForCharacter(currentPlayer.character.name) : 'balanced';
+            addAIDecisionContext(currentPlayer.id, personality, selection.reasoning);
+          }
+
           // Add both resources at once to avoid race condition
           handleBoomingEconomyResourceSelection(resource1 as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral');
 
@@ -3648,11 +3690,17 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         const timer1 = setTimeout(() => {
           // Use strategic selection based on AI difficulty
           const difficulty = currentPlayer.difficulty || 'normal';
-          const selectedResource = selectClosedMarketResource(currentPlayer, gameState, difficulty);
+          const selection = selectClosedMarketResource(currentPlayer, gameState, difficulty);
 
-          console.log(`   ✓ ${currentPlayer.name} selected ${selectedResource} to close from trading`);
+          console.log(`   ✓ ${currentPlayer.name} selected ${selection.resource} to close from trading`);
 
-          handleClosedMarketResourceSelection(selectedResource as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral');
+          // Log AI decision context in testing mode
+          if (gameState.gameSettings.testingMode) {
+            const personality = currentPlayer.character?.name ? getPersonalityForCharacter(currentPlayer.character.name) : 'balanced';
+            addAIDecisionContext(currentPlayer.id, personality, selection.reasoning);
+          }
+
+          handleClosedMarketResourceSelection(selection.resource as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral');
 
           const timer2 = setTimeout(() => {
             console.log(`   🎯 Confirming Closed Market selection...`);
@@ -3964,7 +4012,18 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           const roadLocation = selectStrategicRoadLocation(currentPlayer.id, gameState, boardSize, difficulty, true);
 
           if (roadLocation) {
-            const { fromVertex, toVertex } = roadLocation;
+            const { fromVertex, toVertex, reasoning, personality } = roadLocation;
+
+            // Log AI decision context for Road Construction placement in testing mode
+            if (gameState.gameSettings.testingMode) {
+              const personalityLabel = personality.charAt(0).toUpperCase() + personality.slice(1);
+              const playerColor = getPlayerColorStyle(currentPlayer.color);
+              const contextMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> <span style="color: #6B7280; font-style: italic;">using free road from Road Construction</span>`;
+              addToLog(contextMessage);
+              const reasoningMessage = `<span style="color: #6B7280; font-style: italic; padding-left: 16px; display: block;">${personalityLabel} - ${reasoning}</span>`;
+              setTimeout(() => addToLog(reasoningMessage), 50);
+            }
+
             handlePlaceRoadGameplay(currentPlayer.id, fromVertex, toVertex);
           } else {
             console.log('DEBUG: AI cannot place road for Road Construction, skipping to main phase');
@@ -4630,8 +4689,20 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
     if (!player.isHuman && proposal) {
       const personality = player.character?.name ? getPersonalityForCharacter(player.character.name) : 'balanced';
-      const requestedResource = Object.keys(proposal.requestedResources).find(r => proposal.requestedResources[r] > 0);
-      const reasoning = requestedResource ? `Acquire ${requestedResource} for building goals` : 'Optimize resource portfolio';
+
+      // Get detailed reasoning about what build is being pursued
+      const tradeEval = evaluateTradeOpportunity(player, gameState, turnTradeHistory);
+      let reasoning = 'Optimize resource portfolio';
+
+      if (tradeEval.reasoning && tradeEval.reasoning.includes('toward')) {
+        // Use the detailed reasoning from evaluateTradeOpportunity
+        reasoning = tradeEval.reasoning;
+      } else {
+        // Fall back to simple build goal if available
+        const requestedResource = Object.keys(proposal.requestedResources).find(r => proposal.requestedResources[r] > 0);
+        reasoning = requestedResource ? `Acquiring ${requestedResource} to work toward building goals` : 'Optimize resource portfolio';
+      }
+
       addAIDecisionContext(playerId, personality, reasoning);
     }
 

@@ -628,11 +628,16 @@ export function selectBoomingEconomyResources(
 }
 
 // Strategic AI resource selection for Closed Market card
+export interface ClosedMarketSelection {
+  resource: string;
+  reasoning: string;
+}
+
 export function selectClosedMarketResource(
   player: Player,
   gameState: GameState,
   difficulty: 'easy' | 'normal' | 'hard'
-): string {
+): ClosedMarketSelection {
   console.log(`\n🚫 [${player.name}] SELECTING CLOSED MARKET RESOURCE (${difficulty} difficulty)`);
 
   // Find the game leader (opponent with highest score)
@@ -701,32 +706,33 @@ export function selectClosedMarketResource(
   });
 
   // Apply difficulty-based selection
-  let selected: string;
+  let selectedScore: { resource: string; score: number; reason: string };
 
   if (difficulty === 'hard') {
-    selected = resourceScores[0].resource;
+    selectedScore = resourceScores[0];
     console.log(`   ✓ Hard difficulty: Selected most impactful (optimal)`);
   } else if (difficulty === 'normal') {
     if (Math.random() < 0.8) {
-      selected = resourceScores[0].resource;
+      selectedScore = resourceScores[0];
       console.log(`   ✓ Normal difficulty: Selected most impactful (80% optimal)`);
     } else {
       const topThree = resourceScores.slice(0, 3);
-      selected = topThree[Math.floor(Math.random() * topThree.length)].resource;
+      selectedScore = topThree[Math.floor(Math.random() * topThree.length)];
       console.log(`   ✓ Normal difficulty: Selected from top 3 (20% suboptimal)`);
     }
   } else {
     if (Math.random() < 0.6) {
-      selected = resourceScores[0].resource;
+      selectedScore = resourceScores[0];
       console.log(`   ✓ Easy difficulty: Selected most impactful (60% optimal)`);
     } else {
-      selected = resourceScores[Math.floor(Math.random() * resourceScores.length)].resource;
+      selectedScore = resourceScores[Math.floor(Math.random() * resourceScores.length)];
       console.log(`   ✓ Easy difficulty: Random selection (40% suboptimal)`);
     }
   }
 
-  console.log(`   🎯 Final selection: ${selected}`);
-  return selected;
+  const reasoning = `Target: ${leader.name}; selecting ${selectedScore.resource} because ${selectedScore.reason}`;
+  console.log(`   🎯 Final selection: ${selectedScore.resource}`);
+  return { resource: selectedScore.resource, reasoning };
 }
 
 // Strategic AI player selection for Resource Swap card (swaps ALL resources with target)
@@ -956,7 +962,7 @@ function selectDiverseResources(player: Player, difficulty: 'easy' | 'normal' | 
 }
 
 // Helper: Select opponent's most abundant resource
-function selectOpponentsMostAbundantResource(player: Player, gameState: GameState, difficulty: 'easy' | 'normal' | 'hard'): string {
+function selectOpponentsMostAbundantResource(player: Player, gameState: GameState, difficulty: 'easy' | 'normal' | 'hard'): ClosedMarketSelection {
   const resourceTypes = ['clay', 'lumber', 'grain', 'fabric', 'mineral'] as const;
   const totalsByResource: Record<string, number> = {
     clay: 0,
@@ -984,5 +990,6 @@ function selectOpponentsMostAbundantResource(player: Player, gameState: GameStat
     }
   }
 
-  return maxResource;
+  const reasoning = `Opponents collectively have ${maxAmount} ${maxResource}, the most abundant resource`;
+  return { resource: maxResource, reasoning };
 }
