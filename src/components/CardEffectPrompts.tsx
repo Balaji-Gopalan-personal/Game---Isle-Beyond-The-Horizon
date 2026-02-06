@@ -180,9 +180,10 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
       </div>
       <div className="flex gap-2 justify-center">
         {resources.map(resource => {
-          const selectionCount = resourcesSelected.filter(r => r === resource.fullName).length;
+          const selectionCount = resourcesSelected.filter(r => r === resource.type).length;
           const hasSelections = selectionCount > 0;
           const imageSrc = getResourceImage(assets, resource.type);
+          const hasValidImage = imageSrc && imageSrc.length > 0;
           return (
             <button
               key={resource.type}
@@ -196,16 +197,15 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
                   : 'border-gray-300 hover:border-gray-400 cursor-pointer'
               }`}
               title={resource.fullName}
-              style={!imageSrc ? { backgroundColor: resource.color } : undefined}
+              style={{ backgroundColor: resource.color }}
             >
-              {imageSrc ? (
+              {hasValidImage ? (
                 <img
                   src={imageSrc}
                   alt={resource.fullName}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
-                    (e.target as HTMLImageElement).parentElement!.style.backgroundColor = resource.color;
                   }}
                 />
               ) : null}
@@ -282,6 +282,7 @@ export const ClosedMarketPrompt: React.FC<ClosedMarketPromptProps> = ({
         {resources.map(resource => {
           const isSelected = selectedResource === resource.type;
           const imageSrc = getResourceImage(assets, resource.type);
+          const hasValidImage = imageSrc && imageSrc.length > 0;
           return (
             <button
               key={resource.type}
@@ -292,16 +293,15 @@ export const ClosedMarketPrompt: React.FC<ClosedMarketPromptProps> = ({
                   : 'border-gray-300 hover:border-gray-400 cursor-pointer'
               }`}
               title={resource.fullName}
-              style={!imageSrc ? { backgroundColor: resource.color } : undefined}
+              style={{ backgroundColor: resource.color }}
             >
-              {imageSrc ? (
+              {hasValidImage ? (
                 <img
                   src={imageSrc}
                   alt={resource.fullName}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
-                    (e.target as HTMLImageElement).parentElement!.style.backgroundColor = resource.color;
                   }}
                 />
               ) : null}
