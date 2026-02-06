@@ -169,6 +169,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   const resourceSwapTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
   const freeUpgradeTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
+  // Refs to store log data extracted from inside setState
+  // These avoid stale closure issues by capturing fresh data from the 'prev' parameter
+  const boomingEconomyLogDataRef = useRef<string | null>(null);
+  const closedMarketLogDataRef = useRef<{ main: string; transfers: string[] } | null>(null);
+  const resourceSwapLogDataRef = useRef<string | null>(null);
+  const freeUpgradeLogDataRef = useRef<string | null>(null);
+
   // Helper function to add log messages
   const addToLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -3112,38 +3119,33 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   const handleConfirmBoomingEconomy = useCallback(() => {
     console.log(`🎁 handleConfirmBoomingEconomy called`);
 
-    // Extract data from current state BEFORE setState to build log message
-    const resourcesSelected = (gameState.turnState.placementContext.resourcesSelected || []) as string[];
-    const pendingCardId = gameState.turnState.placementContext.pendingCardId;
-
-    console.log(`DEBUG: Confirming Booming Economy with ${resourcesSelected.length} resources selected:`, resourcesSelected);
-
-    if (resourcesSelected.length !== 2) {
-      console.warn(`WARNING: Cannot confirm Booming Economy - expected 2 resources, got ${resourcesSelected.length}`);
-      return;
-    }
-
-    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
-    if (!currentPlayer) {
-      console.warn(`   WARNING: Could not find current player`);
-      return;
-    }
-
-    // Build log message BEFORE setState
-    const capitalizedResources = resourcesSelected.map(r => r.charAt(0).toUpperCase() + r.slice(1));
-    const resourceText = capitalizedResources.length === 2 && capitalizedResources[0] === capitalizedResources[1]
-      ? `2 ${capitalizedResources[0]}`
-      : capitalizedResources.join(' and ');
-    const playerColor = getPlayerColorStyle(currentPlayer.color);
-    const logMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> gained ${resourceText} from Booming Economy`;
-
-    console.log(`   📋 Prepared log message for ${currentPlayer.name}: gained ${resourcesSelected.join(', ')}`);
-
     setGameState(prev => {
-      const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
-      if (!currentPlayer) {
+      // Extract data from FRESH state (prev parameter) instead of stale gameState
+      const resourcesSelected = (prev.turnState.placementContext.resourcesSelected || []) as string[];
+      const pendingCardId = prev.turnState.placementContext.pendingCardId;
+
+      console.log(`DEBUG: Confirming Booming Economy with ${resourcesSelected.length} resources selected:`, resourcesSelected);
+
+      if (resourcesSelected.length !== 2) {
+        console.warn(`WARNING: Cannot confirm Booming Economy - expected 2 resources, got ${resourcesSelected.length}`);
         return prev;
       }
+
+      const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
+      if (!currentPlayer) {
+        console.warn(`   WARNING: Could not find current player`);
+        return prev;
+      }
+
+      // Build log message from FRESH data and store in ref
+      const capitalizedResources = resourcesSelected.map(r => r.charAt(0).toUpperCase() + r.slice(1));
+      const resourceText = capitalizedResources.length === 2 && capitalizedResources[0] === capitalizedResources[1]
+        ? `2 ${capitalizedResources[0]}`
+        : capitalizedResources.join(' and ');
+      const playerColor = getPlayerColorStyle(currentPlayer.color);
+      boomingEconomyLogDataRef.current = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> gained ${resourceText} from Booming Economy`;
+
+      console.log(`   📋 Prepared log message for ${currentPlayer.name}: gained ${resourcesSelected.join(', ')}`);
 
       const updatedPlayers = prev.players.map(p => {
         if (p.id === prev.currentPlayer) {
@@ -3194,12 +3196,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       };
     });
 
-    // Schedule logging AFTER setState completes
+    // Schedule logging AFTER setState completes using ref data
     setTimeout(() => {
-      console.log(`   📝 Adding to Events log: ${logMessage}`);
-      addToLog(logMessage);
+      if (boomingEconomyLogDataRef.current) {
+        console.log(`   📝 Adding to Events log: ${boomingEconomyLogDataRef.current}`);
+        addToLog(boomingEconomyLogDataRef.current);
+        boomingEconomyLogDataRef.current = null; // Clear after use
+      }
     }, 100);
-  }, [gameState, addToLog, getPlayerColorStyle]);
+  }, [addToLog, getPlayerColorStyle]);
 
   const handleClosedMarketResourceSelection = useCallback((resourceType: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral') => {
     console.log('DEBUG: Closed Market resource type selected:', resourceType);
@@ -3219,55 +3224,46 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   const handleConfirmClosedMarket = useCallback(() => {
     console.log('🔍 CLOSED MARKET CONFIRM: Handler called');
 
-    // Extract data from current state BEFORE setState to build log message
-    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
-    if (!currentPlayer) {
-      console.log('🔍 CLOSED MARKET CONFIRM: No current player found');
-      return;
-    }
-
-    const resourceType = gameState.turnState.placementContext.selectedResource as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral';
-    const pendingCardId = gameState.turnState.placementContext.pendingCardId;
-    console.log('🔍 CLOSED MARKET CONFIRM: resourceType =', resourceType, ', pendingCardId =', pendingCardId);
-
-    if (!resourceType) {
-      console.log('🔍 CLOSED MARKET CONFIRM: No resource type selected');
-      return;
-    }
-
-    // Calculate transfers BEFORE setState
-    let totalTransferred = 0;
-    const transfers: { from: string; fromColor: string; amount: number }[] = [];
-
-    gameState.players.forEach(p => {
-      if (p.id !== currentPlayer.id) {
-        const amountToTransfer = p.resources[resourceType];
-        if (amountToTransfer > 0) {
-          totalTransferred += amountToTransfer;
-          transfers.push({
-            from: p.name,
-            fromColor: getPlayerColorStyle(p.color),
-            amount: amountToTransfer
-          });
-        }
-      }
-    });
-
-    // Build log messages BEFORE setState
-    const playerColor = getPlayerColorStyle(currentPlayer.color);
-    const mainLogMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> took ${totalTransferred} ${resourceType} from other players`;
-    const transferMessages = transfers.map(transfer => ({
-      message: `<span style="color: ${transfer.fromColor}; font-weight: bold;">${transfer.from}</span> gave up ${transfer.amount} ${resourceType}`
-    }));
-
-    console.log('🔍 CLOSED MARKET CONFIRM: Preparing log data with', transfers.length, 'transfers, total =', totalTransferred);
-
     setGameState(prev => {
       console.log('🔍 CLOSED MARKET CONFIRM: Inside setGameState callback');
+
+      // Extract data from FRESH state (prev parameter) instead of stale gameState
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       if (!currentPlayer) {
+        console.log('🔍 CLOSED MARKET CONFIRM: No current player found');
         return prev;
       }
+
+      const resourceType = prev.turnState.placementContext.selectedResource as 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral';
+      const pendingCardId = prev.turnState.placementContext.pendingCardId;
+      console.log('🔍 CLOSED MARKET CONFIRM: resourceType =', resourceType, ', pendingCardId =', pendingCardId);
+
+      if (!resourceType) {
+        console.log('🔍 CLOSED MARKET CONFIRM: No resource type selected');
+        return prev;
+      }
+
+      // Calculate transfers from FRESH state
+      let totalTransferred = 0;
+      const transferMessages: string[] = [];
+
+      prev.players.forEach(p => {
+        if (p.id !== currentPlayer.id) {
+          const amountToTransfer = p.resources[resourceType];
+          if (amountToTransfer > 0) {
+            totalTransferred += amountToTransfer;
+            const fromColor = getPlayerColorStyle(p.color);
+            transferMessages.push(`<span style="color: ${fromColor}; font-weight: bold;">${p.name}</span> gave up ${amountToTransfer} ${resourceType}`);
+          }
+        }
+      });
+
+      // Build log messages from FRESH data and store in ref
+      const playerColor = getPlayerColorStyle(currentPlayer.color);
+      const mainLogMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> took ${totalTransferred} ${resourceType} from other players`;
+      closedMarketLogDataRef.current = { main: mainLogMessage, transfers: transferMessages };
+
+      console.log('🔍 CLOSED MARKET CONFIRM: Preparing log data with', transferMessages.length, 'transfers, total =', totalTransferred);
 
       const updatedPlayers = prev.players.map(p => {
         if (p.id === currentPlayer.id) {
@@ -3336,20 +3332,27 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       };
     });
 
-    // Schedule logging AFTER setState completes
+    // Schedule logging AFTER setState completes using ref data
     console.log('🔍 CLOSED MARKET CONFIRM: Scheduling logs outside setState');
     setTimeout(() => {
-      console.log('🔍 CLOSED MARKET CONFIRM: Executing main log message');
-      addToLog(mainLogMessage);
+      if (closedMarketLogDataRef.current) {
+        console.log('🔍 CLOSED MARKET CONFIRM: Executing main log message');
+        addToLog(closedMarketLogDataRef.current.main);
+      }
     }, 100);
 
-    transferMessages.forEach((transfer, index) => {
-      setTimeout(() => {
-        console.log('🔍 CLOSED MARKET CONFIRM: Executing transfer log', index);
-        addToLog(transfer.message);
-      }, 200 + (index * 50));
-    });
-  }, [gameState, addToLog, getPlayerColorStyle]);
+    setTimeout(() => {
+      if (closedMarketLogDataRef.current) {
+        closedMarketLogDataRef.current.transfers.forEach((message, index) => {
+          setTimeout(() => {
+            console.log('🔍 CLOSED MARKET CONFIRM: Executing transfer log', index);
+            addToLog(message);
+          }, index * 50);
+        });
+        closedMarketLogDataRef.current = null; // Clear after use
+      }
+    }, 200);
+  }, [addToLog, getPlayerColorStyle]);
 
   const handleResourceSwapPlayerSelection = useCallback((targetPlayerId: string) => {
     console.log('DEBUG: Resource Swap target player selected:', targetPlayerId);
@@ -3369,34 +3372,24 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   const handleConfirmResourceSwap = useCallback(() => {
     console.log('🔍 RESOURCE SWAP CONFIRM: Handler called');
 
-    // Extract data from current state BEFORE setState to build log message
-    // This avoids side effects inside the setState updater function
-    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
-    const targetPlayerId = gameState.turnState.placementContext.selectedPlayerId;
-    const targetPlayer = gameState.players.find(p => p.id === targetPlayerId);
-    const pendingCardId = gameState.turnState.placementContext.pendingCardId;
-
-    if (!currentPlayer || !targetPlayer) {
-      console.log('🔍 RESOURCE SWAP CONFIRM: Missing player data');
-      return;
-    }
-
-    // Build log message BEFORE setState
-    const currentPlayerColor = getPlayerColorStyle(currentPlayer.color);
-    const targetPlayerColor = getPlayerColorStyle(targetPlayer.color);
-    const swapMessage = `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> swapped all resources with <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`;
-
     setGameState(prev => {
       console.log('🔍 RESOURCE SWAP CONFIRM: Inside setGameState callback');
+
+      // Extract data from FRESH state (prev parameter) instead of stale gameState
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       const targetPlayerId = prev.turnState.placementContext.selectedPlayerId;
       const targetPlayer = prev.players.find(p => p.id === targetPlayerId);
       const pendingCardId = prev.turnState.placementContext.pendingCardId;
 
       if (!currentPlayer || !targetPlayer) {
-        console.log('🔍 RESOURCE SWAP CONFIRM: Missing player, returning prev');
+        console.log('🔍 RESOURCE SWAP CONFIRM: Missing player data');
         return prev;
       }
+
+      // Build log message from FRESH data and store in ref
+      const currentPlayerColor = getPlayerColorStyle(currentPlayer.color);
+      const targetPlayerColor = getPlayerColorStyle(targetPlayer.color);
+      resourceSwapLogDataRef.current = `<span style="color: ${currentPlayerColor}; font-weight: bold;">${currentPlayer.name}</span> swapped all resources with <span style="color: ${targetPlayerColor}; font-weight: bold;">${targetPlayer.name}</span>`;
 
       const tempResources = { ...currentPlayer.resources };
 
@@ -3439,13 +3432,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       };
     });
 
-    // Schedule logging AFTER setState completes - this executes only once even in Strict Mode
+    // Schedule logging AFTER setState completes using ref data
     console.log('🔍 RESOURCE SWAP CONFIRM: Scheduling log outside setState');
     setTimeout(() => {
-      console.log('🔍 RESOURCE SWAP CONFIRM: Executing log message');
-      addToLog(swapMessage);
+      if (resourceSwapLogDataRef.current) {
+        console.log('🔍 RESOURCE SWAP CONFIRM: Executing log message');
+        addToLog(resourceSwapLogDataRef.current);
+        resourceSwapLogDataRef.current = null; // Clear after use
+      }
     }, 100);
-  }, [gameState, addToLog, getPlayerColorStyle]);
+  }, [addToLog, getPlayerColorStyle]);
 
   const handleCancelCardEffect = useCallback(() => {
     setGameState(prev => ({
@@ -3480,7 +3476,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const village = prev.villages.find(v => v.vertexId === vertexId && v.playerId === currentPlayer.id && v.type === 'settlement');
       if (!village) {
         console.log('🔥 FREE UPGRADE: Invalid village selection');
-        addToLog('Invalid village selection');
+        // Store error message in ref instead of calling addToLog directly
+        freeUpgradeLogDataRef.current = 'Invalid village selection';
         return prev;
       }
 
@@ -3519,15 +3516,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
-      // Prepare log message and schedule it INSIDE the callback where all variables are in scope
+      // Build log message from FRESH data and store in ref
       const playerColor = getPlayerColorStyle(currentPlayer.color);
-      const upgradeMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> upgraded village at vertex ${vertexId} to an Estate for free and earned 1 point`;
+      freeUpgradeLogDataRef.current = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> upgraded village at vertex ${vertexId} to an Estate for free and earned 1 point`;
 
-      console.log(`🔥 FREE UPGRADE: Scheduling log message for ${currentPlayer.name}`);
-      setTimeout(() => {
-        console.log(`🔥 FREE UPGRADE: Executing log message`);
-        addToLog(upgradeMessage);
-      }, 100);
+      console.log(`🔥 FREE UPGRADE: Prepared log message for ${currentPlayer.name}`);
 
       return {
         ...prev,
@@ -3546,6 +3539,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
+
+    // Schedule logging AFTER setState completes using ref data
+    setTimeout(() => {
+      if (freeUpgradeLogDataRef.current) {
+        console.log(`🔥 FREE UPGRADE: Executing log message`);
+        addToLog(freeUpgradeLogDataRef.current);
+        freeUpgradeLogDataRef.current = null; // Clear after use
+      }
+    }, 100);
   }, [addToLog, getPlayerColorStyle]);
 
   // Auto-handle play_dev_cards phase for AI players
