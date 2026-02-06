@@ -283,33 +283,33 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           }
         }
         @keyframes village-dissolve-in {
-          from {
+          0% {
             opacity: 0;
-            transform: scale(0.3);
+            clip-path: polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%);
           }
-          to {
+          100% {
             opacity: 1;
-            transform: scale(1);
+            clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
           }
         }
         @keyframes village-dissolve-out {
-          from {
+          0% {
             opacity: 1;
-            transform: scale(1);
+            clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
           }
-          to {
+          100% {
             opacity: 0;
-            transform: scale(0.3);
+            clip-path: polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%);
           }
         }
         @keyframes estate-dissolve-in {
-          from {
+          0% {
             opacity: 0;
-            transform: scale(0.3);
+            clip-path: polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%);
           }
-          to {
+          100% {
             opacity: 1;
-            transform: scale(1);
+            clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
           }
         }
       `}</style>
@@ -479,21 +479,37 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             const fromPos = getVertexPosition(fromVertex);
             const toPos = getVertexPosition(toVertex);
 
+            // Check if vertices are owned by checking for settlements/cities or other roads
+            // Exclude the current road when checking road connections
             const isOwnedFrom = gameState.verticesOccupiedBy[road.from] === road.playerId ||
-                                gameState.roads.some(r => r.playerId === road.playerId && (r.from === road.from || r.to === road.from));
+                                gameState.roads.some(r => r.playerId === road.playerId && r.id !== road.id && (r.from === road.from || r.to === road.from));
             const isOwnedTo = gameState.verticesOccupiedBy[road.to] === road.playerId ||
                               gameState.roads.some(r => r.playerId === road.playerId && r.id !== road.id && (r.from === road.to || r.to === road.to));
 
+            // Determine drawing direction: draw FROM the owned vertex
             let startX = fromPos.x;
             let startY = fromPos.y;
             let endX = toPos.x;
             let endY = toPos.y;
 
+            // If only 'to' is owned, swap to draw from 'to' to 'from'
             if (isOwnedTo && !isOwnedFrom) {
               startX = toPos.x;
               startY = toPos.y;
               endX = fromPos.x;
               endY = fromPos.y;
+            }
+            // If both are owned, prefer to draw from the vertex with a settlement/city
+            else if (isOwnedFrom && isOwnedTo) {
+              const hasSettlementFrom = gameState.verticesOccupiedBy[road.from] === road.playerId;
+              const hasSettlementTo = gameState.verticesOccupiedBy[road.to] === road.playerId;
+
+              if (hasSettlementTo && !hasSettlementFrom) {
+                startX = toPos.x;
+                startY = toPos.y;
+                endX = fromPos.x;
+                endY = fromPos.y;
+              }
             }
 
             const isAnimating = animatingRoads.has(road.id);
@@ -1056,8 +1072,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                           strokeWidth="3"
                           style={{
                             pointerEvents: 'none',
-                            animation: 'village-dissolve-out 0.2s ease-out forwards',
-                            transformOrigin: 'center'
+                            animation: 'village-dissolve-out 0.2s ease-out forwards'
                           }}
                         >
                           ⌂
@@ -1074,8 +1089,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                           style={{
                             pointerEvents: 'none',
                             animation: 'estate-dissolve-in 0.3s ease-out 0.2s forwards',
-                            opacity: 0,
-                            transformOrigin: 'center'
+                            opacity: 0
                           }}
                         >
                           ⛫
@@ -1095,8 +1109,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                           cursor: (isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? 'pointer' : undefined,
                           pointerEvents: (isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? 'auto' : 'none',
                           ...(animatingVillages.has(vertex.id) ? {
-                            animation: 'village-dissolve-in 0.3s ease-out forwards',
-                            transformOrigin: 'center'
+                            animation: 'village-dissolve-in 0.3s ease-out forwards'
                           } : {})
                         }}
                         onClick={(isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? (e) => {
