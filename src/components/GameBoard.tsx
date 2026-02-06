@@ -42,6 +42,68 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 }) => {
   const { assets } = useAssets();
 
+  const [animatingRoads, setAnimatingRoads] = React.useState<Set<string>>(new Set());
+  const [animatingVillages, setAnimatingVillages] = React.useState<Set<number>>(new Set());
+  const [upgradingVillages, setUpgradingVillages] = React.useState<Set<number>>(new Set());
+  const prevRoadsRef = React.useRef<string[]>([]);
+  const prevVillagesRef = React.useRef<{id: number, type: string}[]>([]);
+
+  React.useEffect(() => {
+    const currentRoadIds = gameState.roads.map(r => r.id);
+    const newRoads = currentRoadIds.filter(id => !prevRoadsRef.current.includes(id));
+
+    if (newRoads.length > 0) {
+      setAnimatingRoads(prev => {
+        const next = new Set(prev);
+        newRoads.forEach(id => next.add(id));
+        return next;
+      });
+
+      newRoads.forEach(roadId => {
+        setTimeout(() => {
+          setAnimatingRoads(prev => {
+            const next = new Set(prev);
+            next.delete(roadId);
+            return next;
+          });
+        }, 300);
+      });
+    }
+
+    prevRoadsRef.current = currentRoadIds;
+  }, [gameState.roads]);
+
+  React.useEffect(() => {
+    const currentVillages = gameState.villages.map(v => ({ id: v.vertexId, type: v.type }));
+    const prevVillagesMap = new Map(prevVillagesRef.current.map(v => [v.id, v.type]));
+
+    currentVillages.forEach(curr => {
+      const prev = prevVillagesMap.get(curr.id);
+
+      if (!prev) {
+        setAnimatingVillages(s => new Set(s).add(curr.id));
+        setTimeout(() => {
+          setAnimatingVillages(s => {
+            const next = new Set(s);
+            next.delete(curr.id);
+            return next;
+          });
+        }, 300);
+      } else if (prev === 'settlement' && curr.type === 'city') {
+        setUpgradingVillages(s => new Set(s).add(curr.id));
+        setTimeout(() => {
+          setUpgradingVillages(s => {
+            const next = new Set(s);
+            next.delete(curr.id);
+            return next;
+          });
+        }, 500);
+      }
+    });
+
+    prevVillagesRef.current = currentVillages;
+  }, [gameState.villages]);
+
   const boardData = React.useMemo(() => {
     console.log('Loading board graph...');
     const data = loadBoardForSize(boardSize);
@@ -214,6 +276,43 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
   return (
     <div className="bg-white rounded-lg shadow-md p-4 h-full relative overflow-hidden flex items-center justify-center">
+      <style>{`
+        @keyframes road-draw {
+          to {
+            stroke-dashoffset: 0;
+          }
+        }
+        @keyframes village-dissolve-in {
+          from {
+            opacity: 0;
+            transform: scale(0.3);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        @keyframes village-dissolve-out {
+          from {
+            opacity: 1;
+            transform: scale(1);
+          }
+          to {
+            opacity: 0;
+            transform: scale(0.3);
+          }
+        }
+        @keyframes estate-dissolve-in {
+          from {
+            opacity: 0;
+            transform: scale(0.3);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+      `}</style>
       {/* Ocean background */}
       <div
         className="absolute inset-0 rounded-lg"
@@ -360,7 +459,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             const fromVertex = boardGraph.vertices[road.from];
             const toVertex = boardGraph.vertices[road.to];
             const roadPlayer = gameState.players.find(p => p.id === road.playerId);
-            
+
             if (!fromVertex || !toVertex || !roadPlayer) {
               console.error(`DEBUG: Road rendering failed for road ${road.id}:`, {
                 roadId: road.id,
@@ -376,20 +475,47 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               });
               return null;
             }
-            
+
             const fromPos = getVertexPosition(fromVertex);
             const toPos = getVertexPosition(toVertex);
+
+            const isOwnedFrom = gameState.verticesOccupiedBy[road.from] === road.playerId ||
+                                gameState.roads.some(r => r.playerId === road.playerId && (r.from === road.from || r.to === road.from));
+            const isOwnedTo = gameState.verticesOccupiedBy[road.to] === road.playerId ||
+                              gameState.roads.some(r => r.playerId === road.playerId && r.id !== road.id && (r.from === road.to || r.to === road.to));
+
+            let startX = fromPos.x;
+            let startY = fromPos.y;
+            let endX = toPos.x;
+            let endY = toPos.y;
+
+            if (isOwnedTo && !isOwnedFrom) {
+              startX = toPos.x;
+              startY = toPos.y;
+              endX = fromPos.x;
+              endY = fromPos.y;
+            }
+
+            const isAnimating = animatingRoads.has(road.id);
+            const dx = endX - startX;
+            const dy = endY - startY;
+            const length = Math.sqrt(dx * dx + dy * dy);
 
             return (
               <line
                 key={road.id}
-                x1={fromPos.x}
-                y1={fromPos.y}
-                x2={toPos.x}
-                y2={toPos.y}
+                x1={startX}
+                y1={startY}
+                x2={endX}
+                y2={endY}
                 stroke={getPlayerColorHex(roadPlayer.color)}
-                strokeWidth="18" // 3× thicker than board edges (6px)
+                strokeWidth="18"
                 strokeLinecap="round"
+                strokeDasharray={isAnimating ? length : undefined}
+                strokeDashoffset={isAnimating ? length : undefined}
+                style={isAnimating ? {
+                  animation: 'road-draw 0.3s ease-out forwards'
+                } : undefined}
               />
             );
           })}
@@ -916,24 +1042,73 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 
                 {/* Village/Estate icon layer: Render on top, centered at vertex coordinate */}
                 {villagePlayer && (
-                  <text
-                    x={pos.x} // icon.x = vertex.x
-                    y={pos.y + iconFontSize * 0.2} // icon.y = vertex.y (moved up by 10% of icon height)
-                    textAnchor="middle"
-                    fontSize={iconFontSize}
-                    fill={getPlayerColorHex(villagePlayer.color)}
-                    fontWeight="bold"
-                    stroke={getPlayerColorHex(villagePlayer.color)}
-                    strokeWidth="3"
-                    style={(isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? { cursor: 'pointer', pointerEvents: 'auto' } : { pointerEvents: 'none' }}
-                    onClick={(isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? (e) => {
-                      console.log('DEBUG: Village icon clicked for vertex:', vertex.id);
-                      e.stopPropagation();
-                      onVertexClick(vertex.id);
-                    } : undefined}
-                  >
-                    {village.type === 'city' ? '⛫' : '⌂'}
-                  </text>
+                  <>
+                    {upgradingVillages.has(vertex.id) ? (
+                      <>
+                        <text
+                          x={pos.x}
+                          y={pos.y + iconFontSize * 0.2}
+                          textAnchor="middle"
+                          fontSize={iconFontSize}
+                          fill={getPlayerColorHex(villagePlayer.color)}
+                          fontWeight="bold"
+                          stroke={getPlayerColorHex(villagePlayer.color)}
+                          strokeWidth="3"
+                          style={{
+                            pointerEvents: 'none',
+                            animation: 'village-dissolve-out 0.2s ease-out forwards',
+                            transformOrigin: 'center'
+                          }}
+                        >
+                          ⌂
+                        </text>
+                        <text
+                          x={pos.x}
+                          y={pos.y + iconFontSize * 0.2}
+                          textAnchor="middle"
+                          fontSize={iconFontSize}
+                          fill={getPlayerColorHex(villagePlayer.color)}
+                          fontWeight="bold"
+                          stroke={getPlayerColorHex(villagePlayer.color)}
+                          strokeWidth="3"
+                          style={{
+                            pointerEvents: 'none',
+                            animation: 'estate-dissolve-in 0.3s ease-out 0.2s forwards',
+                            opacity: 0,
+                            transformOrigin: 'center'
+                          }}
+                        >
+                          ⛫
+                        </text>
+                      </>
+                    ) : (
+                      <text
+                        x={pos.x}
+                        y={pos.y + iconFontSize * 0.2}
+                        textAnchor="middle"
+                        fontSize={iconFontSize}
+                        fill={getPlayerColorHex(villagePlayer.color)}
+                        fontWeight="bold"
+                        stroke={getPlayerColorHex(villagePlayer.color)}
+                        strokeWidth="3"
+                        style={{
+                          cursor: (isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? 'pointer' : undefined,
+                          pointerEvents: (isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? 'auto' : 'none',
+                          ...(animatingVillages.has(vertex.id) ? {
+                            animation: 'village-dissolve-in 0.3s ease-out forwards',
+                            transformOrigin: 'center'
+                          } : {})
+                        }}
+                        onClick={(isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? (e) => {
+                          console.log('DEBUG: Village icon clicked for vertex:', vertex.id);
+                          e.stopPropagation();
+                          onVertexClick(vertex.id);
+                        } : undefined}
+                      >
+                        {village.type === 'city' ? '⛫' : '⌂'}
+                      </text>
+                    )}
+                  </>
                 )}
                 
                 {/* Top layer: Vertex number - always visible and centered on top of icon */}

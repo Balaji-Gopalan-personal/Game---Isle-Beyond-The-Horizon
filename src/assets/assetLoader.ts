@@ -8,6 +8,10 @@ const loadCategory = async (
   const entries = Object.entries(assets);
   const results = await Promise.allSettled(
     entries.map(async ([key, path]) => {
+      const extension = path.split('.').pop()?.toLowerCase();
+      if (extension === 'gif') {
+        return { key, dataUri: path };
+      }
       const dataUri = await convertImageToDataUri(path);
       return { key, dataUri };
     })
