@@ -1,6 +1,7 @@
 import { GameState, Player } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
 import { loadBoardForSize } from '../graph/loadBoard';
+import { getMostNeededResources, BUILDING_COSTS } from './buildingCosts';
 
 export interface RobberPlacement {
   hexId: number;
@@ -155,6 +156,22 @@ function scoreRobberPlacement(
     return -100;
   }
 
+  const currentRobberHex = gameState.boardCenters.find(c => c.id === gameState.robberPosition);
+  const isRobberBlockingSelf = currentRobberHex && getPlayersOnHex(gameState.robberPosition, gameState, boardSize).includes(player.id);
+
+  if (isRobberBlockingSelf && currentRobberHex) {
+    const currentHexProductionValue = getHexProductionValue(currentRobberHex.value);
+    const isHighProduction = currentRobberHex.value === 6 || currentRobberHex.value === 8;
+
+    if (isHighProduction) {
+      score += 80;
+    } else if (currentHexProductionValue >= 4) {
+      score += 50;
+    } else {
+      score += 30;
+    }
+  }
+
   const productionValue = getHexProductionValue(hex.value);
   score += productionValue * 10;
 
@@ -281,14 +298,14 @@ function selectStealTarget(
     return undefined;
   }
 
-  const leader = getGameLeader(gameState, currentPlayerId);
+  const currentPlayer = gameState.players.find(p => p.id === currentPlayerId);
+  if (!currentPlayer) return playersOnHex[0];
 
-  if (leader && playersOnHex.includes(leader.id)) {
-    const leaderHasResources = leader.resources.total > 0;
-    if (leaderHasResources) {
-      return leader.id;
-    }
-  }
+  const neededResources = getMostNeededResources(currentPlayer, ['village', 'estate', 'dev_card', 'road']);
+  const topNeeds = new Set(neededResources.slice(0, 3).map(r => r.resource));
+
+  const leader = getGameLeader(gameState, currentPlayerId);
+  const pointsToWin = gameState.gameSettings.pointsToWin;
 
   const playersWithResources = playersOnHex.filter(pid => {
     const p = gameState.players.find(player => player.id === pid);
@@ -299,13 +316,44 @@ function selectStealTarget(
     return playersOnHex[0];
   }
 
+  const hex = gameState.boardCenters.find(c => c.id === hexId);
+
   const scoredTargets = playersWithResources.map(pid => {
     const p = gameState.players.find(player => player.id === pid);
     if (!p) return { playerId: pid, score: 0 };
 
     let score = 0;
-    score += p.resources.total * 2;
-    score += (p.score + p.secretPoints) * 3;
+
+    const pointsAway = pointsToWin - (p.score + p.secretPoints);
+    if (pointsAway <= 2) {
+      score += 40;
+    } else if (leader && p.id === leader.id) {
+      score += 30;
+    }
+
+    if (hex && hex.resourceType !== 'desert' && topNeeds.has(hex.resourceType)) {
+      score += 25;
+    }
+
+    const playerVillagesOnHex = gameState.villages.filter(
+      v => v.playerId === pid && hex && hex.vertices.includes(v.vertexId)
+    );
+
+    const hasEstateOnHex = playerVillagesOnHex.some(v => v.type === 'city');
+    if (hasEstateOnHex) {
+      score += 15;
+    } else if (playerVillagesOnHex.length > 0) {
+      score += 10;
+    }
+
+    score += p.resources.total * 1.5;
+
+    for (const neededRes of Array.from(topNeeds)) {
+      const resKey = neededRes as keyof typeof p.resources;
+      if (p.resources[resKey] && p.resources[resKey] >= 1) {
+        score += 8;
+      }
+    }
 
     return { playerId: pid, score };
   });

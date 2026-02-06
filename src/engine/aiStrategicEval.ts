@@ -3,6 +3,7 @@ import { BoardSize } from '../data/boardConfigs';
 import { loadBoardForSize } from '../graph/loadBoard';
 import { getAdjacentVertices } from './boardService';
 import { calculateLongestRoadPath, buildVerticesWithOwnership } from './gameplayActions';
+import { countViableVillageLocations, getPersonalityForCharacter, PersonalityTrait } from './aiLocationStrategy';
 
 export interface VertexEvaluation {
   vertexId: number;
@@ -382,17 +383,35 @@ export function calculateBuildingPriority(
     estatePriority *= 0.3;
   }
 
+  const boardSize = gameState.gameSettings.boardSize as BoardSize;
+  const viableVillageLocations = countViableVillageLocations(player.id, gameState, boardSize);
+
+  if (viableVillageLocations <= 4) {
+    villagePriority *= 0.7;
+    estatePriority *= 1.5;
+    devCardPriority *= 1.5;
+  }
+
+  if (viableVillageLocations <= 2) {
+    villagePriority *= 0.5;
+    estatePriority *= 1.5;
+    devCardPriority *= 2.0;
+  }
+
   let roadPriority = Math.max(8 - roadCount, 3);
 
   if (isEarlyGame && villageCount < 3) {
     roadPriority *= 0.6;
   }
 
+  if (viableVillageLocations <= 3) {
+    roadPriority *= 0.5;
+  }
+
   if (gameState.gameSettings.longestRoadEnabled) {
     const longestRoadBonus = gameState.gameSettings.longestRoadBonus;
     const longestRoadSize = gameState.gameSettings.longestRoadSize;
 
-    const boardSize = gameState.gameSettings.boardSize as BoardSize;
     const boardData = loadBoardForSize(boardSize);
     const verticesWithOwnership = buildVerticesWithOwnership(boardData.graph, gameState.verticesOccupiedBy);
 
@@ -441,6 +460,49 @@ export function calculateBuildingPriority(
 
   if (isEarlyGame && villageCount < 3) {
     devCardPriority *= 0.5;
+  }
+
+  const personality = getPersonalityForCharacter(player.character?.name);
+
+  switch (personality) {
+    case 'aggressive':
+      villagePriority *= 1.5;
+      if (villageCount < 4) {
+        villagePriority *= 1.3;
+      }
+      devCardPriority *= 0.6;
+      roadPriority *= 0.8;
+      break;
+
+    case 'expansionist':
+      roadPriority *= 1.8;
+      villagePriority *= 1.1;
+      devCardPriority *= 0.7;
+      estatePriority *= 0.9;
+      break;
+
+    case 'developer':
+      devCardPriority *= 2.0;
+      if (villageCount >= 2) {
+        devCardPriority *= 1.3;
+      }
+      estatePriority *= 1.3;
+      villagePriority *= 0.7;
+      roadPriority *= 0.6;
+      break;
+
+    case 'trader':
+      villagePriority *= 1.2;
+      devCardPriority *= 1.1;
+      break;
+
+    case 'defensive':
+      estatePriority *= 1.2;
+      devCardPriority *= 1.1;
+      break;
+
+    case 'balanced':
+      break;
   }
 
   priorities.push({ type: 'village', priority: Math.max(villagePriority, 1) });

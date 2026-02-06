@@ -5,7 +5,7 @@ import { getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages, c
 import { evaluateVertex, evaluateRoadEdge, calculateProductionValue, VertexEvaluation, EdgeEvaluation } from './aiStrategicEval';
 import { getAdjacentVertices } from './boardService';
 
-export type PersonalityTrait = 'aggressive' | 'expansionist' | 'trader' | 'defensive' | 'balanced';
+export type PersonalityTrait = 'aggressive' | 'expansionist' | 'trader' | 'defensive' | 'developer' | 'balanced';
 
 export interface PersonalityWeights {
   productionWeight: number;
@@ -37,23 +37,23 @@ export interface EstateLocationDecision {
 
 const PERSONALITY_PROFILES: Record<PersonalityTrait, PersonalityWeights> = {
   aggressive: {
-    productionWeight: 2.5,
-    diversityWeight: 1.5,
-    portWeight: 1.0,
-    expansionWeight: 2.0,
-    blockingWeight: 3.0,
+    productionWeight: 3.5,
+    diversityWeight: 1.0,
+    portWeight: 0.8,
+    expansionWeight: 1.5,
+    blockingWeight: 4.0,
   },
   expansionist: {
     productionWeight: 2.0,
     diversityWeight: 2.5,
-    portWeight: 1.5,
-    expansionWeight: 4.0,
+    portWeight: 2.0,
+    expansionWeight: 5.0,
     blockingWeight: 0.5,
   },
   trader: {
     productionWeight: 3.0,
-    diversityWeight: 3.0,
-    portWeight: 4.0,
+    diversityWeight: 3.5,
+    portWeight: 4.5,
     expansionWeight: 1.5,
     blockingWeight: 0.5,
   },
@@ -62,7 +62,14 @@ const PERSONALITY_PROFILES: Record<PersonalityTrait, PersonalityWeights> = {
     diversityWeight: 2.0,
     portWeight: 2.0,
     expansionWeight: 1.0,
-    blockingWeight: 2.5,
+    blockingWeight: 3.5,
+  },
+  developer: {
+    productionWeight: 2.5,
+    diversityWeight: 1.5,
+    portWeight: 1.8,
+    expansionWeight: 1.0,
+    blockingWeight: 1.5,
   },
   balanced: {
     productionWeight: 3.0,
@@ -80,11 +87,13 @@ export function getPersonalityForCharacter(characterName?: string): PersonalityT
   const expansionistNames = ['Astro Boy', 'GI Joe', 'Rainbow Brite', 'Speed Racer', 'Gadget', 'Jetson'];
   const traderNames = ['Scrooge McDuck', 'Josie', 'Jem', 'Garfield', 'Yogi Bear'];
   const defensiveNames = ['Care Bear', 'Smurf', 'Casper', 'Snork', 'Gummi Bear'];
+  const developerNames = ['Chip', 'Dale', 'Donatello', 'Brainy Smurf', 'Zummi Gummi', 'Doc'];
 
   if (aggressiveNames.some(n => characterName.includes(n))) return 'aggressive';
   if (expansionistNames.some(n => characterName.includes(n))) return 'expansionist';
   if (traderNames.some(n => characterName.includes(n))) return 'trader';
   if (defensiveNames.some(n => characterName.includes(n))) return 'defensive';
+  if (developerNames.some(n => characterName.includes(n))) return 'developer';
 
   return 'balanced';
 }
@@ -382,11 +391,23 @@ export function selectStrategicRoadLocation(
           );
 
           const weights = PERSONALITY_PROFILES[personality];
+
+          let villageExpansionMultiplier = 8.0;
+          if (isEarlyGame && villageCount < 3) {
+            villageExpansionMultiplier = 12.0;
+          } else if (villageCount < 4) {
+            villageExpansionMultiplier = 10.0;
+          }
+
+          if (villageExpansionValue === 0) {
+            adjustedScore -= 5;
+          }
+
           adjustedScore =
             evaluation.expansionValue * weights.expansionWeight +
             evaluation.productionAccess * weights.productionWeight * 0.5 +
             evaluation.portConnectionValue * weights.portWeight +
-            villageExpansionValue * (isEarlyGame && villageCount < 3 ? 5.0 : 3.0);
+            villageExpansionValue * villageExpansionMultiplier;
 
           validEdges.push({
             fromVertex,
@@ -491,6 +512,15 @@ function calculateVillageExpansionValue(
   }
 
   return expansionValue;
+}
+
+export function countViableVillageLocations(
+  playerId: string,
+  gameState: GameState,
+  boardSize: BoardSize
+): number {
+  const validPlacements = getValidVillagePlacements(playerId, gameState, boardSize);
+  return validPlacements.length;
 }
 
 export function selectStrategicEstateLocation(

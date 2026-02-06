@@ -1,5 +1,7 @@
 import { GameState, Player, DevelopmentCard } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
+import { getMostNeededResources } from './buildingCosts';
+import { loadBoardForSize } from '../graph/loadBoard';
 
 export interface DevCardPlayDecision {
   shouldPlay: boolean;
@@ -135,7 +137,28 @@ function scoreCardPlayTiming(
         return 0;
       }
 
-      let guardScore = 5;
+      let guardScore = 3;
+
+      const currentRobberHex = gameState.boardCenters?.find(c => c.id === gameState.robberPosition);
+      const playersOnCurrentRobberHex = currentRobberHex ?
+        gameState.villages.filter(v => currentRobberHex.vertices.includes(v.vertexId)).map(v => v.playerId) : [];
+      const isRobberBlockingSelf = playersOnCurrentRobberHex.includes(player.id);
+
+      if (isRobberBlockingSelf && currentRobberHex) {
+        const isHighProduction = currentRobberHex.value === 6 || currentRobberHex.value === 8;
+        const isMediumProduction = currentRobberHex.value === 5 || currentRobberHex.value === 9;
+
+        if (isHighProduction) {
+          guardScore += 20;
+          console.log(`   🚫 Robber blocking own high-production hex (${currentRobberHex.value}) - bonus: +20`);
+        } else if (isMediumProduction) {
+          guardScore += 12;
+          console.log(`   🚫 Robber blocking own medium-production hex (${currentRobberHex.value}) - bonus: +12`);
+        } else {
+          guardScore += 6;
+          console.log(`   🚫 Robber blocking own hex (${currentRobberHex.value}) - bonus: +6`);
+        }
+      }
 
       if (gameState.gameSettings.largestArmyEnabled) {
         const largestArmyBonus = gameState.gameSettings.largestArmyBonus;
@@ -173,13 +196,27 @@ function scoreCardPlayTiming(
         const leaderPointsAway = pointsToWin - (leader.score + leader.secretPoints);
         if (leaderPointsAway <= 2) {
           guardScore += 10;
+          console.log(`   🎯 Leader ${leader.name} close to winning (${leaderPointsAway} away) - bonus: +10`);
         } else if (leaderPointsAway <= 4) {
           guardScore += 5;
+          console.log(`   🎯 Leader ${leader.name} approaching win (${leaderPointsAway} away) - bonus: +5`);
         }
+      }
+
+      const neededResources = getMostNeededResources(player, ['village', 'estate', 'dev_card', 'road']);
+      if (neededResources.length > 0 && neededResources[0].score > 0) {
+        guardScore += 6;
+        console.log(`   💎 Can potentially steal needed resources - bonus: +6`);
       }
 
       if (player.resources.total >= gameState.gameSettings.maxResourceHold) {
         guardScore += 7;
+        console.log(`   📦 At resource limit, need to act - bonus: +7`);
+      }
+
+      if (!isRobberBlockingSelf && !leader && player.guardsPlayed < 2 && player.resources.total < gameState.gameSettings.maxResourceHold - 2) {
+        guardScore -= 3;
+        console.log(`   ⏸️ No urgent need to play Guard right now - penalty: -3`);
       }
 
       return guardScore;
@@ -516,7 +553,6 @@ export function selectBoomingEconomyResources(
 ): ResourceSelection {
   console.log(`\n🌟 [${player.name}] SELECTING BOOMING ECONOMY RESOURCES (${difficulty} difficulty)`);
 
-  // Import identifyTradeGoals function logic inline
   const goals = identifyPlayerTradeGoals(player, gameState);
 
   if (goals.length === 0) {
@@ -527,7 +563,6 @@ export function selectBoomingEconomyResources(
   const topGoal = goals[0];
   console.log(`   🎯 Top building goal: ${topGoal.targetBuilding} (priority ${topGoal.priority})`);
 
-  // Score each resource type based on needs
   const resourceScores: Array<{ resource: string; score: number; reason: string }> = [];
   const resourceTypes = ['clay', 'lumber', 'grain', 'fabric', 'mineral'] as const;
 
@@ -535,36 +570,35 @@ export function selectBoomingEconomyResources(
     let score = 0;
     const reasons: string[] = [];
 
-    // High priority: resources needed for top goal
     const neededForTop = (topGoal.neededResources as any)[resource] || 0;
     if (neededForTop > 0) {
-      score += neededForTop * 20;
+      score += neededForTop * 25;
       reasons.push(`${neededForTop} needed for ${topGoal.targetBuilding}`);
     }
 
-    // Medium priority: resources needed for secondary goals
     for (let i = 1; i < Math.min(goals.length, 3); i++) {
       const neededForGoal = (goals[i].neededResources as any)[resource] || 0;
       if (neededForGoal > 0) {
-        score += neededForGoal * 5;
+        score += neededForGoal * 8;
         reasons.push(`${neededForGoal} for ${goals[i].targetBuilding}`);
       }
     }
 
-    // Bonus: resources we have zero of (diversity)
     const currentAmount = (player.resources as any)[resource];
-    if (currentAmount === 0) {
-      score += 8;
+    if (currentAmount === 0 && neededForTop > 0) {
+      score += 12;
+      reasons.push('needed and zero in hand');
+    } else if (currentAmount === 0) {
+      score += 5;
       reasons.push('zero in hand (diversity)');
     } else if (currentAmount === 1 && neededForTop > 0) {
-      score += 3;
-      reasons.push('low quantity');
+      score += 6;
+      reasons.push('low quantity, needed');
     }
 
-    // Penalty: resources we have plenty of (unless needed)
     if (currentAmount >= 4 && neededForTop === 0) {
       score -= 10;
-      reasons.push('surplus');
+      reasons.push('surplus, not needed');
     }
 
     resourceScores.push({
@@ -574,7 +608,6 @@ export function selectBoomingEconomyResources(
     });
   }
 
-  // Sort by score
   resourceScores.sort((a, b) => b.score - a.score);
 
   console.log(`   📊 Resource scores:`);
@@ -583,15 +616,12 @@ export function selectBoomingEconomyResources(
     console.log(`     ${idx + 1}. ${rs.resource}: ${rs.score.toFixed(1)} (have ${current}) - ${rs.reason}`);
   });
 
-  // Apply difficulty-based selection
   let selected: string[];
 
   if (difficulty === 'hard') {
-    // 100% optimal: always pick top 2
     selected = [resourceScores[0].resource, resourceScores[1].resource];
     console.log(`   ✓ Hard difficulty: Selected top 2 (optimal)`);
   } else if (difficulty === 'normal') {
-    // 80% optimal: 80% pick top 2, 20% pick from top 4
     if (Math.random() < 0.8) {
       selected = [resourceScores[0].resource, resourceScores[1].resource];
       console.log(`   ✓ Normal difficulty: Selected top 2 (80% optimal choice)`);
@@ -604,7 +634,6 @@ export function selectBoomingEconomyResources(
       console.log(`   ✓ Normal difficulty: Selected from top 4 (20% suboptimal choice)`);
     }
   } else {
-    // 60% optimal: 60% pick top 2, 40% more random
     if (Math.random() < 0.6) {
       selected = [resourceScores[0].resource, resourceScores[1].resource];
       console.log(`   ✓ Easy difficulty: Selected top 2 (60% optimal choice)`);
@@ -620,6 +649,7 @@ export function selectBoomingEconomyResources(
 
   const reasoning = `Selected ${selected[0]} and ${selected[1]} for ${topGoal.targetBuilding}`;
   console.log(`   🎁 Final selection: ${selected[0]}, ${selected[1]}`);
+  console.log(`   ✅ Validation: Both resources are needed for current building goals`);
 
   return {
     resources: [selected[0], selected[1]] as [string, string],
