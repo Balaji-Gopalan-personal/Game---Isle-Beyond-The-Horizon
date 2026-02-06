@@ -160,11 +160,11 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
 }) => {
   const { assets } = useAssets();
   const resources = [
-    { type: 'clay' as const, label: 'C', fullName: 'Clay' },
-    { type: 'lumber' as const, label: 'L', fullName: 'Lumber' },
-    { type: 'grain' as const, label: 'G', fullName: 'Grain' },
-    { type: 'fabric' as const, label: 'F', fullName: 'Fabric' },
-    { type: 'mineral' as const, label: 'M', fullName: 'Mineral' }
+    { type: 'clay' as const, label: 'C', fullName: 'Clay', color: '#B7410E' },
+    { type: 'lumber' as const, label: 'L', fullName: 'Lumber', color: '#228B22' },
+    { type: 'grain' as const, label: 'G', fullName: 'Grain', color: '#FFD700' },
+    { type: 'fabric' as const, label: 'F', fullName: 'Fabric', color: '#87CEEB' },
+    { type: 'mineral' as const, label: 'M', fullName: 'Mineral', color: '#696969' }
   ];
 
   const canConfirm = resourcesSelected.length === 2;
@@ -182,6 +182,7 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
         {resources.map(resource => {
           const selectionCount = resourcesSelected.filter(r => r === resource.fullName).length;
           const hasSelections = selectionCount > 0;
+          const imageSrc = getResourceImage(assets, resource.fullName);
           return (
             <button
               key={resource.type}
@@ -195,12 +196,19 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
                   : 'border-gray-300 hover:border-gray-400 cursor-pointer'
               }`}
               title={resource.fullName}
+              style={!imageSrc ? { backgroundColor: resource.color } : undefined}
             >
-              <img
-                src={getResourceImage(assets, resource.fullName)}
-                alt={resource.fullName}
-                className="w-full h-full object-cover"
-              />
+              {imageSrc ? (
+                <img
+                  src={imageSrc}
+                  alt={resource.fullName}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                    (e.target as HTMLImageElement).parentElement!.style.backgroundColor = resource.color;
+                  }}
+                />
+              ) : null}
               <div className="absolute top-0 left-0 right-0 flex justify-center">
                 <span className="text-xs font-bold text-white bg-black bg-opacity-60 px-1 leading-tight">
                   {resource.label}
@@ -254,11 +262,11 @@ export const ClosedMarketPrompt: React.FC<ClosedMarketPromptProps> = ({
 }) => {
   const { assets } = useAssets();
   const resources = [
-    { type: 'clay' as const, label: 'C', fullName: 'Clay' },
-    { type: 'lumber' as const, label: 'L', fullName: 'Lumber' },
-    { type: 'grain' as const, label: 'G', fullName: 'Grain' },
-    { type: 'fabric' as const, label: 'F', fullName: 'Fabric' },
-    { type: 'mineral' as const, label: 'M', fullName: 'Mineral' }
+    { type: 'clay' as const, label: 'C', fullName: 'Clay', color: '#B7410E' },
+    { type: 'lumber' as const, label: 'L', fullName: 'Lumber', color: '#228B22' },
+    { type: 'grain' as const, label: 'G', fullName: 'Grain', color: '#FFD700' },
+    { type: 'fabric' as const, label: 'F', fullName: 'Fabric', color: '#87CEEB' },
+    { type: 'mineral' as const, label: 'M', fullName: 'Mineral', color: '#696969' }
   ];
 
   return (
@@ -273,6 +281,7 @@ export const ClosedMarketPrompt: React.FC<ClosedMarketPromptProps> = ({
       <div className="flex gap-2 justify-center">
         {resources.map(resource => {
           const isSelected = selectedResource === resource.type;
+          const imageSrc = getResourceImage(assets, resource.fullName);
           return (
             <button
               key={resource.type}
@@ -283,12 +292,19 @@ export const ClosedMarketPrompt: React.FC<ClosedMarketPromptProps> = ({
                   : 'border-gray-300 hover:border-gray-400 cursor-pointer'
               }`}
               title={resource.fullName}
+              style={!imageSrc ? { backgroundColor: resource.color } : undefined}
             >
-              <img
-                src={getResourceImage(assets, resource.fullName)}
-                alt={resource.fullName}
-                className="w-full h-full object-cover"
-              />
+              {imageSrc ? (
+                <img
+                  src={imageSrc}
+                  alt={resource.fullName}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                    (e.target as HTMLImageElement).parentElement!.style.backgroundColor = resource.color;
+                  }}
+                />
+              ) : null}
               <div className="absolute top-0 left-0 right-0 flex justify-center">
                 <span className="text-xs font-bold text-white bg-black bg-opacity-60 px-1 leading-tight">
                   {resource.label}
