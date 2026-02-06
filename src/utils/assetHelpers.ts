@@ -1,4 +1,5 @@
 import { LoadedAssets } from '../contexts/AssetsContext';
+import { Assets } from '../assets/assetRegistry';
 
 export function getCharacterImage(assets: LoadedAssets, imagePath: string): string | undefined {
   const filename = imagePath.split('/').pop()?.replace(/\.(png|jpg)$/, '').toLowerCase();
@@ -58,12 +59,19 @@ export function getCharacterImage(assets: LoadedAssets, imagePath: string): stri
   };
 
   const key = keyMap[filename];
-  return key ? assets.characters[key] : undefined;
+  if (!key) return undefined;
+
+  // Try to use loaded data URI first
+  const loadedImage = assets.characters[key];
+  if (loadedImage && loadedImage.length > 0) {
+    return loadedImage;
+  }
+
+  // Fallback to original path if data URI failed to load
+  return Assets.characters[key as keyof typeof Assets.characters];
 }
 
 export function getDevelopmentCardImage(assets: LoadedAssets, imagePath: string): string | undefined {
-  if (!assets.developmentCards) return undefined;
-
   const filename = imagePath.split('/').pop()?.replace(/\.png$/, '');
   if (!filename) return undefined;
 
@@ -79,12 +87,19 @@ export function getDevelopmentCardImage(assets: LoadedAssets, imagePath: string)
   };
 
   const key = keyMap[filename];
-  return key ? assets.developmentCards[key] : undefined;
+  if (!key) return undefined;
+
+  // Try to use loaded data URI first
+  const loadedImage = assets.developmentCards?.[key];
+  if (loadedImage && loadedImage.length > 0) {
+    return loadedImage;
+  }
+
+  // Fallback to original path if data URI failed to load
+  return Assets.developmentCards[key as keyof typeof Assets.developmentCards];
 }
 
 export function getResourceImage(assets: LoadedAssets, resourceType: string): string | undefined {
-  if (!assets.resources) return undefined;
-
   const keyMap: Record<string, string> = {
     'desert': 'desert',
     'Desert': 'desert',
@@ -101,10 +116,25 @@ export function getResourceImage(assets: LoadedAssets, resourceType: string): st
   };
 
   const key = keyMap[resourceType];
-  return key ? assets.resources[key] : undefined;
+  if (!key) return undefined;
+
+  // Try to use loaded data URI first
+  const loadedImage = assets.resources?.[key];
+  if (loadedImage && loadedImage.length > 0) {
+    return loadedImage;
+  }
+
+  // Fallback to original path if data URI failed to load
+  return Assets.resources[key as keyof typeof Assets.resources];
 }
 
 export function getBoardImage(assets: LoadedAssets, imageType: 'ocean' | 'landmass'): string | undefined {
-  if (!assets.board) return undefined;
-  return assets.board[imageType];
+  // Try to use loaded data URI first
+  const loadedImage = assets.board?.[imageType];
+  if (loadedImage && loadedImage.length > 0) {
+    return loadedImage;
+  }
+
+  // Fallback to original path if data URI failed to load
+  return Assets.board[imageType];
 }
