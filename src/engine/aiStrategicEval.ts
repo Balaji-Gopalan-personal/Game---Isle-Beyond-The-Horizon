@@ -383,6 +383,8 @@ export function calculateBuildingPriority(
     estatePriority *= 0.3;
   }
 
+  let devCardPriority = 9;
+
   const boardSize = gameState.gameSettings.boardSize as BoardSize;
   const viableVillageLocations = countViableVillageLocations(player.id, gameState, boardSize);
 
@@ -441,8 +443,6 @@ export function calculateBuildingPriority(
       }
     }
   }
-
-  let devCardPriority = 9;
 
   if (pointsAway <= 3) {
     devCardPriority += 3;
