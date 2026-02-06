@@ -182,7 +182,7 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
         {resources.map(resource => {
           const selectionCount = resourcesSelected.filter(r => r === resource.fullName).length;
           const hasSelections = selectionCount > 0;
-          const imageSrc = getResourceImage(assets, resource.fullName);
+          const imageSrc = getResourceImage(assets, resource.type);
           return (
             <button
               key={resource.type}
@@ -281,7 +281,7 @@ export const ClosedMarketPrompt: React.FC<ClosedMarketPromptProps> = ({
       <div className="flex gap-2 justify-center">
         {resources.map(resource => {
           const isSelected = selectedResource === resource.type;
-          const imageSrc = getResourceImage(assets, resource.fullName);
+          const imageSrc = getResourceImage(assets, resource.type);
           return (
             <button
               key={resource.type}
