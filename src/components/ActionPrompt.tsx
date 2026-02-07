@@ -187,7 +187,18 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
 
   const canAffordDevelopmentCard = () => {
     if (!currentPlayer) return false;
-    return currentPlayer.resources.grain >= 1 && currentPlayer.resources.fabric >= 1 && currentPlayer.resources.mineral >= 1;
+    const hasResources = currentPlayer.resources.grain >= 1 && currentPlayer.resources.fabric >= 1 && currentPlayer.resources.mineral >= 1;
+    const cardsAvailable = gameState.developmentCardDeck.length > 0;
+    return hasResources && cardsAvailable;
+  };
+
+  const getDevelopmentCardTooltip = () => {
+    if (!currentPlayer) return '';
+    const cardsAvailable = gameState.developmentCardDeck.length > 0;
+    if (!cardsAvailable) return 'No development cards available';
+    const hasResources = currentPlayer.resources.grain >= 1 && currentPlayer.resources.fabric >= 1 && currentPlayer.resources.mineral >= 1;
+    if (!hasResources) return 'Need 1 Grain + 1 Fabric + 1 Mineral';
+    return 'Dev Card: 1 Grain + 1 Fabric + 1 Mineral';
   };
 
   const canAffordAnything = () => {
@@ -689,7 +700,7 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
                   onClick={() => onBuyItem?.('developmentCard')}
                   disabled={!canAffordDevelopmentCard()}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-1.5 px-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-0.5"
-                  title={!canAffordDevelopmentCard() ? 'Need 1 Grain + 1 Fabric + 1 Mineral' : 'Dev Card: 1 Grain + 1 Fabric + 1 Mineral'}
+                  title={getDevelopmentCardTooltip()}
                 >
                   <Coins className="w-3.5 h-3.5" />
                   <span className="text-xs">Dev Card</span>

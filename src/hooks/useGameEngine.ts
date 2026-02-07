@@ -14,7 +14,7 @@ import { selectRobberPlacement } from '../engine/aiRobberStrategy';
 import { shouldPlayDevCardAfterRoll, selectBoomingEconomyResources, selectClosedMarketResource, selectResourceSwapTarget } from '../engine/aiDevCardStrategy';
 import { evaluateTradeOpportunity, TurnTradeHistory } from '../engine/aiTradingStrategy';
 import { createTurnPlan, shouldContinueTurn } from '../engine/aiTurnOrchestrator';
-import { createInitialDeck, shuffleDeck } from '../data/developmentCards';
+import { createInitialDeck, shuffleDeck, reshuffleDeck } from '../data/developmentCards';
 import { checkVictoryCondition } from '../utils/victoryDetection';
 import { generateTradingPorts } from '../utils/tradingPortUtils';
 import { getPlayerTradingPorts, canExecuteBankTrade, canProposePlayerTrade, getTradeRateDisplay, getBestTradeRateForResource } from '../utils/tradingUtils';
@@ -2663,46 +2663,65 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const currentTurn = player.currentTurn;
     const cardWithOwner = { ...drawnCard, ownerId: playerId, location: 'hand' as const, turnDrawn: currentTurn };
 
-    setGameState(prev => ({
-      ...prev,
-      developmentCardDeck: remainingDeck,
-      players: prev.players.map(p => {
-        if (p.id === playerId) {
-          let updatedScore = p.score;
-          let updatedSecretPoints = p.secretPoints;
-          const isExtraPoint = drawnCard.name === 'Extra Point';
+    // Check if deck is now empty and needs reshuffle
+    const deckNowEmpty = remainingDeck.length === 0;
+    const discardHasCards = gameState.developmentCardDiscard.length > 0;
+    const shouldReshuffle = deckNowEmpty && discardHasCards;
+    const fullyExhausted = deckNowEmpty && !discardHasCards;
 
-          if (isExtraPoint) {
-            updatedScore += 1;
-            updatedSecretPoints += 1;
-          }
+    setGameState(prev => {
+      // Determine the new deck and discard piles
+      let newDeck = remainingDeck;
+      let newDiscard = prev.developmentCardDiscard;
 
-          return {
-            ...p,
-            resources: {
-              ...p.resources,
-              grain: p.resources.grain - 1,
-              fabric: p.resources.fabric - 1,
-              mineral: p.resources.mineral - 1,
-              total: p.resources.total - 3
-            },
-            developmentCards: p.developmentCards + 1,
-            developmentCardsInHand: [...p.developmentCardsInHand, cardWithOwner],
-            score: updatedScore,
-            secretPoints: updatedSecretPoints
-          };
-        }
-        return p;
-      }),
-      turnState: {
-        ...prev.turnState,
-        step: 'main',
-        placementContext: {
-          lastVillageVertex: null,
-          buildingType: null
-        }
+      if (shouldReshuffle) {
+        // Reshuffle the discard pile to create a new deck
+        newDeck = reshuffleDeck(prev.developmentCardDiscard);
+        newDiscard = [];
       }
-    }));
+
+      return {
+        ...prev,
+        developmentCardDeck: newDeck,
+        developmentCardDiscard: newDiscard,
+        players: prev.players.map(p => {
+          if (p.id === playerId) {
+            let updatedScore = p.score;
+            let updatedSecretPoints = p.secretPoints;
+            const isExtraPoint = drawnCard.name === 'Extra Point';
+
+            if (isExtraPoint) {
+              updatedScore += 1;
+              updatedSecretPoints += 1;
+            }
+
+            return {
+              ...p,
+              resources: {
+                ...p.resources,
+                grain: p.resources.grain - 1,
+                fabric: p.resources.fabric - 1,
+                mineral: p.resources.mineral - 1,
+                total: p.resources.total - 3
+              },
+              developmentCards: p.developmentCards + 1,
+              developmentCardsInHand: [...p.developmentCardsInHand, cardWithOwner],
+              score: updatedScore,
+              secretPoints: updatedSecretPoints
+            };
+          }
+          return p;
+        }),
+        turnState: {
+          ...prev.turnState,
+          step: 'main',
+          placementContext: {
+            lastVillageVertex: null,
+            buildingType: null
+          }
+        }
+      };
+    });
 
     const playerColor = getPlayerColorStyle(player.color);
     const purchaseMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> purchased a Development Card`;
@@ -2711,6 +2730,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     if (drawnCard.name === 'Extra Point' && player.isHuman) {
       const pointMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> gained 1 secret point from Extra Point card (hidden from other players)`;
       setTimeout(() => addToLog(pointMessage), 500);
+    }
+
+    // Log deck status after drawing the last card
+    if (shouldReshuffle) {
+      setTimeout(() => addToLog('Discard Deck shuffled and now available for drawing'), 600);
+    } else if (fullyExhausted) {
+      setTimeout(() => addToLog('No more Development Cards left to be drawn!'), 600);
     }
 
     // If human player, set the drawn card for modal display
