@@ -4012,7 +4012,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     });
 
     const playerColor = getPlayerColorStyle(currentPlayer.color);
-    const roadMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> built a road from vertex ${fromVertex} to ${toVertexId}`;
+    const freeRoadSuffix = isFreeRoad ? ' for free' : '';
+    const roadMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> built a road from vertex ${fromVertex} to ${toVertexId}${freeRoadSuffix}`;
     addToLog(roadMessage);
 
     const oldLongestRoad = gameState.longestRoadLengths.get(playerId) || 0;
