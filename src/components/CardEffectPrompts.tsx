@@ -42,7 +42,7 @@ export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
             {title}
           </div>
         )}
-        <div className="flex gap-1 justify-center">
+        <div className="flex gap-0.5 justify-center -mx-1">
           {opponents.map(player => (
             <button
               key={player.id}
@@ -52,10 +52,10 @@ export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
               }`}
               title={showResourceCount ? (hideDetailedResources ? `${player.name}: ${player.resources.total} total` : `${player.name}: ${player.resources.clay}C ${player.resources.lumber}L ${player.resources.grain}G ${player.resources.fabric}F ${player.resources.mineral}M (${player.resources.total} total)`) : player.name}
             >
-              <div className={`relative w-8 h-12 rounded-full overflow-hidden ${selectedPlayerId === player.id ? 'ring-2 ring-blue-500' : ''}`}>
+              <div className={`relative w-7 h-11 rounded-full overflow-hidden ${selectedPlayerId === player.id ? 'ring-2 ring-blue-500' : ''}`}>
                 {player.isHuman ? (
                   <div
-                    className="w-full h-full flex items-center justify-center text-white font-bold text-[10px]"
+                    className="w-full h-full flex items-center justify-center text-white font-bold text-[9px]"
                     style={{ backgroundColor: getPlayerColorHex(player.color) }}
                   >
                     {getPlayerInitials(player.name)}
@@ -67,11 +67,11 @@ export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
                         character={player.character}
                         color={player.color}
                         size="lg"
-                        className="w-10 h-10 scale-125"
+                        className="w-9 h-9 scale-125"
                       />
                     </div>
                     <div
-                      className="absolute bottom-0.5 right-0 w-3 h-3 rounded-full flex items-center justify-center text-white font-bold text-[6px] border border-white"
+                      className="absolute bottom-0.5 right-0 w-2.5 h-2.5 rounded-full flex items-center justify-center text-white font-bold text-[6px] border border-white"
                       style={{ backgroundColor: getPlayerColorHex(player.color) }}
                     >
                       P{player.order}
