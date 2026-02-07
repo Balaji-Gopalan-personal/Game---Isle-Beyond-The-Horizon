@@ -1540,6 +1540,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Add to activity log with parsed vertices
       addColoredLog(`${playerName} placed a road between vertices ${fromVertex} and ${toVertex}.`, playerId);
 
+      const oldLongestRoadSetupParsed = gameState.longestRoadLengths.get(playerId) || 0;
+      if (newLongestRoadLength !== oldLongestRoadSetupParsed) {
+        addColoredLog(`${playerName}'s longest road: ${newLongestRoadLength} (was ${oldLongestRoadSetupParsed})`, playerId);
+      } else {
+        addColoredLog(`${playerName}'s longest road: ${newLongestRoadLength}`, playerId);
+      }
+
       // Log longest road achievement after state update
       if (longestRoadUpdate?.shouldAward) {
         if (longestRoadUpdate.isFirstAchievement) {
@@ -1614,9 +1621,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       addColoredLog(`${playerName} placed a road between vertices ${fromVertex} and ${toVertex}.`, playerId);
     } else if (gameState.phase === 'setup-phase-2') {
       addColoredLog(`${playerName} placed a road between vertices ${fromVertex} and ${toVertex}.`, playerId);
-      if (newLongestRoadLength === 2 && !longestRoadUpdate?.shouldAward) {
-        addColoredLog(`${playerName}'s roads are now connected (longest road: 2).`, playerId);
-      }
+    }
+
+    const oldLongestRoadSetup = gameState.longestRoadLengths.get(playerId) || 0;
+    if (newLongestRoadLength !== oldLongestRoadSetup) {
+      addColoredLog(`${playerName}'s longest road: ${newLongestRoadLength} (was ${oldLongestRoadSetup})`, playerId);
+    } else {
+      addColoredLog(`${playerName}'s longest road: ${newLongestRoadLength}`, playerId);
     }
 
     // Log longest road achievement after state update
@@ -4004,6 +4015,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const roadMessage = `<span style="color: ${playerColor}; font-weight: bold;">${currentPlayer.name}</span> built a road from vertex ${fromVertex} to ${toVertexId}`;
     addToLog(roadMessage);
 
+    const oldLongestRoad = gameState.longestRoadLengths.get(playerId) || 0;
+    if (longestPath !== oldLongestRoad) {
+      addColoredLog(`${currentPlayer.name}'s longest road: ${longestPath} (was ${oldLongestRoad})`, playerId);
+    } else {
+      addColoredLog(`${currentPlayer.name}'s longest road: ${longestPath}`, playerId);
+    }
+
     // Log longest road achievement after state update
     if (longestRoadUpdate?.shouldAward) {
       if (longestRoadUpdate.isFirstAchievement) {
@@ -4329,6 +4347,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const roadMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> built a road from vertex ${fromVertex} to ${toVertex}`;
     addToLog(roadMessage);
     addAIDecisionContext(playerId, roadLocation.personality, roadLocation.reasoning);
+
+    const oldLongestRoad = gameState.longestRoadLengths.get(playerId) || 0;
+    if (longestPath !== oldLongestRoad) {
+      addColoredLog(`${player.name}'s longest road: ${longestPath} (was ${oldLongestRoad})`, playerId);
+    } else {
+      addColoredLog(`${player.name}'s longest road: ${longestPath}`, playerId);
+    }
 
     // Log longest road achievement after state update
     if (longestRoadUpdate?.shouldAward) {

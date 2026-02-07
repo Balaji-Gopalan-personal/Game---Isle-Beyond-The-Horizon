@@ -60,6 +60,12 @@ export function runLongestRoadBlockingTests() {
   totalTests++;
   if (testOwnVillageNoDisruption()) passedTests++;
 
+  totalTests++;
+  if (testLoopWithOwnSettlement()) passedTests++;
+
+  totalTests++;
+  if (testLoopWithOwnSettlementExpanded()) passedTests++;
+
   console.log('\n╔═══════════════════════════════════════════════╗');
   console.log(`║  RESULTS: ${passedTests}/${totalTests} tests passed`);
   console.log('╚═══════════════════════════════════════════════╝\n');
@@ -214,7 +220,7 @@ function testCircularNetwork(): boolean {
     'player1',
     roads,
     vertices,
-    2
+    3
   );
 }
 
@@ -241,7 +247,7 @@ function testMultipleBlockingPoints(): boolean {
     'player1',
     roads,
     vertices,
-    1
+    2
   );
 }
 
@@ -387,4 +393,70 @@ function testOwnVillageNoDisruption(): boolean {
   }
 
   return passed;
+}
+
+function testLoopWithOwnSettlement(): boolean {
+  console.log('\n=== TEST: Loop with Own Settlement ===');
+
+  const vertices: Record<number, { id: number; occupiedBy: string | null; neighbors: number[] }> = {
+    78: { id: 78, occupiedBy: null, neighbors: [72, 77] },
+    72: { id: 72, occupiedBy: 'player1', neighbors: [78, 66, 77] },
+    66: { id: 66, occupiedBy: null, neighbors: [72, 59] },
+    59: { id: 59, occupiedBy: null, neighbors: [66, 65] },
+    65: { id: 65, occupiedBy: null, neighbors: [59, 71] },
+    71: { id: 71, occupiedBy: null, neighbors: [65, 77] },
+    77: { id: 77, occupiedBy: null, neighbors: [71, 72, 78] },
+  };
+
+  const roads: Road[] = [
+    { id: '78__72', playerId: 'player1', from: 78, to: 72 },
+    { id: '72__66', playerId: 'player1', from: 72, to: 66 },
+    { id: '66__59', playerId: 'player1', from: 66, to: 59 },
+    { id: '59__65', playerId: 'player1', from: 59, to: 65 },
+    { id: '65__71', playerId: 'player1', from: 65, to: 71 },
+    { id: '71__77', playerId: 'player1', from: 71, to: 77 },
+    { id: '77__72', playerId: 'player1', from: 77, to: 72 },
+  ];
+
+  return runTest(
+    'Loop with Own Settlement at Vertex 72',
+    'player1',
+    roads,
+    vertices,
+    7
+  );
+}
+
+function testLoopWithOwnSettlementExpanded(): boolean {
+  console.log('\n=== TEST: Loop with Own Settlement + Extended Path ===');
+
+  const vertices: Record<number, { id: number; occupiedBy: string | null; neighbors: number[] }> = {
+    78: { id: 78, occupiedBy: null, neighbors: [72, 77] },
+    72: { id: 72, occupiedBy: 'player1', neighbors: [78, 66, 77] },
+    66: { id: 66, occupiedBy: null, neighbors: [72, 59, 60] },
+    59: { id: 59, occupiedBy: null, neighbors: [66, 65] },
+    65: { id: 65, occupiedBy: null, neighbors: [59, 71] },
+    71: { id: 71, occupiedBy: null, neighbors: [65, 77] },
+    77: { id: 77, occupiedBy: null, neighbors: [71, 72, 78] },
+    60: { id: 60, occupiedBy: null, neighbors: [66] },
+  };
+
+  const roads: Road[] = [
+    { id: '78__72', playerId: 'player1', from: 78, to: 72 },
+    { id: '72__66', playerId: 'player1', from: 72, to: 66 },
+    { id: '66__59', playerId: 'player1', from: 66, to: 59 },
+    { id: '59__65', playerId: 'player1', from: 59, to: 65 },
+    { id: '65__71', playerId: 'player1', from: 65, to: 71 },
+    { id: '71__77', playerId: 'player1', from: 71, to: 77 },
+    { id: '77__72', playerId: 'player1', from: 77, to: 72 },
+    { id: '66__60', playerId: 'player1', from: 66, to: 60 },
+  ];
+
+  return runTest(
+    'Loop with Own Settlement + Extended Path',
+    'player1',
+    roads,
+    vertices,
+    8
+  );
 }

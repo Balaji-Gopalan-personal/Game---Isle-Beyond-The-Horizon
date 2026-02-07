@@ -86,12 +86,14 @@ export function calculateLongestRoadPath(
     }
   }
 
-  function dfs(node: number, visited: Set<number>, depth: number = 0): number {
+  function dfs(node: number, visitedEdges: Set<string>, depth: number = 0): number {
     let maxLength = 0;
     const neighbors = adjacencyList.get(node) || [];
 
     for (const neighbor of neighbors) {
-      if (!visited.has(neighbor)) {
+      const edgeId = node < neighbor ? `${node}__${neighbor}` : `${neighbor}__${node}`;
+
+      if (!visitedEdges.has(edgeId)) {
         const neighborVertex = vertices[neighbor];
 
         if (neighborVertex && neighborVertex.occupiedBy && neighborVertex.occupiedBy !== playerId) {
@@ -103,10 +105,10 @@ export function calculateLongestRoadPath(
           continue;
         }
 
-        visited.add(neighbor);
-        const length = 1 + dfs(neighbor, visited, depth + 1);
+        visitedEdges.add(edgeId);
+        const length = 1 + dfs(neighbor, visitedEdges, depth + 1);
         maxLength = Math.max(maxLength, length);
-        visited.delete(neighbor);
+        visitedEdges.delete(edgeId);
       }
     }
 
@@ -131,8 +133,8 @@ export function calculateLongestRoadPath(
       continue;
     }
 
-    const visited = new Set<number>([startVertex]);
-    const pathLength = dfs(startVertex, visited);
+    const visitedEdges = new Set<string>();
+    const pathLength = dfs(startVertex, visitedEdges);
     pathLengths.push({ startVertex, length: pathLength });
 
     if (pathLength > longestPath) {
