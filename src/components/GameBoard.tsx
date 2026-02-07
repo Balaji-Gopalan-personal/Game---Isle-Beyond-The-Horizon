@@ -66,7 +66,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             next.delete(roadId);
             return next;
           });
-        }, 300);
+        }, 390);
       });
     }
 
@@ -88,7 +88,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             next.delete(curr.id);
             return next;
           });
-        }, 300);
+        }, 390);
       } else if (prev === 'settlement' && curr.type === 'city') {
         setUpgradingVillages(s => new Set(s).add(curr.id));
         setTimeout(() => {
@@ -97,7 +97,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             next.delete(curr.id);
             return next;
           });
-        }, 500);
+        }, 650);
       }
     });
 
@@ -530,7 +530,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 strokeDasharray={isAnimating ? length : undefined}
                 strokeDashoffset={isAnimating ? length : undefined}
                 style={isAnimating ? {
-                  animation: 'road-draw 0.3s ease-out forwards'
+                  animation: 'road-draw 0.39s ease-out forwards'
                 } : undefined}
               />
             );
@@ -1072,7 +1072,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                           strokeWidth="3"
                           style={{
                             pointerEvents: 'none',
-                            animation: 'village-dissolve-out 0.2s ease-out forwards'
+                            animation: 'village-dissolve-out 0.26s ease-out forwards'
                           }}
                         >
                           ⌂
@@ -1088,7 +1088,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                           strokeWidth="3"
                           style={{
                             pointerEvents: 'none',
-                            animation: 'estate-dissolve-in 0.3s ease-out 0.2s forwards',
+                            animation: 'estate-dissolve-in 0.39s ease-out 0.26s forwards',
                             opacity: 0
                           }}
                         >
@@ -1109,7 +1109,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                           cursor: (isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? 'pointer' : undefined,
                           pointerEvents: (isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? 'auto' : 'none',
                           ...(animatingVillages.has(vertex.id) ? {
-                            animation: 'village-dissolve-in 0.3s ease-out forwards'
+                            animation: 'village-dissolve-in 0.39s ease-out forwards'
                           } : {})
                         }}
                         onClick={(isValidForEstate || isValidForFreeUpgrade) && onVertexClick ? (e) => {
