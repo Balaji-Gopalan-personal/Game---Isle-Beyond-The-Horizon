@@ -187,7 +187,7 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
               key={resource.type}
               onClick={() => onSelectResource(resource.type)}
               disabled={canConfirm}
-              className={`relative w-8 h-8 rounded border-2 overflow-hidden flex-shrink-0 transition-all duration-200 ${
+              className={`relative w-8 h-8 rounded border-2 overflow-hidden flex-shrink-0 transition-all duration-200 p-0 ${
                 canConfirm
                   ? 'opacity-50 cursor-not-allowed border-gray-300'
                   : hasSelections
@@ -278,7 +278,7 @@ export const ClosedMarketPrompt: React.FC<ClosedMarketPromptProps> = ({
             <button
               key={resource.type}
               onClick={() => onSelectResource(resource.type)}
-              className={`relative w-8 h-8 rounded border-2 overflow-hidden flex-shrink-0 transition-all duration-200 ${
+              className={`relative w-8 h-8 rounded border-2 overflow-hidden flex-shrink-0 transition-all duration-200 p-0 ${
                 isSelected
                   ? 'border-blue-500 ring-2 ring-blue-400 cursor-pointer'
                   : 'border-gray-300 hover:border-gray-400 cursor-pointer'
