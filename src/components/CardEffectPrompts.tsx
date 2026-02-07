@@ -42,7 +42,7 @@ export const OpponentSelector: React.FC<OpponentSelectorProps> = ({
             {title}
           </div>
         )}
-        <div className="flex gap-1.5 justify-center">
+        <div className="flex gap-1 justify-center">
           {opponents.map(player => (
             <button
               key={player.id}
