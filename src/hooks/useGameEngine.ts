@@ -2698,7 +2698,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     addToLog(purchaseMessage);
 
     if (drawnCard.name === 'Extra Point' && player.isHuman) {
-      const pointMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> gained 1 point from Extra Point card`;
+      const pointMessage = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> gained 1 secret point from Extra Point card (hidden from other players)`;
       setTimeout(() => addToLog(pointMessage), 500);
     }
 
