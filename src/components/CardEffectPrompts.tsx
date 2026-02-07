@@ -182,8 +182,6 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
         {resources.map(resource => {
           const selectionCount = resourcesSelected.filter(r => r === resource.type).length;
           const hasSelections = selectionCount > 0;
-          const imageSrc = getResourceImage(assets, resource.type);
-          const hasValidImage = imageSrc && imageSrc.length > 0;
           return (
             <button
               key={resource.type}
@@ -199,16 +197,11 @@ export const BoomingEconomyPrompt: React.FC<BoomingEconomyPromptProps> = ({
               title={resource.fullName}
               style={{ backgroundColor: resource.color }}
             >
-              {hasValidImage ? (
-                <img
-                  src={imageSrc}
-                  alt={resource.fullName}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              ) : null}
+              <img
+                src={getResourceImage(assets, resource.type)}
+                alt={resource.fullName}
+                className="w-full h-full object-cover"
+              />
               <div className="absolute top-0 left-0 right-0 flex justify-center">
                 <span className="text-xs font-bold text-white bg-black bg-opacity-60 px-1 leading-tight">
                   {resource.label}
@@ -281,8 +274,6 @@ export const ClosedMarketPrompt: React.FC<ClosedMarketPromptProps> = ({
       <div className="flex gap-2 justify-center">
         {resources.map(resource => {
           const isSelected = selectedResource === resource.type;
-          const imageSrc = getResourceImage(assets, resource.type);
-          const hasValidImage = imageSrc && imageSrc.length > 0;
           return (
             <button
               key={resource.type}
@@ -295,16 +286,11 @@ export const ClosedMarketPrompt: React.FC<ClosedMarketPromptProps> = ({
               title={resource.fullName}
               style={{ backgroundColor: resource.color }}
             >
-              {hasValidImage ? (
-                <img
-                  src={imageSrc}
-                  alt={resource.fullName}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              ) : null}
+              <img
+                src={getResourceImage(assets, resource.type)}
+                alt={resource.fullName}
+                className="w-full h-full object-cover"
+              />
               <div className="absolute top-0 left-0 right-0 flex justify-center">
                 <span className="text-xs font-bold text-white bg-black bg-opacity-60 px-1 leading-tight">
                   {resource.label}
