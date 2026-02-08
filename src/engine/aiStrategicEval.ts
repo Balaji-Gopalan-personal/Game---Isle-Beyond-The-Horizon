@@ -192,7 +192,7 @@ function calculateResourceGapBonus(
 
   // Extra bonus if this would give the player access to all 5 resources
   if (existingResources.size + newResourceCount >= 5) {
-    bonus += 12.0;  // Increased from 8.0 - having all 5 resources is very valuable
+    bonus += 25.0;  // Increased from 12.0 - having all 5 resources is game-changing
   }
 
   // Additional bonus for filling gaps in early game (first 2 settlements)
@@ -341,6 +341,15 @@ export function calculateBuildingPriority(
   const isEarlyGame = currentPoints < 5;
   const isMidGame = currentPoints >= 5 && currentPoints < 8;
 
+  // Late game detection: multiple indicators
+  const avgPlayerScore = gameState.players.reduce((sum, p) => sum + p.score + p.secretPoints, 0) / gameState.players.length;
+  const progressPercent = avgPlayerScore / pointsToWin;
+  const isLateGame = progressPercent >= 0.65 || currentPoints >= pointsToWin * 0.7 || gameState.players.some(p => p.score + p.secretPoints >= pointsToWin * 0.8);
+
+  if (isLateGame) {
+    console.log(`   🏁 LATE GAME detected (progress: ${(progressPercent * 100).toFixed(0)}%, points: ${currentPoints}/${pointsToWin})`);
+  }
+
   const villageResourcesNeeded =
     (player.resources.clay >= 1 ? 0 : 1) +
     (player.resources.lumber >= 1 ? 0 : 1) +
@@ -388,16 +397,22 @@ export function calculateBuildingPriority(
   const boardSize = gameState.gameSettings.boardSize as BoardSize;
   const viableVillageLocations = countViableVillageLocations(player.id, gameState, boardSize);
 
+  console.log(`   📍 Viable village locations: ${viableVillageLocations}`);
+
+  // Board saturation check
+  const isBoardSaturated = viableVillageLocations <= 2;
+
   if (viableVillageLocations <= 4) {
     villagePriority *= 0.7;
     estatePriority *= 1.5;
     devCardPriority *= 1.5;
   }
 
-  if (viableVillageLocations <= 2) {
+  if (isBoardSaturated) {
     villagePriority *= 0.5;
-    estatePriority *= 1.5;
-    devCardPriority *= 2.0;
+    estatePriority *= 1.8;
+    devCardPriority *= 2.2;
+    console.log(`   🚧 Board saturated (${viableVillageLocations} locations) - prioritizing estates and dev cards`);
   }
 
   let roadPriority = Math.max(8 - roadCount, 3);
@@ -406,7 +421,13 @@ export function calculateBuildingPriority(
     roadPriority *= 0.6;
   }
 
-  if (viableVillageLocations <= 3) {
+  // Late game or saturated board: roads are mostly pointless unless pursuing Longest Road
+  if (isLateGame || isBoardSaturated) {
+    roadPriority *= 0.3;  // Severe reduction
+    console.log(`   🛤️ Late game/saturated - road priority severely reduced`);
+  }
+
+  if (viableVillageLocations <= 3 && !isLateGame) {
     roadPriority *= 0.5;
   }
 
@@ -421,7 +442,10 @@ export function calculateBuildingPriority(
     const currentLongestRoadHolder = gameState.players.find(p => p.hasLongestRoad);
 
     if (currentLongestRoadHolder && currentLongestRoadHolder.id === player.id) {
+      // Have Longest Road - restore priority to defend it
+      roadPriority = Math.max(roadPriority, 15);
       roadPriority += longestRoadBonus * 1.5;
+      console.log(`   🏆 Have Longest Road - maintaining priority`);
     } else if (myLongestPath >= longestRoadSize - 3) {
       let currentHolderLongestPath = 0;
       if (currentLongestRoadHolder) {
@@ -437,11 +461,22 @@ export function calculateBuildingPriority(
         : longestRoadSize - myLongestPath;
 
       if (roadsNeeded <= 2) {
+        // Close to claiming - restore high priority
+        roadPriority = Math.max(roadPriority, 20);
         roadPriority += longestRoadBonus * 2.0;
+        console.log(`   🎯 Close to Longest Road (${roadsNeeded} roads) - high priority`);
       } else if (roadsNeeded <= 3) {
+        roadPriority = Math.max(roadPriority, 12);
         roadPriority += longestRoadBonus * 1.5;
       }
     }
+  }
+
+  // Late game bonuses for estates and dev cards
+  if (isLateGame) {
+    estatePriority *= 1.5;
+    devCardPriority *= 1.4;
+    console.log(`   🏰 Late game bonuses: estates x1.5, dev cards x1.4`);
   }
 
   if (pointsAway <= 3) {

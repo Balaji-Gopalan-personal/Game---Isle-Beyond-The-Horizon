@@ -30,6 +30,7 @@ export interface TradeEvaluation {
   reasoning?: string;
   fairness?: number;
   score?: number;
+  targetBuilding?: 'village' | 'estate' | 'road' | 'dev_card';  // Added for committed goal tracking
 }
 
 export interface RankedTrade {
@@ -144,14 +145,14 @@ export function evaluateTradeOpportunity(
   if (preferBankTrades && bestBankTrade) {
     console.log(`   ✓ Selected BANK trade: ${bestBankTrade.offeringAmount}x ${bestBankTrade.offering} → ${bestBankTrade.requesting}`);
     console.log(`   Reason: ${bestBankTrade.reasoning}`);
-    return bestBankTrade;
+    return { ...bestBankTrade, targetBuilding: activeGoal.targetBuilding };
   }
 
   // Try P2P trade (only if we haven't exhausted attempts)
   if (bestPlayerTrade && failedAttempts < 3) {
     console.log(`   ✓ Selected P2P trade: ${bestPlayerTrade.offeringAmount}x ${bestPlayerTrade.offering} → ${bestPlayerTrade.requesting}`);
     console.log(`   Reason: ${bestPlayerTrade.reasoning}`);
-    return bestPlayerTrade;
+    return { ...bestPlayerTrade, targetBuilding: activeGoal.targetBuilding };
   } else if (bestPlayerTrade && failedAttempts >= 3) {
     console.log(`   ⚠️ P2P trade available but too many failures (${failedAttempts}), switching to bank`);
   }
@@ -160,7 +161,7 @@ export function evaluateTradeOpportunity(
   if (bestBankTrade) {
     console.log(`   ✓ Selected BANK trade (fallback): ${bestBankTrade.offeringAmount}x ${bestBankTrade.offering} → ${bestBankTrade.requesting}`);
     console.log(`   Reason: ${bestBankTrade.reasoning}`);
-    return bestBankTrade;
+    return { ...bestBankTrade, targetBuilding: activeGoal.targetBuilding };
   }
 
   console.log(`   ✗ No beneficial trades available`);
@@ -684,6 +685,7 @@ function findBestBankTrade(
 
   let bestTrade: TradeEvaluation | null = null;
   let bestTradeScore = -Infinity;
+  let completingTrade: TradeEvaluation | null = null;  // Track if a trade would complete the goal
 
   console.log(`   🏦 Evaluating bank trade options...`);
   if (frustrationLevel > 0) {
@@ -780,6 +782,27 @@ function findBestBankTrade(
             console.log(`         Score: ${tradeScore.toFixed(1)} for ${offeringAmount}:${requestingAmount} (${multiplier}x ${efficiency}:1 rate)`);
           }
 
+          // Check if this trade would COMPLETE the building goal
+          const simulatedResources = { ...player.resources };
+          simulatedResources[surplusResource] -= offeringAmount;
+          simulatedResources[neededResource] += requestingAmount;
+
+          const wouldCompleteGoal = checkIfCanAffordGoal(simulatedResources, goal.targetBuilding);
+
+          if (wouldCompleteGoal && !completingTrade) {
+            // This trade completes the goal - give it maximum priority!
+            completingTrade = {
+              shouldTrade: true,
+              tradeType: 'bank',
+              offering: surplusResource,
+              offeringAmount: offeringAmount,
+              requesting: neededResource,
+              requestingAmount: requestingAmount,
+              reasoning: `🎯 COMPLETING ${goal.targetBuilding}! Bank trade ${offeringAmount}:${requestingAmount} (${tradeRate.rate}:1 rate) ${surplusResource}→${neededResource}`
+            };
+            console.log(`         🎯 THIS TRADE COMPLETES THE GOAL! Maximum priority!`);
+          }
+
           if (tradeScore > bestTradeScore) {
             bestTradeScore = tradeScore;
             bestTrade = {
@@ -799,11 +822,32 @@ function findBestBankTrade(
     }
   }
 
+  // If we found a trade that completes the goal, always return that one!
+  if (completingTrade) {
+    console.log(`      ✓ COMPLETING TRADE: ${completingTrade.offeringAmount}x ${completingTrade.offering} → ${completingTrade.requestingAmount}x ${completingTrade.requesting}`);
+    return completingTrade;
+  }
+
   if (bestTrade) {
     console.log(`      ✓ Best bank trade: ${bestTrade.offeringAmount}x ${bestTrade.offering} → ${bestTrade.requestingAmount}x ${bestTrade.requesting} (score: ${bestTradeScore.toFixed(1)})`);
   }
 
   return bestTrade;
+}
+
+function checkIfCanAffordGoal(resources: Resources, buildingType: 'village' | 'estate' | 'road' | 'dev_card'): boolean {
+  switch (buildingType) {
+    case 'village':
+      return resources.clay >= 1 && resources.lumber >= 1 && resources.grain >= 1 && resources.fabric >= 1;
+    case 'estate':
+      return resources.grain >= 2 && resources.mineral >= 3;
+    case 'road':
+      return resources.clay >= 1 && resources.lumber >= 1;
+    case 'dev_card':
+      return resources.grain >= 1 && resources.fabric >= 1 && resources.mineral >= 1;
+    default:
+      return false;
+  }
 }
 
 function getSurplusResources(resources: Resources, goal?: TradeGoal): ResourceType[] {
@@ -825,6 +869,15 @@ function getSurplusResources(resources: Resources, goal?: TradeGoal): ResourceTy
   (['clay', 'lumber', 'grain', 'fabric', 'mineral'] as ResourceType[]).forEach(resource => {
     let keepThreshold = 1;
 
+    // CRITICAL: Never mark as surplus if needed for the top goal
+    if (goal) {
+      const isNeededForGoal = goal.neededResources[resource] && goal.neededResources[resource]! > 0;
+      if (isNeededForGoal) {
+        // Keep all of this resource - never trade it away
+        return;
+      }
+    }
+
     // If player has concentrated resources (3+ of one type), be more willing to trade
     if (hasConcentratedResource && resources[resource] >= 3) {
       keepThreshold = 2; // Keep 2, trade the rest
@@ -842,13 +895,6 @@ function getSurplusResources(resources: Resources, goal?: TradeGoal): ResourceTy
       }
     }
 
-    if (goal) {
-      const isNeededForGoal = goal.neededResources[resource] && goal.neededResources[resource]! > 0;
-      if (isNeededForGoal) {
-        keepThreshold = 0;
-      }
-    }
-
     if (hasMany && resources[resource] > 0) {
       surplus.push(resource);
     } else if (resources[resource] > keepThreshold) {
@@ -856,6 +902,7 @@ function getSurplusResources(resources: Resources, goal?: TradeGoal): ResourceTy
     }
   });
 
+  // Fallback: if still no surplus but we have resources, allow trading non-goal resources
   if (goal && surplus.length === 0 && totalResources >= 4) {
     (['clay', 'lumber', 'grain', 'fabric', 'mineral'] as ResourceType[]).forEach(resource => {
       const isNeeded = goal.neededResources[resource] && goal.neededResources[resource]! > 0;
@@ -1053,14 +1100,19 @@ export function shouldInitiatePlayerTrade(
   }
 
   const difficulty = player.difficulty || 'normal';
+
+  if (difficulty === 'hard') {
+    // Hard difficulty ALWAYS attempts trades when beneficial - zero randomness
+    console.log(`   ✓ Hard difficulty: ALWAYS attempt beneficial trades (100% deterministic)`);
+    return true;
+  }
+
   let tradeChance = 0.8;
 
   if (difficulty === 'easy') {
     tradeChance = 0.6;
   } else if (difficulty === 'normal') {
-    tradeChance = 0.8;
-  } else if (difficulty === 'hard') {
-    tradeChance = 1.0;
+    tradeChance = 0.85;  // Increased from 0.8
   }
 
   const willTrade = Math.random() < tradeChance;

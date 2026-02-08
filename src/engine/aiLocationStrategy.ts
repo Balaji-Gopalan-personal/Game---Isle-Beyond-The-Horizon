@@ -103,20 +103,28 @@ export function applyDifficultyRandomness<T extends { totalScore: number }>(
   difficulty: 'easy' | 'normal' | 'hard'
 ): T {
   if (difficulty === 'hard') {
+    // Hard ALWAYS picks the absolute best
     return options[0];
   }
 
-  const randomnessChance = difficulty === 'easy' ? 0.4 : 0.2;
+  if (difficulty === 'normal') {
+    // Normal picks from top 2 only (or top 1 if only 1 option)
+    const topCandidates = options.slice(0, Math.min(2, options.length));
+    const randomIndex = Math.floor(Math.random() * topCandidates.length);
+    return topCandidates[randomIndex];
+  }
+
+  // Easy difficulty
+  const randomnessChance = 0.3;
 
   if (Math.random() < randomnessChance) {
+    // 30% chance to pick randomly from all options
     const randomIndex = Math.floor(Math.random() * options.length);
     return options[randomIndex];
   }
 
-  const topCandidates = difficulty === 'easy'
-    ? options.slice(0, Math.max(3, Math.ceil(options.length * 0.5)))
-    : options.slice(0, Math.max(2, Math.ceil(options.length * 0.3)));
-
+  // 70% chance to pick from top 5 or top 50% (whichever is larger)
+  const topCandidates = options.slice(0, Math.max(5, Math.ceil(options.length * 0.5)));
   const randomIndex = Math.floor(Math.random() * topCandidates.length);
   return topCandidates[randomIndex];
 }
@@ -392,22 +400,26 @@ export function selectStrategicRoadLocation(
 
           const weights = PERSONALITY_PROFILES[personality];
 
-          let villageExpansionMultiplier = 8.0;
+          let villageExpansionMultiplier = 12.0;
           if (isEarlyGame && villageCount < 3) {
-            villageExpansionMultiplier = 12.0;
+            villageExpansionMultiplier = 16.0;
           } else if (villageCount < 4) {
+            villageExpansionMultiplier = 14.0;
+          } else {
             villageExpansionMultiplier = 10.0;
           }
 
-          if (villageExpansionValue === 0) {
-            adjustedScore -= 5;
-          }
+          // FIXED: Accumulate scores instead of overwriting
+          // Previous bug: adjustedScore was REASSIGNED (=) which lost the longestRoadPotential bonus
+          adjustedScore += evaluation.expansionValue * weights.expansionWeight;
+          adjustedScore += evaluation.productionAccess * weights.productionWeight * 0.5;
+          adjustedScore += evaluation.portConnectionValue * weights.portWeight;
+          adjustedScore += villageExpansionValue * villageExpansionMultiplier;
 
-          adjustedScore =
-            evaluation.expansionValue * weights.expansionWeight +
-            evaluation.productionAccess * weights.productionWeight * 0.5 +
-            evaluation.portConnectionValue * weights.portWeight +
-            villageExpansionValue * villageExpansionMultiplier;
+          // Dead-end penalty: heavily penalize roads that lead nowhere
+          if (villageExpansionValue === 0) {
+            adjustedScore -= 15;
+          }
 
           validEdges.push({
             fromVertex,

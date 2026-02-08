@@ -137,27 +137,50 @@ function scoreCardPlayTiming(
         return 0;
       }
 
-      let guardScore = 3;
+      let guardScore = 0;  // Start at 0 instead of 3 - must earn points to play
 
       const currentRobberHex = gameState.boardCenters?.find(c => c.id === gameState.robberPosition);
       const playersOnCurrentRobberHex = currentRobberHex ?
         gameState.villages.filter(v => currentRobberHex.vertices.includes(v.vertexId)).map(v => v.playerId) : [];
       const isRobberBlockingSelf = playersOnCurrentRobberHex.includes(player.id);
+      const isRobberOnDesert = currentRobberHex?.resourceType === 'desert';
 
-      if (isRobberBlockingSelf && currentRobberHex) {
+      // Check if Robber is ONLY blocking opponents (good position for us!)
+      const hasOpponents = playersOnCurrentRobberHex.some(pid => pid !== player.id);
+      const isRobberBlockingOnlyOpponents = hasOpponents && !isRobberBlockingSelf;
+
+      if (isRobberBlockingOnlyOpponents && currentRobberHex) {
+        // Robber is in a GOOD position - heavily penalize moving it
+        const isHighProduction = currentRobberHex.value === 6 || currentRobberHex.value === 8;
+        if (isHighProduction) {
+          guardScore -= 25;
+          console.log(`   ✗ Robber blocking opponent's high-production hex - penalty: -25 (DON'T MOVE IT!)`);
+        } else {
+          guardScore -= 15;
+          console.log(`   ✗ Robber blocking opponent's hex - penalty: -15 (keep it there)`);
+        }
+      } else if (isRobberOnDesert) {
+        // Robber on desert (hurting nobody) - moving it to opponent is valuable
+        guardScore += 8;
+        console.log(`   🏜️ Robber on desert - can move to opponent (+8)`);
+      } else if (isRobberBlockingSelf && currentRobberHex) {
         const isHighProduction = currentRobberHex.value === 6 || currentRobberHex.value === 8;
         const isMediumProduction = currentRobberHex.value === 5 || currentRobberHex.value === 9;
 
         if (isHighProduction) {
-          guardScore += 20;
-          console.log(`   🚫 Robber blocking own high-production hex (${currentRobberHex.value}) - bonus: +20`);
+          guardScore += 25;
+          console.log(`   🚫 Robber blocking own high-production hex (${currentRobberHex.value}) - bonus: +25`);
         } else if (isMediumProduction) {
-          guardScore += 12;
-          console.log(`   🚫 Robber blocking own medium-production hex (${currentRobberHex.value}) - bonus: +12`);
+          guardScore += 15;
+          console.log(`   🚫 Robber blocking own medium-production hex (${currentRobberHex.value}) - bonus: +15`);
         } else {
-          guardScore += 6;
-          console.log(`   🚫 Robber blocking own hex (${currentRobberHex.value}) - bonus: +6`);
+          guardScore += 8;
+          console.log(`   🚫 Robber blocking own hex (${currentRobberHex.value}) - bonus: +8`);
         }
+      } else {
+        // Robber not blocking anyone or on a neutral position
+        guardScore += 2;
+        console.log(`   ⚪ Robber in neutral position - small bonus: +2`);
       }
 
       if (gameState.gameSettings.largestArmyEnabled) {
@@ -214,9 +237,12 @@ function scoreCardPlayTiming(
         console.log(`   📦 At resource limit, need to act - bonus: +7`);
       }
 
-      if (!isRobberBlockingSelf && !leader && player.guardsPlayed < 2 && player.resources.total < gameState.gameSettings.maxResourceHold - 2) {
-        guardScore -= 3;
-        console.log(`   ⏸️ No urgent need to play Guard right now - penalty: -3`);
+      // Final evaluation: only play if score is positive
+      // Largest Army pursuit or self-blocking are the main valid reasons
+      if (guardScore <= 0) {
+        console.log(`   ⏸️ Guard score ${guardScore.toFixed(1)} - NOT worth playing`);
+      } else {
+        console.log(`   ✓ Guard score ${guardScore.toFixed(1)} - worth considering`);
       }
 
       return guardScore;

@@ -1,8 +1,9 @@
-import { GameState, Player } from '../types/game';
+import { GameState, Player, Resources } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
 import { shouldPlayDevCardBeforeRoll, shouldPlayDevCardAfterRoll } from './aiDevCardStrategy';
-import { evaluateTradeOpportunity } from './aiTradingStrategy';
-import { makeStrategicBuildDecision } from './aiBuilding';
+import { evaluateTradeOpportunity, TradeEvaluation, identifyTradeGoals } from './aiTradingStrategy';
+import { makeStrategicBuildDecision, canAffordVillage, canAffordEstate, canAffordRoad, canAffordDevelopmentCard } from './aiBuilding';
+import { getBestTradeRateForResource, ResourceType } from '../utils/tradingUtils';
 
 export interface TurnAction {
   type: 'play_dev_card' | 'trade_bank' | 'trade_player' | 'build' | 'end_turn';
@@ -28,6 +29,25 @@ export function createTurnPlan(
 
   const actions: TurnAction[] = [];
 
+  // Check for committed goal from previous trade this turn
+  const committedGoal = (gameState.turnState as any).committedBuildingGoal;
+  if (committedGoal) {
+    console.log(`   🔒 Committed goal from previous trade: ${committedGoal}`);
+    // Check if we can now afford the committed building
+    const canAfford = checkCanAffordBuilding(player, committedGoal);
+    if (canAfford) {
+      const buildPriority = calculateBuildPriority(player, gameState, committedGoal) + 5; // Boost priority
+      console.log(`   ✓ Can now afford committed ${committedGoal}! Adding with boosted priority ${buildPriority}`);
+      actions.push({
+        type: 'build',
+        priority: buildPriority,
+        data: { buildingType: committedGoal }
+      });
+    } else {
+      console.log(`   ⚠️ Still cannot afford committed ${committedGoal}, continuing to trade toward it`);
+    }
+  }
+
   const devCardDecision = shouldPlayDevCardAfterRoll(player, gameState, boardSize, difficulty);
   if (devCardDecision.shouldPlay && devCardDecision.cardId) {
     console.log(`   ✓ Adding dev card play to plan (priority 10)`);
@@ -49,7 +69,20 @@ export function createTurnPlan(
         data: tradeEval
       });
     } else {
-      console.log(`   ⚠️ Expert Negotiator active but no viable bank trade found`);
+      // Expert Negotiator active but normal evaluation didn't find a trade
+      // Try with a more aggressive/lenient approach
+      console.log(`   ⚠️ Expert Negotiator active but no trade in normal eval - trying aggressive search`);
+      const aggressiveTradeEval = evaluateExpertNegotiatorTrade(player, gameState);
+      if (aggressiveTradeEval.shouldTrade) {
+        console.log(`   ✓ Found aggressive Expert Negotiator trade!`);
+        actions.push({
+          type: 'trade_bank',
+          priority: 15,
+          data: aggressiveTradeEval
+        });
+      } else {
+        console.log(`   ✗ No viable trades even with Expert Negotiator - card wasted`);
+      }
     }
   }
 
@@ -89,10 +122,18 @@ export function createTurnPlan(
       const tradePriority = calculateTradePriority(player, gameState);
       console.log(`   ✓ Adding ${tradeEval.tradeType} trade to plan (priority ${tradePriority})`);
       console.log(`     Reason: ${tradeEval.reasoning}`);
+
+      // Store the target building goal in the trade data
+      // This will be used to set a committed goal after the trade executes
+      const tradeData = {
+        ...tradeEval,
+        targetBuilding: (tradeEval as any).targetBuilding
+      };
+
       actions.push({
         type: tradeEval.tradeType === 'bank' ? 'trade_bank' : 'trade_player',
         priority: tradePriority,
-        data: tradeEval
+        data: tradeData
       });
     }
   }
@@ -106,6 +147,86 @@ export function createTurnPlan(
     actions,
     reasoning: `${player.name} turn plan with ${actions.length} actions: ${actionSummary}`
   };
+}
+
+function checkCanAffordBuilding(player: Player, buildingType: 'road' | 'village' | 'estate' | 'dev_card'): boolean {
+  switch (buildingType) {
+    case 'village':
+      return canAffordVillage(player.resources);
+    case 'estate':
+      return canAffordEstate(player.resources);
+    case 'road':
+      return canAffordRoad(player.resources);
+    case 'dev_card':
+      return canAffordDevelopmentCard(player.resources);
+    default:
+      return false;
+  }
+}
+
+// Aggressive trade search when Expert Negotiator is active
+// This uses a lower threshold since the 2:1 rate is guaranteed
+function evaluateExpertNegotiatorTrade(player: Player, gameState: GameState): TradeEvaluation {
+  console.log(`   🔍 Searching for any 2:1 Expert Negotiator trade opportunity...`);
+
+  const goals = identifyTradeGoals(player, gameState);
+  if (goals.length === 0) {
+    return { shouldTrade: false, tradeType: 'bank' };
+  }
+
+  const topGoal = goals[0];
+  const neededResources = Object.keys(topGoal.neededResources) as ResourceType[];
+
+  // Find ANY resource we have 2+ of that's not critically needed
+  const resourceTypes = ['clay', 'lumber', 'grain', 'fabric', 'mineral'] as ResourceType[];
+
+  for (const surplus of resourceTypes) {
+    if (player.resources[surplus] >= 2) {
+      // Can we trade this for something we need?
+      for (const needed of neededResources) {
+        if (surplus !== needed) {
+          console.log(`      ✓ Found trade: 2x ${surplus} → 1x ${needed} (2:1 Expert Negotiator)`);
+          return {
+            shouldTrade: true,
+            tradeType: 'bank',
+            offering: surplus,
+            offeringAmount: 2,
+            requesting: needed,
+            requestingAmount: 1,
+            reasoning: `Expert Negotiator 2:1 trade: ${surplus}→${needed} for ${topGoal.targetBuilding}`,
+            targetBuilding: topGoal.targetBuilding
+          };
+        }
+      }
+    }
+  }
+
+  // Still nothing? Just trade ANY resource we have 2+ of for diversity
+  for (const surplus of resourceTypes) {
+    if (player.resources[surplus] >= 2) {
+      // Pick the resource we have the least of
+      const scarceResources = resourceTypes
+        .filter(r => r !== surplus)
+        .sort((a, b) => player.resources[a] - player.resources[b]);
+
+      if (scarceResources.length > 0) {
+        const needed = scarceResources[0];
+        console.log(`      ✓ Fallback trade for diversity: 2x ${surplus} → 1x ${needed} (2:1 Expert Negotiator)`);
+        return {
+          shouldTrade: true,
+          tradeType: 'bank',
+          offering: surplus,
+          offeringAmount: 2,
+          requesting: needed,
+          requestingAmount: 1,
+          reasoning: `Expert Negotiator 2:1 diversity trade: ${surplus}→${needed}`,
+          targetBuilding: topGoal.targetBuilding
+        };
+      }
+    }
+  }
+
+  return { shouldTrade: false, tradeType: 'bank' };
 }
 
 function simulateResourcesAfterBuild(resources: Resources, buildingType: 'road' | 'village' | 'estate' | 'dev_card'): Resources {

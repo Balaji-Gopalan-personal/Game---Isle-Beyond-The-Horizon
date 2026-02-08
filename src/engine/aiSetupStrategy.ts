@@ -146,13 +146,13 @@ function calculateCenterCountBonus(vertexId: number, boardSize: BoardSize, board
   const nonDesertCenters = adjacentCenters.filter(c => c.resourceType !== 'desert').length;
 
   if (nonDesertCenters === 3) {
-    return 12.0;
+    return 15.0;  // Increased from 12.0 - 3 centres is optimal
   } else if (nonDesertCenters === 2) {
-    return 5.0;
+    return -5.0;  // Changed from +5.0 to penalty - edge positions are suboptimal
   } else if (nonDesertCenters === 1) {
-    return -50.0;
+    return -80.0;  // Increased penalty from -50.0
   } else if (nonDesertCenters === 0) {
-    return -100.0;
+    return -120.0;  // Increased penalty from -100.0
   }
 
   return 0;
@@ -174,17 +174,25 @@ function evaluateComplementaryResources(
     .map(c => c.resourceType);
 
   let complementaryScore = 0;
+  let newResourceTypes = 0;
 
   for (const resource of newResources) {
     const currentCount = currentResources[resource] || 0;
 
     if (currentCount === 0) {
-      complementaryScore += 20.0;
+      complementaryScore += 25.0;  // Increased from 20.0
+      newResourceTypes++;
     } else if (currentCount === 1) {
-      complementaryScore += 12.0;
+      complementaryScore += 14.0;  // Increased from 12.0
     } else if (currentCount === 2) {
-      complementaryScore += 3.0;
+      complementaryScore += 4.0;  // Increased from 3.0
     }
+  }
+
+  // Check if this would complete all 5 resource types
+  const totalUniqueResources = Object.keys(currentResources).filter(r => currentResources[r] > 0).length + newResourceTypes;
+  if (totalUniqueResources >= 5) {
+    complementaryScore += 30.0;  // Major bonus for completing all 5 types
   }
 
   return complementaryScore;
@@ -288,7 +296,7 @@ export function evaluateSetupRoad(
     evaluation.portConnectionValue * weights.portAccess;
 
   const expansionPath = evaluateRoadExpansionPath(edgeId, fromVertex, gameState, boardSize, player);
-  score += expansionPath * (isPhase2 ? 0.5 : 1.0);
+  score += expansionPath * (isPhase2 ? 1.5 : 2.0);  // Increased from 0.5:1.0 - roads should point toward good village spots
 
   return score;
 }
