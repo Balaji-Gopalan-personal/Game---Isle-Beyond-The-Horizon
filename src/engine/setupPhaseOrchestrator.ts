@@ -250,7 +250,7 @@ export class SetupPhaseOrchestrator {
       }
     });
 
-    this.log(`${firstPlayer.name} begins Turn 2`);
+    this.log(`${firstPlayer.name} is starting Turn 2`);
   }
 
   private transitionToMainGame(): void {

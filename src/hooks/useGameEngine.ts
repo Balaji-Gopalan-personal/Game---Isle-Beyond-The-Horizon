@@ -495,7 +495,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
       // Log next player's turn immediately (no setTimeout to avoid duplicate logs)
       const playerColor = getPlayerColorStyle(nextPlayer.color);
-      const turnMessage = `<span style="color: ${playerColor}; font-weight: bold;">${nextPlayer.name}</span> starts Turn ${displayTurn}`;
+      const turnMessage = `<span style="color: ${playerColor}; font-weight: bold;">${nextPlayer.name}</span> is starting Turn ${displayTurn}`;
       newState.gameLog = [...newState.gameLog, {
         message: turnMessage,
         timestamp: new Date().toLocaleTimeString()
@@ -1559,13 +1559,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       }
 
-      // Check if turn advanced to next player
-      if (mutableState.turnState.currentPlayerId !== playerId) {
-        const nextPlayer = gameState.players.find(p => p.id === mutableState.turnState.currentPlayerId);
-        if (nextPlayer) {
-          addColoredLog(`${nextPlayer.name} begins their turn.`, nextPlayer.id);
-        }
-      }
+      // Don't log turn transitions during setup phases - they're handled by phase transition logic
 
       console.log('DEBUG: Road placement complete (parsed)');
       return;
@@ -1642,13 +1636,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       }
     }
 
-    // Check if turn advanced to next player
-    if (mutableState.turnState.currentPlayerId !== playerId) {
-      const nextPlayer = gameState.players.find(p => p.id === mutableState.turnState.currentPlayerId);
-      if (nextPlayer) {
-        addColoredLog(`${nextPlayer.name} begins their turn.`, nextPlayer.id);
-      }
-    }
+    // Don't log turn transitions during setup phases - they're handled by phase transition logic
 
     console.log('DEBUG: Road placement complete');
   }, [gameState, boardGraph, areRoadsConnected, addToLog, addColoredLog, checkLongestRoadBonus]);
@@ -1966,20 +1954,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         });
       }
 
-      // Add turn transition message with HTML formatting
+      // Don't add turn transition messages here - they're handled by phase transition logic during setup
+      // and by advanceToNextPlayer during main gameplay
       const turnTransitionMessages: Array<{message: string, playerId: string, timestamp: string}> = [];
-      if (mutableState.turnState.currentPlayerId !== initialPlayerId) {
-        const nextPlayer = newState.players.find(p => p.id === mutableState.turnState.currentPlayerId);
-        if (nextPlayer) {
-          const nextPlayerColor = getPlayerColorStyle(nextPlayer.color);
-          const formattedNextPlayerName = `<span style="color: ${nextPlayerColor}; font-weight: bold;">${nextPlayer.name}</span>`;
-          turnTransitionMessages.push({
-            message: `${formattedNextPlayerName} begins their turn.`,
-            playerId: nextPlayer.id,
-            timestamp: new Date().toLocaleTimeString()
-          });
-        }
-      }
 
       // Combine all messages and add to gameLog in one atomic operation
       const allMessages = [...logMessages, ...tradingPortMessages, ...turnTransitionMessages];
@@ -2238,7 +2215,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       }))
     }));
 
-    addToLog(`${gameState.players[nextIndex].name} begins Turn ${newTurn} (${nextPhase})`);
+    addToLog(`${gameState.players[nextIndex].name} is starting Turn ${newTurn} (${nextPhase})`);
     
     return nextPlayerId;
   }, [gameState.players, gameState.currentPlayer, gameState.turn, gameState.phase, gameState.currentStep, addToLog]);
@@ -2498,7 +2475,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           }))
         }));
         const playerColor = getPlayerColorStyle(firstPlayer.color);
-        const turnMessage = `<span style="color: ${playerColor}; font-weight: bold;">${firstPlayer.name}</span> begins Turn 1`;
+        const turnMessage = `<span style="color: ${playerColor}; font-weight: bold;">${firstPlayer.name}</span> is starting Turn 1`;
         addToLog(turnMessage);
         beginTurn(firstPlayer.id);
       }, 500);
@@ -2571,7 +2548,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }));
         addToLog('=== Setup Phase 2 Begins ===');
         const playerColor = getPlayerColorStyle(firstPlayer.color);
-        const turnMessage = `<span style="color: ${playerColor}; font-weight: bold;">${firstPlayer.name}</span> begins Turn 2`;
+        const turnMessage = `<span style="color: ${playerColor}; font-weight: bold;">${firstPlayer.name}</span> is starting Turn 2`;
         addToLog(turnMessage);
       }
     } else if (gameState?.phase === 'setup-phase-2' && gameState.players.length > 0) {
@@ -2617,7 +2594,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         addToLog('=== Main Gameplay Begins ===');
         if (firstPlayer) {
           const playerColor = getPlayerColorStyle(firstPlayer.color);
-          const turnMessage = `<span style="color: ${playerColor}; font-weight: bold;">${firstPlayer.name}</span> begins Turn 3`;
+          const turnMessage = `<span style="color: ${playerColor}; font-weight: bold;">${firstPlayer.name}</span> is starting Turn 3`;
           setTimeout(() => addToLog(turnMessage), 100);
         }
       }
