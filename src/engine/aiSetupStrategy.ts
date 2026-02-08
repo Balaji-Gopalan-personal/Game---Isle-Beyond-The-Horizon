@@ -11,8 +11,8 @@ export interface SetupPhaseWeights {
 }
 
 export const PHASE_1_WEIGHTS: SetupPhaseWeights = {
-  production: 5.0,
-  diversity: 3.5,  // Increased from 2.0 for better resource balance
+  production: 6.0,  // 60% weight - prioritize high-probability rolls (6, 8, 5, 9)
+  diversity: 4.0,   // 40% weight - ensure balanced resource access (clay, lumber, grain, fabric)
   portAccess: 1.0,
   expansion: 1.5,
 };
@@ -91,8 +91,16 @@ export function evaluateSetupVertex(
   const centerCountPenalty = calculateCenterCountBonus(vertexId, boardSize, gameState.boardCenters);
   score += centerCountPenalty;
 
-  if (isPhase2) {
-    score += evaluateComplementaryResources(vertexId, player, boardSize, gameState);
+  // Apply complementary resource evaluation for BOTH phases
+  // Phase 1: Focus on getting all critical resources (clay, lumber, grain, fabric)
+  // Phase 2: Focus on filling gaps and completing resource types
+  const complementaryWeight = isPhase2 ? 1.0 : 0.8; // Slightly lower weight in Phase 1
+  score += evaluateComplementaryResources(vertexId, player, boardSize, gameState, isPhase2) * complementaryWeight;
+
+  // Phase 1 only: Apply resource imbalance penalty
+  if (!isPhase2) {
+    const imbalancePenalty = calculateResourceImbalancePenalty(vertexId, player, gameState);
+    score += imbalancePenalty;
   }
 
   const blockingBonus = evaluateBlockingPotential(vertexId, gameState, boardSize, player);
@@ -106,7 +114,21 @@ export function evaluateSetupVertex(
     const centerInfo = adjacentCenters.map(c =>
       `C${c.id}:${c.resourceType}/${c.value}`
     ).join(', ');
-    console.log(`[AI Eval] V${vertexId} adjacent centers: ${centerInfo} | Score: ${score.toFixed(1)}`);
+
+    // Calculate and show projected resource distribution
+    const currentResources = getResourceProduction(player, gameState.boardCenters, gameState);
+    const newResources = adjacentCenters
+      .filter(c => c.resourceType !== 'desert')
+      .map(c => c.resourceType);
+
+    const projectedResources = { ...currentResources };
+    for (const resource of newResources) {
+      projectedResources[resource] = (projectedResources[resource] || 0) + 1;
+    }
+
+    const resourceDist = `Clay:${projectedResources.clay || 0} Lumber:${projectedResources.lumber || 0} Grain:${projectedResources.grain || 0} Fabric:${projectedResources.fabric || 0} Mineral:${projectedResources.mineral || 0}`;
+    console.log(`[AI Eval ${isPhase2 ? 'P2' : 'P1'}] V${vertexId} centers: ${centerInfo}`);
+    console.log(`           Resources: ${resourceDist} | Score: ${score.toFixed(1)}`);
   }
 
   return score;
@@ -162,7 +184,8 @@ function evaluateComplementaryResources(
   vertexId: number,
   player: Player,
   boardSize: BoardSize,
-  gameState: GameState
+  gameState: GameState,
+  isPhase2: boolean
 ): number {
   const adjacentCenters = gameState.boardCenters.filter(center =>
     center.vertices.includes(vertexId)
@@ -176,16 +199,25 @@ function evaluateComplementaryResources(
   let complementaryScore = 0;
   let newResourceTypes = 0;
 
+  // Critical resources for early game (village + road building)
+  const criticalResources = ['clay', 'lumber', 'grain', 'fabric'];
+
   for (const resource of newResources) {
     const currentCount = currentResources[resource] || 0;
+    const isCritical = criticalResources.includes(resource);
 
     if (currentCount === 0) {
-      complementaryScore += 25.0;  // Increased from 20.0
+      // Phase 1: Heavily favor getting critical resources
+      // Phase 2: Favor any new resource
+      const bonus = isPhase2 ? 25.0 : (isCritical ? 30.0 : 18.0);
+      complementaryScore += bonus;
       newResourceTypes++;
     } else if (currentCount === 1) {
-      complementaryScore += 14.0;  // Increased from 12.0
+      // Favor doubling up on resources
+      complementaryScore += 14.0;
     } else if (currentCount === 2) {
-      complementaryScore += 4.0;  // Increased from 3.0
+      // Small bonus for tripling
+      complementaryScore += 4.0;
     }
   }
 
@@ -195,7 +227,73 @@ function evaluateComplementaryResources(
     complementaryScore += 30.0;  // Major bonus for completing all 5 types
   }
 
+  // Phase 1: Extra bonus for having all 4 critical resources
+  if (!isPhase2) {
+    const criticalCount = criticalResources.filter(r => {
+      const hasNow = (currentResources[r] || 0) > 0;
+      const getsFromThis = newResources.includes(r);
+      return hasNow || getsFromThis;
+    }).length;
+
+    if (criticalCount >= 4) {
+      complementaryScore += 20.0;  // Bonus for covering all critical resources
+    }
+  }
+
   return complementaryScore;
+}
+
+function calculateResourceImbalancePenalty(
+  vertexId: number,
+  player: Player,
+  gameState: GameState
+): number {
+  const adjacentCenters = gameState.boardCenters.filter(center =>
+    center.vertices.includes(vertexId)
+  );
+
+  const currentResources = getResourceProduction(player, gameState.boardCenters, gameState);
+  const newResources = adjacentCenters
+    .filter(c => c.resourceType !== 'desert')
+    .map(c => c.resourceType);
+
+  // Simulate what resources we'd have after placing here
+  const projectedResources = { ...currentResources };
+  for (const resource of newResources) {
+    projectedResources[resource] = (projectedResources[resource] || 0) + 1;
+  }
+
+  // Critical resources for early game
+  const criticalResources = ['clay', 'lumber', 'grain', 'fabric'];
+
+  // Count how many critical resources we'd have 0 of
+  const missingCritical = criticalResources.filter(r => (projectedResources[r] || 0) === 0).length;
+
+  // Count resource imbalances (having 2+ of one resource)
+  const resourceCounts = Object.values(projectedResources);
+  const maxCount = Math.max(...resourceCounts);
+
+  let penalty = 0;
+
+  // Heavy penalty for missing 2+ critical resources with high concentration in one
+  if (missingCritical >= 2 && maxCount >= 2) {
+    penalty = -25.0;
+    console.log(`[AI Eval] V${vertexId} IMBALANCE PENALTY: Missing ${missingCritical} critical resources with ${maxCount}x concentration = ${penalty}`);
+  }
+
+  // Severe penalty for missing 3+ critical resources
+  if (missingCritical >= 3) {
+    penalty = -40.0;
+    console.log(`[AI Eval] V${vertexId} SEVERE IMBALANCE: Missing ${missingCritical} critical resources = ${penalty}`);
+  }
+
+  // Extra penalty for having 3 of the same resource with 0 of multiple others
+  if (maxCount >= 3 && missingCritical >= 2) {
+    penalty = -50.0;
+    console.log(`[AI Eval] V${vertexId} EXTREME IMBALANCE: ${maxCount}x concentration + ${missingCritical} missing critical = ${penalty}`);
+  }
+
+  return penalty;
 }
 
 function getResourceProduction(

@@ -4592,7 +4592,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const playerColor = getPlayerColorStyle(player.color);
     const rateDisplay = getTradeRateDisplay(tradeRate);
 
-    const message = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> traded ${tradeEval.offeringAmount} ${tradeEval.offering} for ${requestedAmount} ${tradeEval.requesting} with the bank (${rateDisplay})`;
+    // Include target building in log message if present
+    const targetBuilding = (tradeEval as any).targetBuilding;
+    const targetSuffix = targetBuilding ? ` (building toward ${targetBuilding})` : '';
+    const message = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> traded ${tradeEval.offeringAmount} ${tradeEval.offering} for ${requestedAmount} ${tradeEval.requesting} with the bank (${rateDisplay})${targetSuffix}`;
     addToLog(message);
 
     if (tradeEval.reasoning && !player.isHuman) {
@@ -4644,12 +4647,41 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         return p;
       });
 
+      // Persist the building goal from this trade
+      const targetBuilding = (tradeEval as any).targetBuilding;
+      const currentGoal = (prev.turnState as any).committedBuildingGoal;
+      const tradeIterations = (prev.turnState as any).tradeIterationsForGoal || 0;
+
+      // Get difficulty for max iteration limit
+      const currentPlayer = prev.players.find(p => p.id === playerId);
+      const difficulty = currentPlayer?.difficulty || 'normal';
+      const maxIterations = difficulty === 'hard' ? 4 : difficulty === 'normal' ? 3 : 2;
+
+      // If we have a target from the trade, commit to it (or continue existing goal)
+      const newCommittedGoal = targetBuilding || currentGoal;
+      const newIterations = newCommittedGoal === currentGoal ? tradeIterations + 1 : 1;
+
+      // Log the commitment
+      if (targetBuilding && !currentGoal) {
+        console.log(`   🔒 COMMITTING to build goal: ${targetBuilding} (iteration 1/${maxIterations})`);
+      } else if (newCommittedGoal === currentGoal) {
+        console.log(`   🔒 CONTINUING committed goal: ${currentGoal} (iteration ${newIterations}/${maxIterations})`);
+      }
+
+      // Check if we should abandon the goal
+      const shouldAbandon = newIterations > maxIterations;
+      if (shouldAbandon && newCommittedGoal) {
+        console.log(`   ⚠️ ABANDONING goal ${newCommittedGoal} after ${maxIterations} trade iterations`);
+      }
+
       return {
         ...prev,
         players: newPlayers,
         turnState: {
           ...prev.turnState,
-          aiTradeAttemptsThisTurn: (prev.turnState.aiTradeAttemptsThisTurn || 0) + 1
+          aiTradeAttemptsThisTurn: (prev.turnState.aiTradeAttemptsThisTurn || 0) + 1,
+          committedBuildingGoal: shouldAbandon ? undefined : newCommittedGoal,
+          tradeIterationsForGoal: shouldAbandon ? 0 : newIterations
         }
       };
     });
@@ -4873,6 +4905,22 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           }
 
           console.log(`   ${actionSuccess ? '✓' : '✗'} Build ${actionSuccess ? 'successful' : 'failed'}`);
+
+          // If build was successful, clear the committed goal
+          if (actionSuccess) {
+            const committedGoal = (gameState.turnState as any).committedBuildingGoal;
+            if (committedGoal && committedGoal === buildingType) {
+              console.log(`   ✓ Clearing committed goal: ${committedGoal} (successfully built)`);
+              setGameState(prev => ({
+                ...prev,
+                turnState: {
+                  ...prev.turnState,
+                  committedBuildingGoal: undefined,
+                  tradeIterationsForGoal: 0
+                }
+              }));
+            }
+          }
           break;
 
         case 'end_turn':

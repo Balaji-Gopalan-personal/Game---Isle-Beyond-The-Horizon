@@ -31,12 +31,13 @@ export function createTurnPlan(
 
   // Check for committed goal from previous trade this turn
   const committedGoal = (gameState.turnState as any).committedBuildingGoal;
+  const tradeIterations = (gameState.turnState as any).tradeIterationsForGoal || 0;
   if (committedGoal) {
-    console.log(`   🔒 Committed goal from previous trade: ${committedGoal}`);
+    console.log(`   🔒 Committed goal from previous trade: ${committedGoal} (iteration ${tradeIterations})`);
     // Check if we can now afford the committed building
     const canAfford = checkCanAffordBuilding(player, committedGoal);
     if (canAfford) {
-      const buildPriority = calculateBuildPriority(player, gameState, committedGoal) + 5; // Boost priority
+      const buildPriority = calculateBuildPriority(player, gameState, committedGoal) + 10; // Increased boost from 5 to 10
       console.log(`   ✓ Can now afford committed ${committedGoal}! Adding with boosted priority ${buildPriority}`);
       actions.push({
         type: 'build',
@@ -44,7 +45,10 @@ export function createTurnPlan(
         data: { buildingType: committedGoal }
       });
     } else {
-      console.log(`   ⚠️ Still cannot afford committed ${committedGoal}, continuing to trade toward it`);
+      // Log what resources are still needed
+      const resourcesNeeded = getResourcesNeeded(player, committedGoal);
+      console.log(`   ⚠️ Still cannot afford committed ${committedGoal}`);
+      console.log(`      Still need: ${resourcesNeeded}`);
     }
   }
 
@@ -162,6 +166,34 @@ function checkCanAffordBuilding(player: Player, buildingType: 'road' | 'village'
     default:
       return false;
   }
+}
+
+function getResourcesNeeded(player: Player, buildingType: 'road' | 'village' | 'estate' | 'dev_card'): string {
+  const needs: string[] = [];
+
+  switch (buildingType) {
+    case 'village':
+      if (player.resources.clay < 1) needs.push(`${1 - player.resources.clay} clay`);
+      if (player.resources.lumber < 1) needs.push(`${1 - player.resources.lumber} lumber`);
+      if (player.resources.grain < 1) needs.push(`${1 - player.resources.grain} grain`);
+      if (player.resources.fabric < 1) needs.push(`${1 - player.resources.fabric} fabric`);
+      break;
+    case 'estate':
+      if (player.resources.grain < 2) needs.push(`${2 - player.resources.grain} grain`);
+      if (player.resources.mineral < 3) needs.push(`${3 - player.resources.mineral} mineral`);
+      break;
+    case 'road':
+      if (player.resources.clay < 1) needs.push(`${1 - player.resources.clay} clay`);
+      if (player.resources.lumber < 1) needs.push(`${1 - player.resources.lumber} lumber`);
+      break;
+    case 'dev_card':
+      if (player.resources.grain < 1) needs.push(`${1 - player.resources.grain} grain`);
+      if (player.resources.fabric < 1) needs.push(`${1 - player.resources.fabric} fabric`);
+      if (player.resources.mineral < 1) needs.push(`${1 - player.resources.mineral} mineral`);
+      break;
+  }
+
+  return needs.length > 0 ? needs.join(', ') : 'none';
 }
 
 // Aggressive trade search when Expert Negotiator is active
