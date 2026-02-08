@@ -414,6 +414,17 @@ function App() {
     setRoadPlacementError(null);
   };
 
+  const handleCancelBuyItem = () => {
+    // Clear local selection state
+    setSelectedVertex(null);
+    setFirstRoadVertex(null);
+    setRoadPlacementError(null);
+    // Cancel the buy action in game engine
+    if (gameEngine.onCancelBuyItem) {
+      gameEngine.onCancelBuyItem();
+    }
+  };
+
   const handleConfirmRoadGameplay = () => {
     if (firstRoadVertex && selectedVertex && gameEngine.handlePlaceRoadGameplay) {
       const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
@@ -676,7 +687,7 @@ function App() {
                   onShowBuyMenu={gameEngine.onShowBuyMenu}
                   onBuyItem={gameEngine.onBuyItem}
                   onEndTurn={gameEngine.onEndTurn}
-                  onCancelBuyItem={gameEngine.onCancelBuyItem}
+                  onCancelBuyItem={handleCancelBuyItem}
                   onConfirmEstate={handleConfirmEstateGameplay}
                   aiActionLoopActive={aiActionLoopActive}
                   roadPlacementError={roadPlacementError}

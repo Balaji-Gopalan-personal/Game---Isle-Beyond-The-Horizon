@@ -732,6 +732,13 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
                     <div className="text-xs text-gray-600">
                       Click on a vertex you own (road endpoint or village)
                     </div>
+                    <button
+                      onClick={onCancelBuyItem}
+                      className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1.5 px-3 rounded text-xs transition-all duration-200 w-full mt-2 flex items-center justify-center gap-1"
+                    >
+                      <X className="w-3 h-3" />
+                      {isFreeRoad ? 'Cancel Road Construction' : 'Cancel Road Purchase'}
+                    </button>
                   </div>
                 ) : !selectedVertex ? (
                   <div className="space-y-1">
@@ -744,12 +751,21 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
                     <div className="text-xs text-gray-600">
                       Click on an empty adjacent vertex
                     </div>
-                    <button
-                      onClick={onCancelSelection}
-                      className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200 w-full"
-                    >
-                      Cancel
-                    </button>
+                    <div className="flex gap-1 mt-2">
+                      <button
+                        onClick={onCancelSelection}
+                        className="flex-1 bg-gray-400 hover:bg-gray-500 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={onCancelBuyItem}
+                        className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200 flex items-center justify-center gap-1"
+                      >
+                        <X className="w-3 h-3" />
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-1">
@@ -765,11 +781,18 @@ export const ActionPrompt: React.FC<ActionPromptProps> = ({
                       </button>
                       <button
                         onClick={onCancelSelection}
-                        className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200"
+                        className="flex-1 bg-gray-400 hover:bg-gray-500 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200"
                       >
-                        Cancel
+                        Back
                       </button>
                     </div>
+                    <button
+                      onClick={onCancelBuyItem}
+                      className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-1 px-2 rounded text-xs transition-all duration-200 w-full flex items-center justify-center gap-1"
+                    >
+                      <X className="w-3 h-3" />
+                      {isFreeRoad ? 'Cancel Road Construction' : 'Cancel Road Purchase'}
+                    </button>
                   </div>
                 )}
               </div>

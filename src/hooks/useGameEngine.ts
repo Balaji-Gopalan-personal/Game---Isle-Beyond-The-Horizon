@@ -2757,7 +2757,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         step: 'main',
         placementContext: {
           lastVillageVertex: null,
-          buildingType: null
+          buildingType: null,
+          freeRoadsRemaining: undefined,
+          pendingCardId: undefined
         }
       }
     }));
