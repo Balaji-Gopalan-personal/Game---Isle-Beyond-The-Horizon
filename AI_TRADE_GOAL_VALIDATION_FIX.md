@@ -215,10 +215,18 @@ const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize, turnTra
 **1. Updated function signatures to accept boardSize:**
 - `shouldAttemptBankTrade(player, gameState, boardSize, attemptsThisTurn)`
 - `selectBankTradeResources(player, gameState, boardSize)`
+- `shouldAttemptPlayerTrade(player, gameState, boardSize, attemptsThisTurn)`
+- `generatePlayerTradeProposal(player, gameState, boardSize, failedProposalsThisTurn)`
 
-**2. Passed boardSize to evaluateTradeOpportunity() calls**
+**2. Passed boardSize to all trading strategy calls:**
+- `evaluateTradeOpportunity()` in bank trade functions
+- `identifyTradeGoals()` in player trade proposal generation
+- `getAllRankedPlayerTrades()` in player trade ranking
+- `shouldInitiatePlayerTrade()` in player trade initiation check
 
-Note: These functions appear to be legacy code paths not currently used in the new trading system.
+**3. Updated call sites in `useGameEngine.ts`:**
+- `handleAIPlayerTrade()` now extracts boardSize from gameState
+- All player trade functions receive boardSize parameter
 
 ## Expected Behavior After Fix
 
@@ -273,6 +281,30 @@ Note: These functions appear to be legacy code paths not currently used in the n
 - Hard: 4 trade actions max
 - Matches the 4-iteration bank trade limit for hard difficulty
 
+## Bug Fix: Missing boardSize in Player Trade Functions
+
+### Error Encountered
+After initial implementation, player trade attempts crashed with:
+```
+Error: No CSV data found for board size: undefined
+at identifyTradeGoals (aiTradingStrategy.ts:197:31)
+at shouldInitiatePlayerTrade (aiTradingStrategy.ts:1127:17)
+at shouldAttemptPlayerTrade (aiTrading.ts:58:10)
+```
+
+### Root Cause
+Player trade functions (`shouldAttemptPlayerTrade`, `generatePlayerTradeProposal`, etc.) were calling `identifyTradeGoals()` and other functions that now require `boardSize`, but these functions had not been updated to accept and pass the parameter.
+
+### Resolution
+1. Updated `shouldAttemptPlayerTrade()` to accept `boardSize` parameter
+2. Updated `shouldInitiatePlayerTrade()` to accept `boardSize` parameter
+3. Updated `generatePlayerTradeProposal()` to accept `boardSize` parameter
+4. Updated `getAllRankedPlayerTrades()` to accept `boardSize` parameter (passthrough)
+5. Updated `handleAIPlayerTrade()` in useGameEngine.ts to extract and pass boardSize
+6. All function signatures and call sites now consistent
+
+This ensures that ALL trading functions (both bank and player) properly validate placement viability.
+
 ## Verification Checklist
 
 ✅ Project builds without TypeScript errors
@@ -281,6 +313,8 @@ Note: These functions appear to be legacy code paths not currently used in the n
 ✅ Committed goals validated and cleared if unviable
 ✅ Trade continuation varies by difficulty (2/3/4)
 ✅ BoardSize parameter threaded through all trade evaluation calls
+✅ Player trade functions properly receive and pass boardSize
+✅ No more "undefined boardSize" runtime errors
 
 ## Testing Recommendations
 
@@ -306,8 +340,9 @@ Note: These functions appear to be legacy code paths not currently used in the n
 ## Impact Summary
 
 **Core Logic:**
-- 6 files modified
-- 400+ lines of logic changes
+- 6 files modified (aiTradingStrategy.ts, aiStrategicEval.ts, aiTurnOrchestrator.ts, useGameEngine.ts, aiTrading.ts)
+- 500+ lines of logic changes
+- All function signatures updated to thread boardSize parameter
 - 0 new bugs introduced (clean build)
 
 **Key Principles Applied:**

@@ -552,6 +552,7 @@ function findBestPlayerTrade(
 export function getAllRankedPlayerTrades(
   player: Player,
   gameState: GameState,
+  boardSize: BoardSize,
   goal: TradeGoal
 ): RankedTrade[] {
   const neededResources = Object.keys(goal.neededResources) as ResourceType[];
@@ -1118,13 +1119,14 @@ function canAffordProposal(offered: Resources, current: Resources): boolean {
 export function shouldInitiatePlayerTrade(
   player: Player,
   gameState: GameState,
+  boardSize: BoardSize,
   attemptsThisTurn: number
 ): boolean {
   if (attemptsThisTurn >= 3) {
     return false;
   }
 
-  const goals = identifyTradeGoals(player, gameState);
+  const goals = identifyTradeGoals(player, gameState, boardSize);
   if (goals.length === 0) {
     console.log(`   ✗ No trade goals, won't initiate trade`);
     return false;

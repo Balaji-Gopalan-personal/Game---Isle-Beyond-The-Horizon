@@ -49,13 +49,14 @@ export function shouldAttemptBankTrade(
 export function shouldAttemptPlayerTrade(
   player: Player,
   gameState: GameState,
+  boardSize: BoardSize,
   attemptsThisTurn: number
 ): boolean {
   if (attemptsThisTurn >= MAX_PLAYER_TRADE_ATTEMPTS_PER_TURN) {
     return false;
   }
 
-  return shouldInitiatePlayerTrade(player, gameState, attemptsThisTurn);
+  return shouldInitiatePlayerTrade(player, gameState, boardSize, attemptsThisTurn);
 }
 
 export function assessResourceNeeds(player: Player): ResourcePriority[] {
@@ -188,9 +189,10 @@ export function selectBankTradeResources(
 export function generatePlayerTradeProposal(
   player: Player,
   gameState: GameState,
+  boardSize: BoardSize,
   failedProposalsThisTurn: Set<string>
 ): { offeredResources: any; requestedResources: any } | null {
-  const goals = identifyTradeGoals(player, gameState);
+  const goals = identifyTradeGoals(player, gameState, boardSize);
 
   if (goals.length === 0) {
     console.log(`   ✗ No trade goals for player trade proposal`);
@@ -198,7 +200,7 @@ export function generatePlayerTradeProposal(
   }
 
   const topGoal = goals[0];
-  const rankedTrades = getAllRankedPlayerTrades(player, gameState, topGoal);
+  const rankedTrades = getAllRankedPlayerTrades(player, gameState, boardSize, topGoal);
 
   if (rankedTrades.length === 0) {
     console.log(`   ✗ No viable ranked trades available`);

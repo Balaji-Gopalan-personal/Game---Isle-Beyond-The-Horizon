@@ -4695,13 +4695,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     if (!player) return false;
 
     const attemptsThisTurn = gameState.turnState.aiTradeAttemptsThisTurn || 0;
+    const boardSize = gameState.gameSettings.boardSize as BoardSize;
 
-    if (!shouldAttemptPlayerTrade(player, gameState, attemptsThisTurn)) {
+    if (!shouldAttemptPlayerTrade(player, gameState, boardSize, attemptsThisTurn)) {
       return false;
     }
 
     const failedProposals = gameState.turnState.aiFailedTradeProposalsThisTurn || new Set<string>();
-    const proposal = generatePlayerTradeProposal(player, gameState, failedProposals);
+    const proposal = generatePlayerTradeProposal(player, gameState, boardSize, failedProposals);
 
     if (!proposal) {
       return false;
