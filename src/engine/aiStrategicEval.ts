@@ -2,8 +2,9 @@ import { GameState, Player, TradingPort } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
 import { loadBoardForSize } from '../graph/loadBoard';
 import { getAdjacentVertices } from './boardService';
-import { calculateLongestRoadPath, buildVerticesWithOwnership } from './gameplayActions';
+import { calculateLongestRoadPath, buildVerticesWithOwnership, getValidRoadPlacements } from './gameplayActions';
 import { countViableVillageLocations, getPersonalityForCharacter, PersonalityTrait } from './aiLocationStrategy';
+import { canPlaceVillage } from './validators';
 
 export interface VertexEvaluation {
   vertexId: number;
@@ -325,6 +326,27 @@ export function identifyResourceDeficit(player: Player): string[] {
   return deficits;
 }
 
+function canRoadsOpenVillageSpots(
+  playerId: string,
+  gameState: GameState,
+  boardSize: BoardSize
+): boolean {
+  const validRoadEndpoints = getValidRoadPlacements(playerId, gameState, boardSize);
+  const boardData = loadBoardForSize(boardSize);
+  const occupiedVertices = gameState.verticesOccupiedBy || {};
+
+  for (const endpoint of validRoadEndpoints) {
+    const neighbors = boardData.adjacencyMap[endpoint] || [];
+    for (const neighbor of neighbors) {
+      if (canPlaceVillage(neighbor, occupiedVertices, boardSize)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 export function calculateBuildingPriority(
   player: Player,
   gameState: GameState
@@ -421,13 +443,21 @@ export function calculateBuildingPriority(
     roadPriority *= 0.6;
   }
 
-  // Late game or saturated board: roads are mostly pointless unless pursuing Longest Road
-  if (isLateGame || isBoardSaturated) {
-    roadPriority *= 0.3;  // Severe reduction
+  // Check if roads could open new village locations
+  const roadsCanOpenVillageSpots = canRoadsOpenVillageSpots(player.id, gameState, boardSize);
+
+  // Late game or saturated board: roads are mostly pointless unless pursuing Longest Road OR opening village spots
+  if ((isLateGame || isBoardSaturated) && !roadsCanOpenVillageSpots) {
+    roadPriority *= 0.3;  // Severe reduction only if roads won't help
     console.log(`   🛤️ Late game/saturated - road priority severely reduced`);
+  } else if (isBoardSaturated && roadsCanOpenVillageSpots) {
+    // Board saturated but roads can open new spots - BOOST priority
+    roadPriority = Math.max(roadPriority, 14);  // Higher than base estate priority
+    roadPriority *= 1.5;
+    console.log(`   🛤️ Board saturated but roads can open village spots - BOOSTING road priority to ${roadPriority.toFixed(1)}`);
   }
 
-  if (viableVillageLocations <= 3 && !isLateGame) {
+  if (viableVillageLocations <= 3 && !isLateGame && !roadsCanOpenVillageSpots) {
     roadPriority *= 0.5;
   }
 

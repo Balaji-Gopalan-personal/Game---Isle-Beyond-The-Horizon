@@ -1,4 +1,4 @@
-import { GameState, Player, Resources } from '../types/game';
+import { GameState, Player, Resources, BoardSize } from '../types/game';
 import { ResourceType, getBestTradeRateForResource } from './tradingUtils';
 import { evaluateTradeOpportunity, evaluatePlayerTradeProposal, shouldInitiatePlayerTrade, identifyTradeGoals, getAllRankedPlayerTrades } from '../engine/aiTradingStrategy';
 
@@ -18,13 +18,14 @@ const MAX_PLAYER_TRADE_ATTEMPTS_PER_TURN = 5;
 export function shouldAttemptBankTrade(
   player: Player,
   gameState: GameState,
+  boardSize: BoardSize,
   attemptsThisTurn: number
 ): boolean {
   if (attemptsThisTurn >= MAX_TRADE_ATTEMPTS_PER_TURN) {
     return false;
   }
 
-  const tradeEval = evaluateTradeOpportunity(player, gameState);
+  const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize);
   if (tradeEval.shouldTrade && tradeEval.tradeType === 'bank') {
     return true;
   }
@@ -134,9 +135,10 @@ export function getResourcesAvailableForTrade(player: Player): ResourceType[] {
 
 export function selectBankTradeResources(
   player: Player,
-  gameState: GameState
+  gameState: GameState,
+  boardSize: BoardSize
 ): { offeringResource: ResourceType; offeringAmount: number; requestedResource: ResourceType } | null {
-  const tradeEval = evaluateTradeOpportunity(player, gameState);
+  const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize);
 
   if (tradeEval.shouldTrade && tradeEval.tradeType === 'bank' && tradeEval.offering && tradeEval.requesting && tradeEval.offeringAmount) {
     return {

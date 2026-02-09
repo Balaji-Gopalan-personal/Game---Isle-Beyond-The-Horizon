@@ -4562,7 +4562,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     if (!player) return false;
 
     // Use the new trading strategy with history tracking
-    const tradeEval = evaluateTradeOpportunity(player, gameState, turnTradeHistory);
+    const boardSize = gameState.gameSettings.boardSize as BoardSize;
+    const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize, turnTradeHistory);
 
     if (!tradeEval.shouldTrade || tradeEval.tradeType !== 'bank') {
       return false;
@@ -4772,7 +4773,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const personality = player.character?.name ? getPersonalityForCharacter(player.character.name) : 'balanced';
 
       // Get detailed reasoning about what build is being pursued
-      const tradeEval = evaluateTradeOpportunity(player, gameState, turnTradeHistory);
+      const boardSize = gameState.gameSettings.boardSize as BoardSize;
+      const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize, turnTradeHistory);
       let reasoning = 'Optimize resource portfolio';
 
       if (tradeEval.reasoning && tradeEval.reasoning.includes('toward')) {

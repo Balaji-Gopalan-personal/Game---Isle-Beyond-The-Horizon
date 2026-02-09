@@ -4,6 +4,7 @@ import { shouldPlayDevCardBeforeRoll, shouldPlayDevCardAfterRoll } from './aiDev
 import { evaluateTradeOpportunity, TradeEvaluation, identifyTradeGoals } from './aiTradingStrategy';
 import { makeStrategicBuildDecision, canAffordVillage, canAffordEstate, canAffordRoad, canAffordDevelopmentCard } from './aiBuilding';
 import { getBestTradeRateForResource, ResourceType } from '../utils/tradingUtils';
+import { getValidVillagePlacements, getValidRoadPlacements, getPlayerVillages } from './gameplayActions';
 
 export interface TurnAction {
   type: 'play_dev_card' | 'trade_bank' | 'trade_player' | 'build' | 'end_turn';
@@ -34,21 +35,59 @@ export function createTurnPlan(
   const tradeIterations = (gameState.turnState as any).tradeIterationsForGoal || 0;
   if (committedGoal) {
     console.log(`   🔒 Committed goal from previous trade: ${committedGoal} (iteration ${tradeIterations})`);
-    // Check if we can now afford the committed building
-    const canAfford = checkCanAffordBuilding(player, committedGoal);
-    if (canAfford) {
-      const buildPriority = calculateBuildPriority(player, gameState, committedGoal) + 10; // Increased boost from 5 to 10
-      console.log(`   ✓ Can now afford committed ${committedGoal}! Adding with boosted priority ${buildPriority}`);
-      actions.push({
-        type: 'build',
-        priority: buildPriority,
-        data: { buildingType: committedGoal }
-      });
-    } else {
-      // Log what resources are still needed
-      const resourcesNeeded = getResourcesNeeded(player, committedGoal);
-      console.log(`   ⚠️ Still cannot afford committed ${committedGoal}`);
-      console.log(`      Still need: ${resourcesNeeded}`);
+
+    // Validate that placement is still viable for this goal
+    let hasViablePlacement = true;
+    if (committedGoal === 'village') {
+      const validPlacements = getValidVillagePlacements(player.id, gameState, boardSize);
+      hasViablePlacement = validPlacements.length > 0;
+      if (!hasViablePlacement) {
+        console.log(`   ❌ Committed village goal has NO VIABLE PLACEMENTS - clearing goal`);
+        (gameState.turnState as any).committedBuildingGoal = undefined;
+        (gameState.turnState as any).tradeIterationsForGoal = 0;
+      }
+    } else if (committedGoal === 'road') {
+      const validPlacements = getValidRoadPlacements(player.id, gameState, boardSize);
+      hasViablePlacement = validPlacements.length > 0;
+      if (!hasViablePlacement) {
+        console.log(`   ❌ Committed road goal has NO VIABLE PLACEMENTS - clearing goal`);
+        (gameState.turnState as any).committedBuildingGoal = undefined;
+        (gameState.turnState as any).tradeIterationsForGoal = 0;
+      }
+    } else if (committedGoal === 'estate') {
+      const upgradableVillages = getPlayerVillages(player.id, gameState);
+      hasViablePlacement = upgradableVillages.length > 0;
+      if (!hasViablePlacement) {
+        console.log(`   ❌ Committed estate goal has NO VIABLE PLACEMENTS - clearing goal`);
+        (gameState.turnState as any).committedBuildingGoal = undefined;
+        (gameState.turnState as any).tradeIterationsForGoal = 0;
+      }
+    } else if (committedGoal === 'dev_card') {
+      hasViablePlacement = gameState.developmentCardDeck.length > 0;
+      if (!hasViablePlacement) {
+        console.log(`   ❌ Committed dev_card goal has NO CARDS AVAILABLE - clearing goal`);
+        (gameState.turnState as any).committedBuildingGoal = undefined;
+        (gameState.turnState as any).tradeIterationsForGoal = 0;
+      }
+    }
+
+    if (hasViablePlacement) {
+      // Check if we can now afford the committed building
+      const canAfford = checkCanAffordBuilding(player, committedGoal);
+      if (canAfford) {
+        const buildPriority = calculateBuildPriority(player, gameState, committedGoal) + 10; // Increased boost from 5 to 10
+        console.log(`   ✓ Can now afford committed ${committedGoal}! Adding with boosted priority ${buildPriority}`);
+        actions.push({
+          type: 'build',
+          priority: buildPriority,
+          data: { buildingType: committedGoal }
+        });
+      } else {
+        // Log what resources are still needed
+        const resourcesNeeded = getResourcesNeeded(player, committedGoal);
+        console.log(`   ⚠️ Still cannot afford committed ${committedGoal}`);
+        console.log(`      Still need: ${resourcesNeeded}`);
+      }
     }
   }
 
@@ -64,7 +103,7 @@ export function createTurnPlan(
 
   // If Expert Negotiator is active, force a bank trade with very high priority
   if (gameState.turnState.expertNegotiatorActive) {
-    const tradeEval = evaluateTradeOpportunity(player, gameState);
+    const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize);
     if (tradeEval.shouldTrade && tradeEval.tradeType === 'bank') {
       console.log(`   ⭐ Expert Negotiator active - forcing bank trade (priority 15)`);
       actions.push({
@@ -106,7 +145,7 @@ export function createTurnPlan(
       console.log(`   Simulated resources after ${buildDecision.buildingType}: Clay=${simulatedResources.clay} Lumber=${simulatedResources.lumber} Grain=${simulatedResources.grain} Fabric=${simulatedResources.fabric} Mineral=${simulatedResources.mineral}`);
 
       const simulatedPlayer = { ...player, resources: simulatedResources };
-      const postBuildTradeEval = evaluateTradeOpportunity(simulatedPlayer, gameState);
+      const postBuildTradeEval = evaluateTradeOpportunity(simulatedPlayer, gameState, boardSize);
       if (postBuildTradeEval.shouldTrade) {
         const tradePriority = calculateTradePriority(player, gameState) - 1;
         console.log(`   ✓ Adding post-build ${postBuildTradeEval.tradeType} trade to plan (priority ${tradePriority})`);
@@ -121,7 +160,7 @@ export function createTurnPlan(
   }
 
   if (!buildDecision.shouldBuild || buildDecision.buildingType === 'road') {
-    const tradeEval = evaluateTradeOpportunity(player, gameState);
+    const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize);
     if (tradeEval.shouldTrade) {
       const tradePriority = calculateTradePriority(player, gameState);
       console.log(`   ✓ Adding ${tradeEval.tradeType} trade to plan (priority ${tradePriority})`);
@@ -370,10 +409,22 @@ export function shouldContinueTurn(
     return true;
   }
 
-  const tradeEval = evaluateTradeOpportunity(player, gameState);
-  if (tradeEval.shouldTrade && actionsTaken < 3) {
-    console.log(`   ✓ Can still trade: ${tradeEval.reasoning}`);
-    return true;
+  // Vary trade action limits by difficulty: easy=2, normal=3, hard=4
+  const maxTradeActions = difficulty === 'hard' ? 4 : difficulty === 'normal' ? 3 : 2;
+
+  const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize);
+  if (tradeEval.shouldTrade && actionsTaken < maxTradeActions) {
+    // Validate that the trade goal has viable placement
+    const goals = identifyTradeGoals(player, gameState, boardSize);
+    const viableGoals = goals.filter(g => g.hasViablePlacement !== false);
+
+    if (viableGoals.length > 0) {
+      console.log(`   ✓ Can still trade toward viable goal: ${tradeEval.reasoning}`);
+      return true;
+    } else {
+      console.log(`   ✗ Trade available but NO VIABLE BUILDING PLACEMENTS`);
+      return false;
+    }
   }
 
   console.log(`   ✗ No more beneficial actions available`);

@@ -1,11 +1,13 @@
-import { GameState, Player, Resources, TradingPort } from '../types/game';
+import { GameState, Player, Resources, TradingPort, BoardSize } from '../types/game';
 import { ResourceType, getBestTradeRateForResource } from '../utils/tradingUtils';
 import { canAffordVillage, canAffordEstate, canAffordRoad, canAffordDevelopmentCard } from './aiBuilding';
+import { getValidVillagePlacements, getValidRoadPlacements, getPlayerVillages } from './gameplayActions';
 
 export interface TradeGoal {
   targetBuilding: 'village' | 'estate' | 'road' | 'dev_card';
   neededResources: Partial<Resources>;
   priority: number;
+  hasViablePlacement?: boolean;
 }
 
 export interface TurnTradeHistory {
@@ -46,6 +48,7 @@ export interface RankedTrade {
 export function evaluateTradeOpportunity(
   player: Player,
   gameState: GameState,
+  boardSize: BoardSize,
   tradeHistory?: TurnTradeHistory
 ): TradeEvaluation {
   console.log(`\n💱 [${player.name}] EVALUATING TRADE OPPORTUNITIES`);
@@ -84,24 +87,34 @@ export function evaluateTradeOpportunity(
     }
   }
 
-  const goals = identifyTradeGoals(player, gameState);
+  const goals = identifyTradeGoals(player, gameState, boardSize);
 
-  // Use locked-in goal from history if available, otherwise use top goal
-  const activeGoal = tradeHistory?.targetGoal || goals[0];
+  // Filter out goals with no viable placement
+  const viableGoals = goals.filter(g => g.hasViablePlacement !== false);
 
-  if (goals.length === 0) {
-    console.log(`   ✗ No trade goals identified`);
-    return { shouldTrade: false, tradeType: 'bank', reasoning: 'No immediate building goals' };
+  if (viableGoals.length === 0) {
+    console.log(`   ✗ No viable trade goals (all buildings have no valid placement locations)`);
+    return { shouldTrade: false, tradeType: 'bank', reasoning: 'No viable building placements available' };
   }
 
-  console.log(`   📊 Identified ${goals.length} possible trade goals:`);
+  // Use locked-in goal from history if available and still viable, otherwise use top viable goal
+  let activeGoal = tradeHistory?.targetGoal;
+  if (activeGoal && !viableGoals.find(g => g.targetBuilding === activeGoal!.targetBuilding)) {
+    console.log(`   ⚠️ Previous goal (${activeGoal.targetBuilding}) no longer viable - selecting new goal`);
+    activeGoal = viableGoals[0];
+  } else if (!activeGoal) {
+    activeGoal = viableGoals[0];
+  }
+
+  console.log(`   📊 Identified ${goals.length} possible trade goals (${viableGoals.length} viable):`);
   goals.forEach((goal, idx) => {
     const neededList = Object.entries(goal.neededResources).map(([r, amt]) => `${amt} ${r}`).join(', ');
     const neededCount = Object.keys(goal.neededResources).length;
+    const viableMarker = goal.hasViablePlacement === false ? ' ⚠️ NO VIABLE PLACEMENT' : '';
     if (neededCount === 0) {
-      console.log(`   ${idx + 1}. ${goal.targetBuilding} (priority ${goal.priority}) - Can afford now, considering post-build trades`);
+      console.log(`   ${idx + 1}. ${goal.targetBuilding} (priority ${goal.priority}) - Can afford now, considering post-build trades${viableMarker}`);
     } else {
-      console.log(`   ${idx + 1}. ${goal.targetBuilding} (priority ${goal.priority}) - Needs: ${neededList}`);
+      console.log(`   ${idx + 1}. ${goal.targetBuilding} (priority ${goal.priority}) - Needs: ${neededList}${viableMarker}`);
     }
   });
 
@@ -168,7 +181,7 @@ export function evaluateTradeOpportunity(
   return { shouldTrade: false, tradeType: 'bank', reasoning: 'No beneficial trades available' };
 }
 
-export function identifyTradeGoals(player: Player, gameState: GameState): TradeGoal[] {
+export function identifyTradeGoals(player: Player, gameState: GameState, boardSize: BoardSize): TradeGoal[] {
   const goals: TradeGoal[] = [];
 
   const pointsToWin = gameState.gameSettings.pointsToWin;
@@ -178,6 +191,12 @@ export function identifyTradeGoals(player: Player, gameState: GameState): TradeG
 
   const totalResources = player.resources.clay + player.resources.lumber +
                          player.resources.grain + player.resources.fabric + player.resources.mineral;
+
+  // Check viable placement locations for each building type
+  const validVillagePlacements = getValidVillagePlacements(player.id, gameState, boardSize);
+  const validRoadPlacements = getValidRoadPlacements(player.id, gameState, boardSize);
+  const upgradableVillages = getPlayerVillages(player.id, gameState);
+  const hasDevCardsAvailable = gameState.developmentCardDeck.length > 0;
 
   const villageNeeds = calculateResourceNeeds(player.resources, {
     clay: 1,
@@ -198,10 +217,19 @@ export function identifyTradeGoals(player: Player, gameState: GameState): TradeG
     } else if (villageCount < 4) {
       villagePriority = 12;
     }
+
+    // Check if village placement is actually viable
+    const hasViablePlacement = validVillagePlacements.length > 0;
+    if (!hasViablePlacement) {
+      // Drastically reduce priority if no viable placements exist
+      villagePriority = 1;
+    }
+
     goals.push({
       targetBuilding: 'village',
       neededResources: villageNeeds,
-      priority: villagePriority
+      priority: villagePriority,
+      hasViablePlacement
     });
   }
 
@@ -221,9 +249,7 @@ export function identifyTradeGoals(player: Player, gameState: GameState): TradeG
       estatePriority = 6;
     }
 
-    const hasUpgradeableVillage = gameState.villages.some(v =>
-      v.playerId === player.id && v.type === 'settlement'
-    );
+    const hasUpgradeableVillage = upgradableVillages.length > 0;
     if (hasUpgradeableVillage && villageCount >= 2) {
       estatePriority += 2;
     }
@@ -231,7 +257,8 @@ export function identifyTradeGoals(player: Player, gameState: GameState): TradeG
     goals.push({
       targetBuilding: 'estate',
       neededResources: estateNeeds,
-      priority: estatePriority
+      priority: estatePriority,
+      hasViablePlacement: hasUpgradeableVillage
     });
   }
 
@@ -250,10 +277,19 @@ export function identifyTradeGoals(player: Player, gameState: GameState): TradeG
     if (isEarlyGame && villageCount < 3) {
       roadPriority = 4;
     }
+
+    // Boost road priority if it could open village spots
+    const hasViablePlacement = validRoadPlacements.length > 0;
+    if (validVillagePlacements.length === 0 && hasViablePlacement) {
+      // No village spots on current network but roads are available - boost priority
+      roadPriority = 14; // Make roads higher priority than base estate (12)
+    }
+
     goals.push({
       targetBuilding: 'road',
       neededResources: roadNeeds,
-      priority: roadPriority
+      priority: roadPriority,
+      hasViablePlacement
     });
   }
 
@@ -275,7 +311,8 @@ export function identifyTradeGoals(player: Player, gameState: GameState): TradeG
     goals.push({
       targetBuilding: 'dev_card',
       neededResources: devCardNeeds,
-      priority: devCardPriority
+      priority: devCardPriority,
+      hasViablePlacement: hasDevCardsAvailable
     });
   }
 
