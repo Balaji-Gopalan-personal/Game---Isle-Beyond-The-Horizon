@@ -1,6 +1,6 @@
 import React from 'react';
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { GameState, Player, GameStep, StepTrigger, TurnStep } from '../types/game';
+import { GameState, Player, GameStep, StepTrigger, TurnStep, GameSettings } from '../types/game';
 import { BoardSize, BOARD_STRUCTURES } from '../data/boardStructure';
 import { AICharacter } from '../data/aiCharacters';
 import { loadBoardGraph, loadBoardForSize } from '../graph/loadBoard';
@@ -46,21 +46,6 @@ const DEFAULT_STEPS: GameStep[] = [
   { id: 'main-phase', name: 'Main Phase', description: 'Main gameplay phase' },
   { id: 'end-turn', name: 'End Turn', description: 'End current turn' }
 ];
-
-interface GameSettings {
-  pointsToWin: number;
-  longestRoadEnabled: boolean;
-  longestRoadSize: number;
-  longestRoadBonus: number;
-  largestArmyEnabled: boolean;
-  largestArmySize: number;
-  largestArmyBonus: number;
-  maxResourceHold: number;
-  robberCanReturnToDesert: boolean;
-  tradingPortsEnabled: boolean;
-  numberOfTradingPorts: number;
-  developmentCardDeck: 'standard' | 'expanded';
-}
 
 interface GameConfig {
   playerName: string;
@@ -314,7 +299,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
 
     // Check for longest road potential (if moving away from village)
-    const boardData = loadBoardForSize(state.boardSize || 'standard');
+    const boardData = loadBoardForSize(state.gameSettings.boardSize || 'standard');
     const destNeighbors = boardData.adjacencyMap[toVertex] || [];
     const availableNeighbors = destNeighbors.filter((n: number) =>
       !state.verticesOccupiedBy[n] && n !== fromVertex
@@ -1039,7 +1024,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const validRoadPlacements = getValidRoadPlacements(
         currentPlayer.id,
         gameState,
-        gameState.boardSize
+        boardSize
       );
       if (validRoadPlacements.length < 1) {
         return 'You need at least one valid road placement location to play Road Construction.';
@@ -2446,7 +2431,6 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         adjacentVertices: [], // Will be populated when needed
         lastPlacedVillage: null,
         totalVertices,
-        boardSize: config.boardSize,
         turnState: {
           currentPlayerId: firstPlayer.id,
           step: 'init_place_village',

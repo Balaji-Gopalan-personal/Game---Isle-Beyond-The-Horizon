@@ -115,7 +115,7 @@ export function createTurnPlan(
       // Expert Negotiator active but normal evaluation didn't find a trade
       // Try with a more aggressive/lenient approach
       console.log(`   ⚠️ Expert Negotiator active but no trade in normal eval - trying aggressive search`);
-      const aggressiveTradeEval = evaluateExpertNegotiatorTrade(player, gameState);
+      const aggressiveTradeEval = evaluateExpertNegotiatorTrade(player, gameState, boardSize);
       if (aggressiveTradeEval.shouldTrade) {
         console.log(`   ✓ Found aggressive Expert Negotiator trade!`);
         actions.push({
@@ -237,10 +237,10 @@ function getResourcesNeeded(player: Player, buildingType: 'road' | 'village' | '
 
 // Aggressive trade search when Expert Negotiator is active
 // This uses a lower threshold since the 2:1 rate is guaranteed
-function evaluateExpertNegotiatorTrade(player: Player, gameState: GameState): TradeEvaluation {
+function evaluateExpertNegotiatorTrade(player: Player, gameState: GameState, boardSize: BoardSize): TradeEvaluation {
   console.log(`   🔍 Searching for any 2:1 Expert Negotiator trade opportunity...`);
 
-  const goals = identifyTradeGoals(player, gameState);
+  const goals = identifyTradeGoals(player, gameState, boardSize);
   if (goals.length === 0) {
     return { shouldTrade: false, tradeType: 'bank' };
   }
