@@ -934,6 +934,7 @@ function App() {
                  tradeProposal={tradeProposal}
                  proposingPlayer={proposingPlayer}
                  humanPlayer={humanPlayer}
+                 players={gameState.players}
                  onAccept={gameEngine.handleHumanAcceptAITrade}
                  onReject={gameEngine.handleHumanRejectAITrade}
                />

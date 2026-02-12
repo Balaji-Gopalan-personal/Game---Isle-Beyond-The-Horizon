@@ -4577,9 +4577,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     const playerColor = getPlayerColorStyle(player.color);
     const rateDisplay = getTradeRateDisplay(tradeRate);
 
-    // Include target building in log message if present
+    // Include target building in log message only if in testing mode
     const targetBuilding = (tradeEval as any).targetBuilding;
-    const targetSuffix = targetBuilding ? ` (building toward ${targetBuilding})` : '';
+    const targetSuffix = (targetBuilding && gameState.gameSettings.testingMode) ? ` (building toward ${targetBuilding})` : '';
     const message = `<span style="color: ${playerColor}; font-weight: bold;">${player.name}</span> traded ${tradeEval.offeringAmount} ${tradeEval.offering} for ${requestedAmount} ${tradeEval.requesting} with the bank (${rateDisplay})${targetSuffix}`;
     addToLog(message);
 

@@ -9,6 +9,7 @@ interface HumanTradeAcceptModalProps {
   tradeProposal: TradeProposal;
   proposingPlayer: Player;
   humanPlayer: Player;
+  players: Player[];
   onAccept: () => void;
   onReject: () => void;
 }
@@ -18,6 +19,7 @@ export const HumanTradeAcceptModal: React.FC<HumanTradeAcceptModalProps> = ({
   tradeProposal,
   proposingPlayer,
   humanPlayer,
+  players,
   onAccept,
   onReject
 }) => {
@@ -44,6 +46,8 @@ export const HumanTradeAcceptModal: React.FC<HumanTradeAcceptModalProps> = ({
   };
 
   if (!isOpen) return null;
+
+  const proposingPlayerNumber = players.findIndex(p => p.id === proposingPlayer.id) + 1;
 
   const canAcceptTrade = Object.entries(tradeProposal.requestedResources).every(
     ([resource, amount]) =>
@@ -91,7 +95,7 @@ export const HumanTradeAcceptModal: React.FC<HumanTradeAcceptModalProps> = ({
               style={{ backgroundColor: getPlayerColorStyle(proposingPlayer.color) }}
             />
             <span className="text-sm font-bold text-gray-800">
-              {proposingPlayer.name} (Player {proposingPlayer.order + 1})
+              {proposingPlayer.name} (Player {proposingPlayerNumber})
             </span>
             <span className="text-xs text-gray-600">wants to trade with you</span>
           </div>
