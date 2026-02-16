@@ -95,6 +95,7 @@ export interface TradeProposal {
   proposerIsAI?: boolean;
   currentRespondingPlayerIndex: number;
   respondingPlayerOrder: string[];
+  targetBuilding?: 'village' | 'estate' | 'road' | 'dev_card';
 }
 
 export interface TurnState {
@@ -112,6 +113,8 @@ export interface TurnState {
   expertNegotiatorActive?: boolean;
   aiTradeAttemptsThisTurn?: number;
   aiFailedTradeProposalsThisTurn?: Set<string>;
+  committedBuildingGoal?: 'village' | 'estate' | 'road' | 'dev_card';
+  tradeIterationsForGoal?: number;
 }
 
 export interface Edge {

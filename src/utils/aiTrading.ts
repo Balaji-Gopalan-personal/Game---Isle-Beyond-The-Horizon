@@ -191,7 +191,7 @@ export function generatePlayerTradeProposal(
   gameState: GameState,
   boardSize: BoardSize,
   failedProposalsThisTurn: Set<string>
-): { offeredResources: any; requestedResources: any } | null {
+): { offeredResources: any; requestedResources: any; targetBuilding: 'village' | 'estate' | 'road' | 'dev_card' } | null {
   const goals = identifyTradeGoals(player, gameState, boardSize);
 
   if (goals.length === 0) {
@@ -231,8 +231,8 @@ export function generatePlayerTradeProposal(
         [trade.requesting]: trade.requestingAmount
       };
 
-      console.log(`   ✓ Selected P2P trade: ${trade.offeringAmount} ${trade.offering} for ${trade.requestingAmount} ${trade.requesting} (fairness: ${trade.fairness.toFixed(2)}, score: ${trade.score.toFixed(1)})`);
-      return { offeredResources, requestedResources };
+      console.log(`   ✓ Selected P2P trade: ${trade.offeringAmount} ${trade.offering} for ${trade.requestingAmount} ${trade.requesting} (fairness: ${trade.fairness.toFixed(2)}, score: ${trade.score.toFixed(1)}) for ${topGoal.targetBuilding}`);
+      return { offeredResources, requestedResources, targetBuilding: topGoal.targetBuilding };
     } else {
       console.log(`   ⊗ Skipping already-attempted trade: ${trade.offeringAmount} ${trade.offering} for ${trade.requestingAmount} ${trade.requesting}`);
     }

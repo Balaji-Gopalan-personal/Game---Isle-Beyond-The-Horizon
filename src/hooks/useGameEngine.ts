@@ -12,7 +12,8 @@ import { selectStrategicRoadLocation, selectStrategicVillageLocation, selectStra
 import { findDesertCentre, isValidRobberDestination, getPlayersWithAdjacentBuildings, selectRandomRobberDestination, stealRandomResource, selectRandomStealTarget, CentreData } from '../engine/robberActions';
 import { selectRobberPlacement } from '../engine/aiRobberStrategy';
 import { shouldPlayDevCardAfterRoll, selectBoomingEconomyResources, selectClosedMarketResource, selectResourceSwapTarget } from '../engine/aiDevCardStrategy';
-import { evaluateTradeOpportunity, TurnTradeHistory } from '../engine/aiTradingStrategy';
+import { evaluateTradeOpportunity, TurnTradeHistory, identifyTradeGoals } from '../engine/aiTradingStrategy';
+import { ResourceType } from '../utils/tradingUtils';
 import { createTurnPlan, shouldContinueTurn } from '../engine/aiTurnOrchestrator';
 import { createInitialDeck, shuffleDeck, reshuffleDeck } from '../data/developmentCards';
 import { checkVictoryCondition } from '../utils/victoryDetection';
@@ -4750,7 +4751,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       responses: {} as Record<string, 'accepted' | 'rejected' | 'pending'>,
       proposerIsAI: true,
       currentRespondingPlayerIndex: 0,
-      respondingPlayerOrder
+      respondingPlayerOrder,
+      targetBuilding: proposal.targetBuilding
     };
 
     otherPlayers.forEach(p => {
@@ -5568,6 +5570,47 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         const message = `<span style="color: ${proposingColor}; font-weight: bold;">${proposingPlayer.name}</span> traded ${offeredList} with <span style="color: ${acceptingColor}; font-weight: bold;">${currentResponder.name}</span> for ${requestedList}`;
         addToLog(message);
 
+        // Update trade history for the proposing player
+        if (proposingPlayer.id === gameState.currentPlayer) {
+          setTurnTradeHistory(prev => {
+            const newHistory = { ...prev };
+
+            // Record the trade details
+            const tradeRecord = {
+              offering: Object.keys(tradeProposal.offeredResources).find(r => tradeProposal.offeredResources[r] > 0) as ResourceType,
+              offeringAmount: Object.values(tradeProposal.offeredResources).find(a => a > 0) || 0,
+              requesting: Object.keys(tradeProposal.requestedResources).find(r => tradeProposal.requestedResources[r] > 0) as ResourceType,
+              requestingAmount: Object.values(tradeProposal.requestedResources).find(a => a > 0) || 0
+            };
+
+            newHistory.tradesExecuted.push(tradeRecord);
+
+            // Track resources gained and lost
+            Object.entries(tradeProposal.requestedResources).forEach(([resource, amount]) => {
+              if (amount > 0) {
+                newHistory.resourcesGained[resource as ResourceType] = (newHistory.resourcesGained[resource as ResourceType] || 0) + amount;
+              }
+            });
+
+            Object.entries(tradeProposal.offeredResources).forEach(([resource, amount]) => {
+              if (amount > 0) {
+                newHistory.resourcesLost[resource as ResourceType] = (newHistory.resourcesLost[resource as ResourceType] || 0) + amount;
+              }
+            });
+
+            // Preserve the target building goal if available
+            if (tradeProposal.targetBuilding) {
+              const goals = identifyTradeGoals(proposingPlayer, gameState, gameState.gameSettings.boardSize as BoardSize);
+              const matchingGoal = goals.find(g => g.targetBuilding === tradeProposal.targetBuilding);
+              if (matchingGoal) {
+                newHistory.targetGoal = matchingGoal;
+              }
+            }
+
+            return newHistory;
+          });
+        }
+
         setGameState(prev => {
           const newPlayers = prev.players.map(p => {
             if (p.id === proposingPlayer.id) {
@@ -5597,13 +5640,17 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             return p;
           });
 
+          // Update committed building goal if this was from an AI proposer
+          const newTurnState = { ...prev.turnState, tradeProposal: undefined };
+          if (tradeProposal.targetBuilding && proposingPlayer.id === prev.currentPlayer) {
+            newTurnState.committedBuildingGoal = tradeProposal.targetBuilding;
+            newTurnState.tradeIterationsForGoal = (prev.turnState.tradeIterationsForGoal || 0) + 1;
+          }
+
           return {
             ...prev,
             players: newPlayers,
-            turnState: {
-              ...prev.turnState,
-              tradeProposal: undefined
-            }
+            turnState: newTurnState
           };
         });
       } else {
@@ -5675,6 +5722,51 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
   const handleHumanAcceptAITrade = useCallback(() => {
     let logMessage: string | null = null;
 
+    // First, update trade history if the proposing player is the current player
+    const tradeProposal = gameState.turnState.tradeProposal;
+    if (tradeProposal) {
+      const proposingPlayer = gameState.players.find(p => p.id === tradeProposal.proposingPlayerId);
+      if (proposingPlayer && proposingPlayer.id === gameState.currentPlayer) {
+        setTurnTradeHistory(prev => {
+          const newHistory = { ...prev };
+
+          // Record the trade details
+          const tradeRecord = {
+            offering: Object.keys(tradeProposal.offeredResources).find(r => tradeProposal.offeredResources[r] > 0) as ResourceType,
+            offeringAmount: Object.values(tradeProposal.offeredResources).find(a => a > 0) || 0,
+            requesting: Object.keys(tradeProposal.requestedResources).find(r => tradeProposal.requestedResources[r] > 0) as ResourceType,
+            requestingAmount: Object.values(tradeProposal.requestedResources).find(a => a > 0) || 0
+          };
+
+          newHistory.tradesExecuted.push(tradeRecord);
+
+          // Track resources gained and lost
+          Object.entries(tradeProposal.requestedResources).forEach(([resource, amount]) => {
+            if (amount > 0) {
+              newHistory.resourcesGained[resource as ResourceType] = (newHistory.resourcesGained[resource as ResourceType] || 0) + amount;
+            }
+          });
+
+          Object.entries(tradeProposal.offeredResources).forEach(([resource, amount]) => {
+            if (amount > 0) {
+              newHistory.resourcesLost[resource as ResourceType] = (newHistory.resourcesLost[resource as ResourceType] || 0) + amount;
+            }
+          });
+
+          // Preserve the target building goal if available
+          if (tradeProposal.targetBuilding) {
+            const goals = identifyTradeGoals(proposingPlayer, gameState, gameState.gameSettings.boardSize as BoardSize);
+            const matchingGoal = goals.find(g => g.targetBuilding === tradeProposal.targetBuilding);
+            if (matchingGoal) {
+              newHistory.targetGoal = matchingGoal;
+            }
+          }
+
+          return newHistory;
+        });
+      }
+    }
+
     setGameState(prev => {
       const tradeProposal = prev.turnState.tradeProposal;
       if (!tradeProposal) return prev;
@@ -5733,13 +5825,17 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const acceptingColor = getPlayerColorStyle(humanPlayer.color);
       logMessage = `<span style="color: ${proposingColor}; font-weight: bold;">${proposingPlayer.name}</span> traded ${offeredList} with <span style="color: ${acceptingColor}; font-weight: bold;">${humanPlayer.name}</span> for ${requestedList}`;
 
+      // Update committed building goal if this was from an AI proposer
+      const newTurnState = { ...prev.turnState, tradeProposal: undefined };
+      if (tradeProposal.targetBuilding && proposingPlayer.id === prev.currentPlayer) {
+        newTurnState.committedBuildingGoal = tradeProposal.targetBuilding;
+        newTurnState.tradeIterationsForGoal = (prev.turnState.tradeIterationsForGoal || 0) + 1;
+      }
+
       return {
         ...prev,
         players: newPlayers,
-        turnState: {
-          ...prev.turnState,
-          tradeProposal: undefined
-        }
+        turnState: newTurnState
       };
     });
 
@@ -5747,7 +5843,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     if (logMessage) {
       setTimeout(() => addToLog(logMessage), 100);
     }
-  }, [getPlayerColorStyle, addToLog]);
+  }, [gameState, getPlayerColorStyle, addToLog]);
 
   const handleHumanRejectAITrade = useCallback(() => {
     setGameState(prev => {

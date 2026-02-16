@@ -97,12 +97,29 @@ export function evaluateTradeOpportunity(
     return { shouldTrade: false, tradeType: 'bank', reasoning: 'No viable building placements available' };
   }
 
-  // Use locked-in goal from history if available and still viable, otherwise use top viable goal
+  // Determine the active goal with priority order:
+  // 1. Committed goal from turnState (highest priority - locked in from previous successful trade)
+  // 2. Target goal from trade history (locked in from current trading session)
+  // 3. Top viable goal from fresh evaluation
   let activeGoal = tradeHistory?.targetGoal;
-  if (activeGoal && !viableGoals.find(g => g.targetBuilding === activeGoal!.targetBuilding)) {
-    console.log(`   ⚠️ Previous goal (${activeGoal.targetBuilding}) no longer viable - selecting new goal`);
-    activeGoal = viableGoals[0];
-  } else if (!activeGoal) {
+
+  // Check if there's a committed building goal from a previous successful trade
+  const committedGoal = gameState.turnState.committedBuildingGoal;
+  if (committedGoal) {
+    const committedGoalData = viableGoals.find(g => g.targetBuilding === committedGoal);
+    if (committedGoalData) {
+      activeGoal = committedGoalData;
+      console.log(`   🔒 Using committed goal from successful trade: ${committedGoal}`);
+    } else {
+      console.log(`   ⚠️ Committed goal (${committedGoal}) no longer viable - clearing commitment`);
+    }
+  }
+
+  // Fall back to history goal or top viable goal
+  if (!activeGoal || !viableGoals.find(g => g.targetBuilding === activeGoal!.targetBuilding)) {
+    if (activeGoal) {
+      console.log(`   ⚠️ Previous goal (${activeGoal.targetBuilding}) no longer viable - selecting new goal`);
+    }
     activeGoal = viableGoals[0];
   }
 

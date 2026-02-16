@@ -402,6 +402,27 @@ export function shouldContinueTurn(
   // Vary trade action limits by difficulty: easy=2, normal=3, hard=4
   const maxTradeActions = difficulty === 'hard' ? 4 : difficulty === 'normal' ? 3 : 2;
 
+  // Check if there's a committed building goal from successful trades
+  const committedGoal = gameState.turnState.committedBuildingGoal;
+  const tradeIterations = gameState.turnState.tradeIterationsForGoal || 0;
+
+  if (committedGoal && tradeIterations > 0) {
+    console.log(`   📍 Committed to building: ${committedGoal} (${tradeIterations} trades executed)`);
+
+    // If we have a committed goal, allow more trade attempts
+    const maxCommittedTradeIterations = difficulty === 'hard' ? 5 : difficulty === 'normal' ? 4 : 3;
+
+    if (tradeIterations >= maxCommittedTradeIterations) {
+      console.log(`   ✗ Max committed goal trade iterations reached (${maxCommittedTradeIterations})`);
+    } else {
+      const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize, tradeHistory);
+      if (tradeEval.shouldTrade) {
+        console.log(`   ✓ Continuing trades toward committed goal: ${committedGoal}`);
+        return true;
+      }
+    }
+  }
+
   const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize, tradeHistory);
   if (tradeEval.shouldTrade && actionsTaken < maxTradeActions) {
     // Validate that the trade goal has viable placement
