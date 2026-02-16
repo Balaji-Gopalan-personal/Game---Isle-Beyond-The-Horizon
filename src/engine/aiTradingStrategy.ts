@@ -8,6 +8,8 @@ export interface TradeGoal {
   neededResources: Partial<Resources>;
   priority: number;
   hasViablePlacement?: boolean;
+  achievableThisTurn?: boolean;
+  tradeSequenceSteps?: number;
 }
 
 export interface TurnTradeHistory {
@@ -89,11 +91,33 @@ export function evaluateTradeOpportunity(
 
   const goals = identifyTradeGoals(player, gameState, boardSize);
 
-  // Filter out goals with no viable placement
-  const viableGoals = goals.filter(g => g.hasViablePlacement !== false);
+  // Filter goals: must have viable placement AND be achievable this turn (if requiring trades)
+  const viableGoals = goals.filter(g => {
+    if (g.hasViablePlacement === false) return false;
+
+    // If already can afford (no needs), always include
+    if (Object.keys(g.neededResources).length === 0) return true;
+
+    // If needs trades, must be marked as achievable
+    return g.achievableThisTurn !== false;
+  });
+
+  // Separate into achievable and unachievable for better logging
+  const achievableGoals = goals.filter(g =>
+    g.hasViablePlacement !== false && g.achievableThisTurn !== false
+  );
+  const unachievableGoals = goals.filter(g =>
+    g.hasViablePlacement !== false && g.achievableThisTurn === false
+  );
 
   if (viableGoals.length === 0) {
-    console.log(`   ✗ No viable trade goals (all buildings have no valid placement locations)`);
+    console.log(`   ✗ No viable trade goals (all buildings have no valid placement locations or are unachievable this turn)`);
+    if (unachievableGoals.length > 0) {
+      console.log(`   ℹ️ ${unachievableGoals.length} goals exist but are not achievable this turn`);
+      unachievableGoals.forEach(g => {
+        console.log(`      - ${g.targetBuilding}: needs ${Object.entries(g.neededResources).map(([r, amt]) => `${amt} ${r}`).join(', ')}`);
+      });
+    }
     return { shouldTrade: false, tradeType: 'bank', reasoning: 'No viable building placements available' };
   }
 
@@ -123,15 +147,18 @@ export function evaluateTradeOpportunity(
     activeGoal = viableGoals[0];
   }
 
-  console.log(`   📊 Identified ${goals.length} possible trade goals (${viableGoals.length} viable):`);
+  console.log(`   📊 Identified ${goals.length} possible trade goals (${achievableGoals.length} achievable, ${viableGoals.length} viable):`);
   goals.forEach((goal, idx) => {
     const neededList = Object.entries(goal.neededResources).map(([r, amt]) => `${amt} ${r}`).join(', ');
     const neededCount = Object.keys(goal.neededResources).length;
     const viableMarker = goal.hasViablePlacement === false ? ' ⚠️ NO VIABLE PLACEMENT' : '';
+    const achievableMarker = goal.achievableThisTurn === false ? ' ⚠️ NOT ACHIEVABLE THIS TURN' : goal.achievableThisTurn === true ? ' ✓ ACHIEVABLE' : '';
+    const stepsInfo = goal.tradeSequenceSteps !== undefined ? ` (${goal.tradeSequenceSteps} steps)` : '';
+
     if (neededCount === 0) {
-      console.log(`   ${idx + 1}. ${goal.targetBuilding} (priority ${goal.priority}) - Can afford now, considering post-build trades${viableMarker}`);
+      console.log(`   ${idx + 1}. ${goal.targetBuilding} (priority ${goal.priority}) - Can afford now${achievableMarker}${viableMarker}`);
     } else {
-      console.log(`   ${idx + 1}. ${goal.targetBuilding} (priority ${goal.priority}) - Needs: ${neededList}${viableMarker}`);
+      console.log(`   ${idx + 1}. ${goal.targetBuilding} (priority ${goal.priority}) - Needs: ${neededList}${stepsInfo}${achievableMarker}${viableMarker}`);
     }
   });
 
@@ -334,6 +361,29 @@ export function identifyTradeGoals(player: Player, gameState: GameState, boardSi
       hasViablePlacement: hasDevCardsAvailable
     });
   }
+
+  // Run trade sequence simulations for each goal to determine achievability
+  goals.forEach(goal => {
+    if (Object.keys(goal.neededResources).length === 0) {
+      // Already can afford - definitely achievable
+      goal.achievableThisTurn = true;
+      goal.tradeSequenceSteps = 0;
+    } else {
+      const simulation = simulateTradeSequencesToGoal(player, gameState, goal, 4);
+      goal.achievableThisTurn = simulation.canComplete;
+      goal.tradeSequenceSteps = simulation.totalSteps;
+
+      // Adjust priority based on achievability
+      if (!goal.achievableThisTurn && goal.priority > 5) {
+        console.log(`   ⚠️ ${goal.targetBuilding} not achievable this turn - reducing priority from ${goal.priority} to 3`);
+        goal.priority = 3; // Drastically reduce priority for unachievable goals
+      } else if (goal.achievableThisTurn && goal.tradeSequenceSteps! <= 2) {
+        // Boost priority for easily achievable goals
+        goal.priority += 2;
+        console.log(`   ✓ ${goal.targetBuilding} achievable in ${goal.tradeSequenceSteps} steps - boosting priority to ${goal.priority}`);
+      }
+    }
+  });
 
   goals.sort((a, b) => b.priority - a.priority);
   return goals;
@@ -738,6 +788,12 @@ function findBestBankTrade(
     return null;
   }
 
+  // CRITICAL: Check if goal is achievable this turn
+  if (goal.achievableThisTurn === false) {
+    console.log(`   ⚠️ Goal ${goal.targetBuilding} is NOT achievable this turn - skipping bank trades for this goal`);
+    return null;
+  }
+
   let bestTrade: TradeEvaluation | null = null;
   let bestTradeScore = -Infinity;
   let completingTrade: TradeEvaluation | null = null;  // Track if a trade would complete the goal
@@ -884,6 +940,42 @@ function findBestBankTrade(
 
   if (bestTrade) {
     console.log(`      ✓ Best bank trade: ${bestTrade.offeringAmount}x ${bestTrade.offering} → ${bestTrade.requestingAmount}x ${bestTrade.requesting} (score: ${bestTradeScore.toFixed(1)})`);
+
+    // VALIDATION: Check if this trade is part of a viable path to the goal
+    const simulatedResources: Resources = {
+      clay: player.resources.clay,
+      lumber: player.resources.lumber,
+      grain: player.resources.grain,
+      fabric: player.resources.fabric,
+      mineral: player.resources.mineral,
+      total: 0
+    };
+    simulatedResources[bestTrade.offering!] -= bestTrade.offeringAmount!;
+    simulatedResources[bestTrade.requesting!] += bestTrade.requestingAmount!;
+    simulatedResources.total = simulatedResources.clay + simulatedResources.lumber +
+                               simulatedResources.grain + simulatedResources.fabric + simulatedResources.mineral;
+
+    // Check if we can afford the goal after this trade
+    const canAffordAfterTrade = checkIfCanAffordGoal(simulatedResources, goal.targetBuilding);
+
+    if (!canAffordAfterTrade) {
+      // Trade doesn't complete goal - verify we can continue trading
+      const updatedGoal = {
+        ...goal,
+        neededResources: calculateResourceNeeds(simulatedResources, getRequiredResourcesForBuilding(goal.targetBuilding))
+      };
+
+      const remainingSurplus = getSurplusResourcesForSimulation(simulatedResources, updatedGoal);
+      const stillNeedsResources = Object.keys(updatedGoal.neededResources).length > 0;
+
+      if (stillNeedsResources && remainingSurplus.length === 0) {
+        console.log(`      ⚠️ WARNING: Trade would leave no surplus resources to continue toward ${goal.targetBuilding}`);
+        console.log(`         After trade: ${formatResources(simulatedResources)}`);
+        console.log(`         Still need: ${Object.entries(updatedGoal.neededResources).map(([r, amt]) => `${amt} ${r}`).join(', ')}`);
+        console.log(`         ✗ REJECTING trade - would create dead-end situation`);
+        return null; // Don't execute trades that create dead-end situations
+      }
+    }
   }
 
   return bestTrade;
@@ -902,6 +994,226 @@ function checkIfCanAffordGoal(resources: Resources, buildingType: 'village' | 'e
     default:
       return false;
   }
+}
+
+function getRequiredResourcesForBuilding(buildingType: 'village' | 'estate' | 'road' | 'dev_card'): Resources {
+  switch (buildingType) {
+    case 'village':
+      return { clay: 1, lumber: 1, grain: 1, fabric: 1, mineral: 0, total: 4 };
+    case 'estate':
+      return { clay: 0, lumber: 0, grain: 2, fabric: 0, mineral: 3, total: 5 };
+    case 'road':
+      return { clay: 1, lumber: 1, grain: 0, fabric: 0, mineral: 0, total: 2 };
+    case 'dev_card':
+      return { clay: 0, lumber: 0, grain: 1, fabric: 1, mineral: 1, total: 3 };
+  }
+}
+
+interface TradeSequenceStep {
+  offering: ResourceType;
+  offeringAmount: number;
+  requesting: ResourceType;
+  requestingAmount: number;
+  tradeRate: number;
+  resultingResources: Resources;
+}
+
+interface TradeSequenceSimulation {
+  canComplete: boolean;
+  steps: TradeSequenceStep[];
+  totalSteps: number;
+  reasoning: string;
+}
+
+function simulateTradeSequencesToGoal(
+  player: Player,
+  gameState: GameState,
+  goal: TradeGoal,
+  maxSteps: number = 4
+): TradeSequenceSimulation {
+  const startingResources = { ...player.resources };
+  const targetBuilding = goal.targetBuilding;
+
+  console.log(`   🔮 Simulating trade sequences for ${targetBuilding}...`);
+  console.log(`      Starting resources: ${formatResources(startingResources)}`);
+
+  if (checkIfCanAffordGoal(startingResources, targetBuilding)) {
+    console.log(`      ✓ Can already afford goal - no trades needed`);
+    return {
+      canComplete: true,
+      steps: [],
+      totalSteps: 0,
+      reasoning: 'Already can afford goal'
+    };
+  }
+
+  const neededResources = Object.keys(goal.neededResources) as ResourceType[];
+  if (neededResources.length === 0) {
+    return {
+      canComplete: true,
+      steps: [],
+      totalSteps: 0,
+      reasoning: 'No resources needed'
+    };
+  }
+
+  const sequence = findViableTradeSequence(
+    startingResources,
+    goal,
+    player,
+    gameState,
+    maxSteps
+  );
+
+  if (sequence.canComplete) {
+    console.log(`      ✓ Found viable sequence with ${sequence.totalSteps} steps`);
+    sequence.steps.forEach((step, idx) => {
+      console.log(`         ${idx + 1}. Trade ${step.offeringAmount}x ${step.offering} → ${step.requestingAmount}x ${step.requesting} (${step.tradeRate}:1)`);
+    });
+  } else {
+    console.log(`      ✗ No viable sequence found: ${sequence.reasoning}`);
+  }
+
+  return sequence;
+}
+
+function findViableTradeSequence(
+  startingResources: Resources,
+  goal: TradeGoal,
+  player: Player,
+  gameState: GameState,
+  maxSteps: number
+): TradeSequenceSimulation {
+  const neededResources = Object.keys(goal.neededResources) as ResourceType[];
+  const targetBuilding = goal.targetBuilding;
+
+  let bestSequence: TradeSequenceSimulation = {
+    canComplete: false,
+    steps: [],
+    totalSteps: 0,
+    reasoning: 'No viable sequence found'
+  };
+
+  const queue: Array<{
+    resources: Resources;
+    steps: TradeSequenceStep[];
+    depth: number;
+  }> = [{
+    resources: { ...startingResources },
+    steps: [],
+    depth: 0
+  }];
+
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+
+    if (current.depth > maxSteps) continue;
+
+    const resourceKey = formatResourcesForKey(current.resources);
+    if (visited.has(resourceKey)) continue;
+    visited.add(resourceKey);
+
+    if (checkIfCanAffordGoal(current.resources, targetBuilding)) {
+      return {
+        canComplete: true,
+        steps: current.steps,
+        totalSteps: current.steps.length,
+        reasoning: `Found sequence with ${current.steps.length} trades`
+      };
+    }
+
+    if (current.depth >= maxSteps) continue;
+
+    const surplus = getSurplusResourcesForSimulation(current.resources, goal);
+
+    for (const surplusResource of surplus) {
+      const tradeRate = getBestTradeRateForResource(player.id, surplusResource, gameState);
+
+      if (current.resources[surplusResource] >= tradeRate.rate) {
+        for (const neededResource of neededResources) {
+          const maxMultiplier = Math.min(
+            Math.floor(current.resources[surplusResource] / tradeRate.rate),
+            goal.neededResources[neededResource] || 1,
+            3
+          );
+
+          for (let multiplier = 1; multiplier <= maxMultiplier; multiplier++) {
+            const offeringAmount = tradeRate.rate * multiplier;
+            const requestingAmount = multiplier;
+
+            const newResources: Resources = {
+              clay: current.resources.clay,
+              lumber: current.resources.lumber,
+              grain: current.resources.grain,
+              fabric: current.resources.fabric,
+              mineral: current.resources.mineral,
+              total: 0
+            };
+
+            newResources[surplusResource] -= offeringAmount;
+            newResources[neededResource] += requestingAmount;
+            newResources.total = newResources.clay + newResources.lumber +
+                                 newResources.grain + newResources.fabric + newResources.mineral;
+
+            if (newResources[surplusResource] < 0) continue;
+
+            const newStep: TradeSequenceStep = {
+              offering: surplusResource,
+              offeringAmount,
+              requesting: neededResource,
+              requestingAmount,
+              tradeRate: tradeRate.rate,
+              resultingResources: newResources
+            };
+
+            queue.push({
+              resources: newResources,
+              steps: [...current.steps, newStep],
+              depth: current.depth + 1
+            });
+          }
+        }
+      }
+    }
+  }
+
+  if (queue.length === 0 && visited.size > 0) {
+    const totalAvailable = startingResources.clay + startingResources.lumber +
+                          startingResources.grain + startingResources.fabric + startingResources.mineral;
+    return {
+      canComplete: false,
+      steps: [],
+      totalSteps: 0,
+      reasoning: `Insufficient tradeable resources (have ${totalAvailable}, need path to ${targetBuilding})`
+    };
+  }
+
+  return bestSequence;
+}
+
+function getSurplusResourcesForSimulation(resources: Resources, goal: TradeGoal): ResourceType[] {
+  const surplus: ResourceType[] = [];
+
+  (['clay', 'lumber', 'grain', 'fabric', 'mineral'] as ResourceType[]).forEach(resource => {
+    const needed = goal.neededResources[resource] || 0;
+    const current = resources[resource];
+
+    if (current > needed && current >= 1) {
+      surplus.push(resource);
+    }
+  });
+
+  return surplus;
+}
+
+function formatResources(resources: Resources): string {
+  return `C:${resources.clay} L:${resources.lumber} Gr:${resources.grain} F:${resources.fabric} M:${resources.mineral}`;
+}
+
+function formatResourcesForKey(resources: Resources): string {
+  return `${resources.clay}-${resources.lumber}-${resources.grain}-${resources.fabric}-${resources.mineral}`;
 }
 
 function getSurplusResources(resources: Resources, goal?: TradeGoal): ResourceType[] {

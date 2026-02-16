@@ -421,11 +421,49 @@ export function shouldContinueTurn(
 
     if (tradeIterations >= maxCommittedTradeIterations) {
       console.log(`   ✗ Max committed goal trade iterations reached (${maxCommittedTradeIterations})`);
+      // Clear the committed goal - it's not achievable
+      console.log(`   🔄 CLEARING unachievable committed goal: ${committedGoal}`);
+      gameState.turnState.committedBuildingGoal = undefined;
+      gameState.turnState.tradeIterationsForGoal = 0;
     } else {
       const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize, tradeHistory);
       if (tradeEval.shouldTrade) {
         console.log(`   ✓ Continuing trades toward committed goal: ${committedGoal}`);
         return true;
+      } else {
+        // No more trades available for this goal - check if goal is still achievable
+        console.log(`   ⚠️ No more trades available for committed goal ${committedGoal}`);
+        console.log(`   🔄 CLEARING unachievable committed goal and looking for alternatives`);
+        gameState.turnState.committedBuildingGoal = undefined;
+        gameState.turnState.tradeIterationsForGoal = 0;
+
+        // Try to find a new achievable goal
+        const goals = identifyTradeGoals(player, gameState, boardSize);
+        const achievableGoals = goals.filter(g =>
+          g.hasViablePlacement !== false &&
+          g.achievableThisTurn === true
+        );
+
+        if (achievableGoals.length > 0) {
+          console.log(`   ✓ Found ${achievableGoals.length} achievable alternative goals:`);
+          achievableGoals.forEach((g, idx) => {
+            console.log(`      ${idx + 1}. ${g.targetBuilding} (${g.tradeSequenceSteps} steps, priority ${g.priority})`);
+          });
+
+          // Check if we can build something immediately
+          const canBuildNow = achievableGoals.find(g => Object.keys(g.neededResources).length === 0);
+          if (canBuildNow) {
+            console.log(`   ✓ Can build ${canBuildNow.targetBuilding} immediately!`);
+            return true;
+          }
+
+          // Otherwise try to trade toward the new goal
+          const newTradeEval = evaluateTradeOpportunity(player, gameState, boardSize, tradeHistory);
+          if (newTradeEval.shouldTrade) {
+            console.log(`   ✓ Switching to new achievable goal: ${newTradeEval.reasoning}`);
+            return true;
+          }
+        }
       }
     }
   }
