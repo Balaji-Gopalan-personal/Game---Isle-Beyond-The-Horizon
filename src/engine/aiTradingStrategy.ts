@@ -70,6 +70,14 @@ export function evaluateTradeOpportunity(
     console.log(`   📉 Failed P2P attempts this turn: ${failedAttempts} (frustration level: ${frustrationLevel})`);
   }
 
+  // Calculate trade budget for this turn
+  const tradesExecutedCount = tradeHistory?.tradesExecuted.length || 0;
+  const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
+  const maxTradesAllowed = expertNegotiatorActive ? 4 : (pointsAway <= 2 ? 5 : 3);
+  const remainingTradeBudget = maxTradesAllowed - tradesExecutedCount;
+
+  console.log(`   💰 Trade budget: ${tradesExecutedCount}/${maxTradesAllowed} trades used (${remainingTradeBudget} remaining)`);
+
   // If we have a trade history, validate we should continue trading
   if (tradeHistory && tradeHistory.tradesExecuted.length > 0) {
     console.log(`   📊 Analyzing ${tradeHistory.tradesExecuted.length} previous trades this turn`);
@@ -81,15 +89,13 @@ export function evaluateTradeOpportunity(
     }
 
     // Limit total trades per turn (unless close to winning)
-    const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
-    const maxTrades = expertNegotiatorActive ? 4 : (pointsAway <= 2 ? 5 : 3);
-    if (tradeHistory.tradesExecuted.length >= maxTrades) {
-      console.log(`   ✗ Max trades reached (${maxTrades}) for this turn`);
+    if (tradesExecutedCount >= maxTradesAllowed) {
+      console.log(`   ✗ Max trades reached (${maxTradesAllowed}) for this turn`);
       return { shouldTrade: false, tradeType: 'bank', reasoning: 'Max trades per turn reached' };
     }
   }
 
-  const goals = identifyTradeGoals(player, gameState, boardSize);
+  const goals = identifyTradeGoals(player, gameState, boardSize, remainingTradeBudget);
 
   // Filter goals: must have viable placement AND be achievable this turn (if requiring trades)
   const viableGoals = goals.filter(g => {
@@ -171,7 +177,7 @@ export function evaluateTradeOpportunity(
   // Determine if we should prefer bank trades based on multiple factors
   const totalResources = player.resources.total;
   const hasAbundantResources = totalResources >= 7;
-  const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
+  // pointsAway already calculated above for trade budget
   const isCloseToWinning = pointsAway <= 2;
   const difficulty = player.difficulty || 'normal';
 
@@ -195,7 +201,7 @@ export function evaluateTradeOpportunity(
   }
 
   // Evaluate both bank and P2P trades, then choose the best option
-  const bestBankTrade = findBestBankTrade(player, gameState, activeGoal, tradeHistory, frustrationLevel);
+  const bestBankTrade = findBestBankTrade(player, gameState, activeGoal, tradeHistory, frustrationLevel, remainingTradeBudget);
   const bestPlayerTrade = findBestPlayerTrade(player, gameState, activeGoal, tradeHistory);
 
   const wouldCycle = (trade: TradeEvaluation | null): boolean => {
@@ -227,7 +233,12 @@ export function evaluateTradeOpportunity(
   return { shouldTrade: false, tradeType: 'bank', reasoning: 'No beneficial trades available' };
 }
 
-export function identifyTradeGoals(player: Player, gameState: GameState, boardSize: BoardSize): TradeGoal[] {
+export function identifyTradeGoals(
+  player: Player,
+  gameState: GameState,
+  boardSize: BoardSize,
+  remainingTradeBudget: number = 4
+): TradeGoal[] {
   const goals: TradeGoal[] = [];
 
   const pointsToWin = gameState.gameSettings.pointsToWin;
@@ -363,24 +374,35 @@ export function identifyTradeGoals(player: Player, gameState: GameState, boardSi
   }
 
   // Run trade sequence simulations for each goal to determine achievability
+  // CRITICAL: Use remaining trade budget to ensure goals are actually achievable this turn
   goals.forEach(goal => {
     if (Object.keys(goal.neededResources).length === 0) {
       // Already can afford - definitely achievable
       goal.achievableThisTurn = true;
       goal.tradeSequenceSteps = 0;
     } else {
-      const simulation = simulateTradeSequencesToGoal(player, gameState, goal, 4);
+      // Use remaining trade budget as max steps - can't exceed this!
+      const simulation = simulateTradeSequencesToGoal(player, gameState, goal, remainingTradeBudget);
       goal.achievableThisTurn = simulation.canComplete;
       goal.tradeSequenceSteps = simulation.totalSteps;
 
+      // CRITICAL: Even if simulation says "achievable", verify it's within budget
+      if (goal.achievableThisTurn && goal.tradeSequenceSteps! > remainingTradeBudget) {
+        console.log(`   ⚠️ ${goal.targetBuilding} needs ${goal.tradeSequenceSteps} trades but only ${remainingTradeBudget} remaining - marking UNACHIEVABLE`);
+        goal.achievableThisTurn = false;
+      }
+
       // Adjust priority based on achievability
       if (!goal.achievableThisTurn && goal.priority > 5) {
-        console.log(`   ⚠️ ${goal.targetBuilding} not achievable this turn - reducing priority from ${goal.priority} to 3`);
+        const budgetInfo = goal.tradeSequenceSteps! > remainingTradeBudget
+          ? ` (needs ${goal.tradeSequenceSteps} trades, only ${remainingTradeBudget} remaining)`
+          : '';
+        console.log(`   ⚠️ ${goal.targetBuilding} not achievable this turn${budgetInfo} - reducing priority from ${goal.priority} to 3`);
         goal.priority = 3; // Drastically reduce priority for unachievable goals
       } else if (goal.achievableThisTurn && goal.tradeSequenceSteps! <= 2) {
         // Boost priority for easily achievable goals
         goal.priority += 2;
-        console.log(`   ✓ ${goal.targetBuilding} achievable in ${goal.tradeSequenceSteps} steps - boosting priority to ${goal.priority}`);
+        console.log(`   ✓ ${goal.targetBuilding} achievable in ${goal.tradeSequenceSteps} steps (${remainingTradeBudget} budget) - boosting priority to ${goal.priority}`);
       }
     }
   });
@@ -779,7 +801,8 @@ function findBestBankTrade(
   gameState: GameState,
   goal: TradeGoal,
   tradeHistory?: TurnTradeHistory,
-  frustrationLevel: number = 0
+  frustrationLevel: number = 0,
+  remainingTradeBudget: number = 4
 ): TradeEvaluation | null {
   const neededResources = Object.keys(goal.neededResources) as ResourceType[];
   const surplus = getSurplusResources(player.resources, goal);
@@ -791,6 +814,12 @@ function findBestBankTrade(
   // CRITICAL: Check if goal is achievable this turn
   if (goal.achievableThisTurn === false) {
     console.log(`   ⚠️ Goal ${goal.targetBuilding} is NOT achievable this turn - skipping bank trades for this goal`);
+    return null;
+  }
+
+  // CRITICAL: Check if we have ANY trade budget remaining
+  if (remainingTradeBudget <= 0) {
+    console.log(`   ⚠️ No trade budget remaining (0/${remainingTradeBudget}) - cannot execute any more trades this turn`);
     return null;
   }
 
@@ -959,7 +988,7 @@ function findBestBankTrade(
     const canAffordAfterTrade = checkIfCanAffordGoal(simulatedResources, goal.targetBuilding);
 
     if (!canAffordAfterTrade) {
-      // Trade doesn't complete goal - verify we can continue trading
+      // Trade doesn't complete goal - verify we can continue trading WITHIN REMAINING BUDGET
       const updatedGoal = {
         ...goal,
         neededResources: calculateResourceNeeds(simulatedResources, getRequiredResourcesForBuilding(goal.targetBuilding))
@@ -975,6 +1004,34 @@ function findBestBankTrade(
         console.log(`         ✗ REJECTING trade - would create dead-end situation`);
         return null; // Don't execute trades that create dead-end situations
       }
+
+      // CRITICAL: Check if we have enough trade budget remaining to complete the goal
+      const tradesUsedAfterThis = 1; // This trade will use 1 slot
+      const budgetAfterThis = remainingTradeBudget - tradesUsedAfterThis;
+
+      if (budgetAfterThis > 0) {
+        // Check if we can still complete the goal with remaining budget
+        const simulatedPlayer = { ...player, resources: simulatedResources };
+        const postTradeSimulation = simulateTradeSequencesToGoal(simulatedPlayer, gameState, updatedGoal, budgetAfterThis);
+
+        if (!postTradeSimulation.canComplete) {
+          console.log(`      ⚠️ WARNING: Trade would NOT lead to goal completion within remaining budget`);
+          console.log(`         Budget after this trade: ${budgetAfterThis} trades`);
+          console.log(`         Still need: ${Object.entries(updatedGoal.neededResources).map(([r, amt]) => `${amt} ${r}`).join(', ')}`);
+          console.log(`         Simulation result: ${postTradeSimulation.reasoning}`);
+          console.log(`         ✗ REJECTING trade - insufficient budget to complete goal (would waste resources)`);
+          return null; // Don't execute trades that can't complete the goal within budget
+        } else {
+          console.log(`      ✓ Verified: Goal can be completed in ${postTradeSimulation.totalSteps} more trades (budget: ${budgetAfterThis})`);
+        }
+      } else {
+        // No budget remaining after this trade - it MUST complete the goal
+        console.log(`      ⚠️ This is the LAST trade allowed this turn - must complete goal or reject`);
+        console.log(`         ✗ REJECTING trade - would use last trade but not complete goal`);
+        return null;
+      }
+    } else {
+      console.log(`      ✓ Trade COMPLETES the goal ${goal.targetBuilding}!`);
     }
   }
 
@@ -1454,7 +1511,13 @@ export function shouldInitiatePlayerTrade(
     return false;
   }
 
-  const goals = identifyTradeGoals(player, gameState, boardSize);
+  // Calculate remaining trade budget
+  const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
+  const expertNegotiatorActive = gameState.turnState.expertNegotiatorActive;
+  const maxTrades = expertNegotiatorActive ? 4 : (pointsAway <= 2 ? 5 : 3);
+  const remainingBudget = maxTrades - attemptsThisTurn;
+
+  const goals = identifyTradeGoals(player, gameState, boardSize, remainingBudget);
   if (goals.length === 0) {
     console.log(`   ✗ No trade goals, won't initiate trade`);
     return false;

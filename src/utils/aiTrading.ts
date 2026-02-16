@@ -192,7 +192,14 @@ export function generatePlayerTradeProposal(
   boardSize: BoardSize,
   failedProposalsThisTurn: Set<string>
 ): { offeredResources: any; requestedResources: any; targetBuilding: 'village' | 'estate' | 'road' | 'dev_card' } | null {
-  const goals = identifyTradeGoals(player, gameState, boardSize);
+  // Calculate remaining trade budget for goal evaluation
+  const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
+  const expertNegotiatorActive = gameState.turnState.expertNegotiatorActive;
+  const maxTradesAllowed = expertNegotiatorActive ? 4 : (pointsAway <= 2 ? 5 : 3);
+  const tradesExecutedCount = failedProposalsThisTurn.size; // Rough estimate
+  const remainingTradeBudget = Math.max(1, maxTradesAllowed - tradesExecutedCount);
+
+  const goals = identifyTradeGoals(player, gameState, boardSize, remainingTradeBudget);
 
   if (goals.length === 0) {
     console.log(`   ✗ No trade goals for player trade proposal`);

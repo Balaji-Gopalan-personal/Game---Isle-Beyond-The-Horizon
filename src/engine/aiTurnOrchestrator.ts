@@ -229,7 +229,12 @@ function getResourcesNeeded(player: Player, buildingType: 'road' | 'village' | '
 function evaluateExpertNegotiatorTrade(player: Player, gameState: GameState, boardSize: BoardSize): TradeEvaluation {
   console.log(`   🔍 Searching for any 2:1 Expert Negotiator trade opportunity...`);
 
-  const goals = identifyTradeGoals(player, gameState, boardSize);
+  // Expert Negotiator gives us 4 trades budget, calculate remaining
+  const maxTrades = 4;
+  const tradesExecuted = (gameState.turnState as any).tradeIterationsForGoal || 0;
+  const remainingBudget = maxTrades - tradesExecuted;
+
+  const goals = identifyTradeGoals(player, gameState, boardSize, remainingBudget);
   if (goals.length === 0) {
     return { shouldTrade: false, tradeType: 'bank' };
   }
@@ -437,8 +442,15 @@ export function shouldContinueTurn(
         gameState.turnState.committedBuildingGoal = undefined;
         gameState.turnState.tradeIterationsForGoal = 0;
 
+        // Calculate remaining trade budget for alternative goals
+        const tradesExecutedCount = tradeHistory?.tradesExecuted.length || 0;
+        const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
+        const expertNegotiatorActive = gameState.turnState.expertNegotiatorActive;
+        const maxTradesAllowed = expertNegotiatorActive ? 4 : (pointsAway <= 2 ? 5 : 3);
+        const remainingTradeBudget = maxTradesAllowed - tradesExecutedCount;
+
         // Try to find a new achievable goal
-        const goals = identifyTradeGoals(player, gameState, boardSize);
+        const goals = identifyTradeGoals(player, gameState, boardSize, remainingTradeBudget);
         const achievableGoals = goals.filter(g =>
           g.hasViablePlacement !== false &&
           g.achievableThisTurn === true
@@ -470,8 +482,15 @@ export function shouldContinueTurn(
 
   const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize, tradeHistory);
   if (tradeEval.shouldTrade && actionsTaken < maxTradeActions) {
+    // Calculate remaining trade budget
+    const tradesExecutedCount = tradeHistory?.tradesExecuted.length || 0;
+    const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
+    const expertNegotiatorActive = gameState.turnState.expertNegotiatorActive;
+    const maxTradesAllowed = expertNegotiatorActive ? 4 : (pointsAway <= 2 ? 5 : 3);
+    const remainingTradeBudget = maxTradesAllowed - tradesExecutedCount;
+
     // Validate that the trade goal has viable placement
-    const goals = identifyTradeGoals(player, gameState, boardSize);
+    const goals = identifyTradeGoals(player, gameState, boardSize, remainingTradeBudget);
     const viableGoals = goals.filter(g => g.hasViablePlacement !== false);
 
     if (viableGoals.length > 0) {

@@ -5600,7 +5600,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
             // Preserve the target building goal if available
             if (tradeProposal.targetBuilding) {
-              const goals = identifyTradeGoals(proposingPlayer, gameState, gameState.gameSettings.boardSize as BoardSize);
+              // Use a reasonable default budget for goal identification
+              const goals = identifyTradeGoals(proposingPlayer, gameState, gameState.gameSettings.boardSize as BoardSize, 3);
               const matchingGoal = goals.find(g => g.targetBuilding === tradeProposal.targetBuilding);
               if (matchingGoal) {
                 newHistory.targetGoal = matchingGoal;
@@ -5755,7 +5756,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
           // Preserve the target building goal if available
           if (tradeProposal.targetBuilding) {
-            const goals = identifyTradeGoals(proposingPlayer, gameState, gameState.gameSettings.boardSize as BoardSize);
+            // Use a reasonable default budget for goal identification
+            const goals = identifyTradeGoals(proposingPlayer, gameState, gameState.gameSettings.boardSize as BoardSize, 3);
             const matchingGoal = goals.find(g => g.targetBuilding === tradeProposal.targetBuilding);
             if (matchingGoal) {
               newHistory.targetGoal = matchingGoal;
