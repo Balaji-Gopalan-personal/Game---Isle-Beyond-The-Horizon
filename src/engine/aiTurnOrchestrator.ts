@@ -1,7 +1,7 @@
 import { GameState, Player, Resources } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
 import { shouldPlayDevCardBeforeRoll, shouldPlayDevCardAfterRoll } from './aiDevCardStrategy';
-import { evaluateTradeOpportunity, TradeEvaluation, identifyTradeGoals } from './aiTradingStrategy';
+import { evaluateTradeOpportunity, TradeEvaluation, TurnTradeHistory, identifyTradeGoals } from './aiTradingStrategy';
 import { makeStrategicBuildDecision, canAffordVillage, canAffordEstate, canAffordRoad, canAffordDevelopmentCard } from './aiBuilding';
 import { getBestTradeRateForResource, ResourceType } from '../utils/tradingUtils';
 import { getValidVillagePlacements, getValidRoadPlacements, getPlayerVillages } from './gameplayActions';
@@ -12,16 +12,23 @@ export interface TurnAction {
   data?: any;
 }
 
+export interface GoalUpdate {
+  clearGoal: boolean;
+  reason: string;
+}
+
 export interface TurnPlan {
   actions: TurnAction[];
   reasoning: string;
+  goalUpdate?: GoalUpdate;
 }
 
 export function createTurnPlan(
   player: Player,
   gameState: GameState,
   boardSize: BoardSize,
-  difficulty: 'easy' | 'normal' | 'hard'
+  difficulty: 'easy' | 'normal' | 'hard',
+  tradeHistory?: TurnTradeHistory
 ): TurnPlan {
   const pointsAway = gameState.gameSettings.pointsToWin - (player.score + player.secretPoints);
   console.log(`\n🎯 [${player.name}] CREATING TURN PLAN`);
@@ -29,61 +36,42 @@ export function createTurnPlan(
   console.log(`   Resources: Clay=${player.resources.clay} Lumber=${player.resources.lumber} Grain=${player.resources.grain} Fabric=${player.resources.fabric} Mineral=${player.resources.mineral}`);
 
   const actions: TurnAction[] = [];
+  let goalUpdate: GoalUpdate | undefined;
 
-  // Check for committed goal from previous trade this turn
   const committedGoal = (gameState.turnState as any).committedBuildingGoal;
   const tradeIterations = (gameState.turnState as any).tradeIterationsForGoal || 0;
   if (committedGoal) {
     console.log(`   🔒 Committed goal from previous trade: ${committedGoal} (iteration ${tradeIterations})`);
 
-    // Validate that placement is still viable for this goal
     let hasViablePlacement = true;
     if (committedGoal === 'village') {
-      const validPlacements = getValidVillagePlacements(player.id, gameState, boardSize);
-      hasViablePlacement = validPlacements.length > 0;
-      if (!hasViablePlacement) {
-        console.log(`   ❌ Committed village goal has NO VIABLE PLACEMENTS - clearing goal`);
-        (gameState.turnState as any).committedBuildingGoal = undefined;
-        (gameState.turnState as any).tradeIterationsForGoal = 0;
-      }
+      hasViablePlacement = getValidVillagePlacements(player.id, gameState, boardSize).length > 0;
     } else if (committedGoal === 'road') {
-      const validPlacements = getValidRoadPlacements(player.id, gameState, boardSize);
-      hasViablePlacement = validPlacements.length > 0;
-      if (!hasViablePlacement) {
-        console.log(`   ❌ Committed road goal has NO VIABLE PLACEMENTS - clearing goal`);
-        (gameState.turnState as any).committedBuildingGoal = undefined;
-        (gameState.turnState as any).tradeIterationsForGoal = 0;
-      }
+      hasViablePlacement = getValidRoadPlacements(player.id, gameState, boardSize).length > 0;
     } else if (committedGoal === 'estate') {
-      const upgradableVillages = getPlayerVillages(player.id, gameState);
-      hasViablePlacement = upgradableVillages.length > 0;
-      if (!hasViablePlacement) {
-        console.log(`   ❌ Committed estate goal has NO VIABLE PLACEMENTS - clearing goal`);
-        (gameState.turnState as any).committedBuildingGoal = undefined;
-        (gameState.turnState as any).tradeIterationsForGoal = 0;
-      }
+      hasViablePlacement = getPlayerVillages(player.id, gameState).length > 0;
     } else if (committedGoal === 'dev_card') {
       hasViablePlacement = gameState.developmentCardDeck.length > 0;
-      if (!hasViablePlacement) {
-        console.log(`   ❌ Committed dev_card goal has NO CARDS AVAILABLE - clearing goal`);
-        (gameState.turnState as any).committedBuildingGoal = undefined;
-        (gameState.turnState as any).tradeIterationsForGoal = 0;
-      }
     }
 
-    if (hasViablePlacement) {
-      // Check if we can now afford the committed building
+    if (!hasViablePlacement) {
+      console.log(`   ❌ Committed ${committedGoal} goal has no viable placements - clearing goal`);
+      goalUpdate = { clearGoal: true, reason: `No viable placements for ${committedGoal}` };
+    } else {
       const canAfford = checkCanAffordBuilding(player, committedGoal);
       if (canAfford) {
-        const buildPriority = calculateBuildPriority(player, gameState, committedGoal) + 10; // Increased boost from 5 to 10
-        console.log(`   ✓ Can now afford committed ${committedGoal}! Adding with boosted priority ${buildPriority}`);
+        const buildPriority = 30;
+        console.log(`   ✓ Can now afford committed ${committedGoal}! Adding with priority ${buildPriority} (suppressing trades)`);
         actions.push({
           type: 'build',
           priority: buildPriority,
           data: { buildingType: committedGoal }
         });
+        actions.sort((a, b) => b.priority - a.priority);
+        const actionSummary = actions.map(a => a.type).join(' → ');
+        console.log(`   📋 Final plan (${actions.length} actions): ${actionSummary}`);
+        return { actions, reasoning: `${player.name} committed build: ${actionSummary}`, goalUpdate };
       } else {
-        // Log what resources are still needed
         const resourcesNeeded = getResourcesNeeded(player, committedGoal);
         console.log(`   ⚠️ Still cannot afford committed ${committedGoal}`);
         console.log(`      Still need: ${resourcesNeeded}`);
@@ -103,7 +91,7 @@ export function createTurnPlan(
 
   // If Expert Negotiator is active, force a bank trade with very high priority
   if (gameState.turnState.expertNegotiatorActive) {
-    const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize);
+    const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize, tradeHistory);
     if (tradeEval.shouldTrade && tradeEval.tradeType === 'bank') {
       console.log(`   ⭐ Expert Negotiator active - forcing bank trade (priority 15)`);
       actions.push({
@@ -145,7 +133,7 @@ export function createTurnPlan(
       console.log(`   Simulated resources after ${buildDecision.buildingType}: Clay=${simulatedResources.clay} Lumber=${simulatedResources.lumber} Grain=${simulatedResources.grain} Fabric=${simulatedResources.fabric} Mineral=${simulatedResources.mineral}`);
 
       const simulatedPlayer = { ...player, resources: simulatedResources };
-      const postBuildTradeEval = evaluateTradeOpportunity(simulatedPlayer, gameState, boardSize);
+      const postBuildTradeEval = evaluateTradeOpportunity(simulatedPlayer, gameState, boardSize, tradeHistory);
       if (postBuildTradeEval.shouldTrade) {
         const tradePriority = calculateTradePriority(player, gameState) - 1;
         console.log(`   ✓ Adding post-build ${postBuildTradeEval.tradeType} trade to plan (priority ${tradePriority})`);
@@ -160,7 +148,7 @@ export function createTurnPlan(
   }
 
   if (!buildDecision.shouldBuild || buildDecision.buildingType === 'road') {
-    const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize);
+    const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize, tradeHistory);
     if (tradeEval.shouldTrade) {
       const tradePriority = calculateTradePriority(player, gameState);
       console.log(`   ✓ Adding ${tradeEval.tradeType} trade to plan (priority ${tradePriority})`);
@@ -188,7 +176,8 @@ export function createTurnPlan(
 
   return {
     actions,
-    reasoning: `${player.name} turn plan with ${actions.length} actions: ${actionSummary}`
+    reasoning: `${player.name} turn plan with ${actions.length} actions: ${actionSummary}`,
+    goalUpdate
   };
 }
 
@@ -381,7 +370,8 @@ export function shouldContinueTurn(
   gameState: GameState,
   boardSize: BoardSize,
   actionsTaken: number,
-  difficulty: 'easy' | 'normal' | 'hard'
+  difficulty: 'easy' | 'normal' | 'hard',
+  tradeHistory?: TurnTradeHistory
 ): boolean {
   console.log(`\n🔄 [${player.name}] Checking if should continue turn (${actionsTaken} actions taken)`);
 
@@ -412,7 +402,7 @@ export function shouldContinueTurn(
   // Vary trade action limits by difficulty: easy=2, normal=3, hard=4
   const maxTradeActions = difficulty === 'hard' ? 4 : difficulty === 'normal' ? 3 : 2;
 
-  const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize);
+  const tradeEval = evaluateTradeOpportunity(player, gameState, boardSize, tradeHistory);
   if (tradeEval.shouldTrade && actionsTaken < maxTradeActions) {
     // Validate that the trade goal has viable placement
     const goals = identifyTradeGoals(player, gameState, boardSize);
@@ -431,41 +421,3 @@ export function shouldContinueTurn(
   return false;
 }
 
-export function optimizeActionOrder(
-  actions: TurnAction[],
-  player: Player,
-  gameState: GameState
-): TurnAction[] {
-  const orderedActions: TurnAction[] = [];
-
-  const devCardActions = actions.filter(a => a.type === 'play_dev_card');
-  orderedActions.push(...devCardActions);
-
-  const tradeActions = actions.filter(a => a.type === 'trade_bank' || a.type === 'trade_player');
-
-  const buildActions = actions.filter(a => a.type === 'build');
-
-  const pointsToWin = gameState.gameSettings.pointsToWin;
-  const pointsAway = pointsToWin - (player.score + player.secretPoints);
-
-  if (pointsAway <= 2) {
-    orderedActions.push(...buildActions);
-    orderedActions.push(...tradeActions);
-  } else {
-    orderedActions.push(...tradeActions);
-    orderedActions.push(...buildActions);
-  }
-
-  return orderedActions;
-}
-
-export function evaluateTurnEfficiency(
-  actionsTaken: number,
-  resourcesSpent: number,
-  pointsGained: number
-): number {
-  if (actionsTaken === 0) return 0;
-
-  const efficiency = (pointsGained * 10 + resourcesSpent) / actionsTaken;
-  return efficiency;
-}

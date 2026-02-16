@@ -154,15 +154,18 @@ export function evaluateTradeOpportunity(
   const bestBankTrade = findBestBankTrade(player, gameState, activeGoal, tradeHistory, frustrationLevel);
   const bestPlayerTrade = findBestPlayerTrade(player, gameState, activeGoal, tradeHistory);
 
-  // If we prefer bank trades and have one available, use it
-  if (preferBankTrades && bestBankTrade) {
+  const wouldCycle = (trade: TradeEvaluation | null): boolean => {
+    if (!trade || !trade.offering || !tradeHistory) return false;
+    return isRecentlyAcquired(trade.offering, tradeHistory);
+  };
+
+  if (preferBankTrades && bestBankTrade && !wouldCycle(bestBankTrade)) {
     console.log(`   ✓ Selected BANK trade: ${bestBankTrade.offeringAmount}x ${bestBankTrade.offering} → ${bestBankTrade.requesting}`);
     console.log(`   Reason: ${bestBankTrade.reasoning}`);
     return { ...bestBankTrade, targetBuilding: activeGoal.targetBuilding };
   }
 
-  // Try P2P trade (only if we haven't exhausted attempts)
-  if (bestPlayerTrade && failedAttempts < 3) {
+  if (bestPlayerTrade && failedAttempts < 3 && !wouldCycle(bestPlayerTrade)) {
     console.log(`   ✓ Selected P2P trade: ${bestPlayerTrade.offeringAmount}x ${bestPlayerTrade.offering} → ${bestPlayerTrade.requesting}`);
     console.log(`   Reason: ${bestPlayerTrade.reasoning}`);
     return { ...bestPlayerTrade, targetBuilding: activeGoal.targetBuilding };
@@ -170,8 +173,7 @@ export function evaluateTradeOpportunity(
     console.log(`   ⚠️ P2P trade available but too many failures (${failedAttempts}), switching to bank`);
   }
 
-  // Fallback to bank trade if P2P didn't work or was skipped
-  if (bestBankTrade) {
+  if (bestBankTrade && !wouldCycle(bestBankTrade)) {
     console.log(`   ✓ Selected BANK trade (fallback): ${bestBankTrade.offeringAmount}x ${bestBankTrade.offering} → ${bestBankTrade.requesting}`);
     console.log(`   Reason: ${bestBankTrade.reasoning}`);
     return { ...bestBankTrade, targetBuilding: activeGoal.targetBuilding };
@@ -358,9 +360,7 @@ function isResourceCycling(history: TurnTradeHistory): boolean {
 function isRecentlyAcquired(resource: ResourceType, history: TurnTradeHistory): boolean {
   if (!history || history.tradesExecuted.length === 0) return false;
 
-  // Check if this resource was acquired in the last trade
-  const lastTrade = history.tradesExecuted[history.tradesExecuted.length - 1];
-  return lastTrade.requesting === resource;
+  return history.tradesExecuted.some(trade => trade.requesting === resource);
 }
 
 function findBestPlayerTrade(
@@ -731,9 +731,8 @@ function findBestBankTrade(
   }
 
   for (const surplusResource of surplus) {
-    // Don't trade away resources we just acquired (prevents cycling)
     if (tradeHistory && isRecentlyAcquired(surplusResource, tradeHistory)) {
-      console.log(`      ⚠️ Skipping ${surplusResource} - recently acquired in previous trade`);
+      console.log(`      ⚠️ Skipping ${surplusResource} - acquired in a previous trade this turn`);
       continue;
     }
 

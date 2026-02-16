@@ -4604,12 +4604,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       newHistory.resourcesLost[tradeEval.offering!] = (newHistory.resourcesLost[tradeEval.offering!] || 0) + tradeEval.offeringAmount!;
       newHistory.resourcesGained[tradeEval.requesting!] = (newHistory.resourcesGained[tradeEval.requesting!] || 0) + requestedAmount;
 
-      // Lock in the target goal from first trade
-      if (!newHistory.targetGoal && tradeEval.reasoning) {
-        // Extract the goal from the trade evaluation (this would have been determined in evaluateTradeOpportunity)
-        // For now, just track that we have a locked goal
+      if (!newHistory.targetGoal && tradeEval.targetBuilding) {
         newHistory.targetGoal = {
-          targetBuilding: 'village', // This would be extracted from reasoning or passed differently
+          targetBuilding: tradeEval.targetBuilding,
           neededResources: {},
           priority: 0
         };
@@ -4817,7 +4814,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         gameState,
         boardSize,
         aiActionLoopIterations,
-        currentPlayer.difficulty || 'normal'
+        currentPlayer.difficulty || 'normal',
+        turnTradeHistory
       );
 
       if (!shouldContinue) {
@@ -4832,8 +4830,20 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         currentPlayer,
         gameState,
         boardSize,
-        currentPlayer.difficulty || 'normal'
+        currentPlayer.difficulty || 'normal',
+        turnTradeHistory
       );
+
+      if (turnPlan.goalUpdate?.clearGoal) {
+        setGameState(prev => ({
+          ...prev,
+          turnState: {
+            ...prev.turnState,
+            committedBuildingGoal: undefined,
+            tradeIterationsForGoal: 0
+          }
+        }));
+      }
 
       if (turnPlan.actions.length === 0) {
         console.log('✗ No actions in turn plan - ending turn');

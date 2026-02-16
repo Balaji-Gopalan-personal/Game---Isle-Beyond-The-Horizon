@@ -416,9 +416,29 @@ export function selectStrategicRoadLocation(
           adjustedScore += evaluation.portConnectionValue * weights.portWeight;
           adjustedScore += villageExpansionValue * villageExpansionMultiplier;
 
-          // Dead-end penalty: heavily penalize roads that lead nowhere
           if (villageExpansionValue === 0) {
             adjustedScore -= 15;
+          }
+
+          const fromRoadCount = playerRoads.filter(
+            r => r.from === fromVertex || r.to === fromVertex
+          ).length;
+          const isTip = fromRoadCount === 1;
+
+          if (isTip) {
+            if (personality === 'expansionist') {
+              adjustedScore += 5;
+            } else if (personality === 'developer') {
+              adjustedScore += 1;
+            } else {
+              adjustedScore += 3;
+            }
+          } else {
+            if (personality === 'expansionist') {
+              adjustedScore -= 3;
+            } else if (personality !== 'developer') {
+              adjustedScore -= 2;
+            }
           }
 
           validEdges.push({
@@ -444,8 +464,10 @@ export function selectStrategicRoadLocation(
     console.log(`     ${i + 1}. ${e.fromVertex} → ${e.toVertex} - Score: ${e.evaluation.totalScore.toFixed(1)}`);
   });
 
-  const selected = applyDifficultyRandomness(validEdges.map(e => e.evaluation), difficulty);
-  const selectedEdge = validEdges.find(e => e.evaluation.totalScore === selected.totalScore);
+  const evaluations = validEdges.map(e => e.evaluation);
+  const selected = applyDifficultyRandomness(evaluations, difficulty);
+  const selectedIndex = evaluations.indexOf(selected);
+  const selectedEdge = selectedIndex >= 0 ? validEdges[selectedIndex] : null;
 
   if (selectedEdge) {
     console.log(`   ✓ Selected: ${selectedEdge.fromVertex} → ${selectedEdge.toVertex} (Score: ${selectedEdge.evaluation.totalScore.toFixed(1)})`);
@@ -496,8 +518,29 @@ function calculateVillageExpansionValue(
   boardSize: BoardSize,
   player: Player
 ): number {
-  const adjacentVertices = getAdjacentVertices(vertexId, boardSize);
   let expansionValue = 0;
+
+  if (!gameState.verticesOccupiedBy[vertexId]) {
+    const adjVertices = getAdjacentVertices(vertexId, boardSize);
+    const hasAdjacentSettlement = adjVertices.some(v => gameState.verticesOccupiedBy[v]);
+
+    if (!hasAdjacentSettlement) {
+      const vertexEval = evaluateVertex(vertexId, gameState, boardSize, player);
+      const villageScore = vertexEval.totalScore;
+
+      if (villageScore > 20) {
+        expansionValue += 12;
+      } else if (villageScore > 15) {
+        expansionValue += 8;
+      } else if (villageScore > 10) {
+        expansionValue += 5;
+      } else {
+        expansionValue += 2;
+      }
+    }
+  }
+
+  const adjacentVertices = getAdjacentVertices(vertexId, boardSize);
 
   for (const adjVertex of adjacentVertices) {
     if (gameState.verticesOccupiedBy[adjVertex]) {
