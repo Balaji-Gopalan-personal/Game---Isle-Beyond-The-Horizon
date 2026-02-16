@@ -409,7 +409,14 @@ export function shouldContinueTurn(
   if (committedGoal && tradeIterations > 0) {
     console.log(`   📍 Committed to building: ${committedGoal} (${tradeIterations} trades executed)`);
 
-    // If we have a committed goal, allow more trade attempts
+    // FIRST check if we can now afford the committed goal
+    const canAfford = checkCanAffordBuilding(player, committedGoal);
+    if (canAfford) {
+      console.log(`   ✓ Can NOW AFFORD committed goal ${committedGoal} - continuing turn to build!`);
+      return true;
+    }
+
+    // If we have a committed goal but still can't afford it, allow more trade attempts
     const maxCommittedTradeIterations = difficulty === 'hard' ? 5 : difficulty === 'normal' ? 4 : 3;
 
     if (tradeIterations >= maxCommittedTradeIterations) {
