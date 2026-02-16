@@ -1116,6 +1116,34 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
   }, [gameState.phase, gameState.currentPlayer, gameState.players, gameState.turnState.step, gameState.turnState.currentPlayerId, diceRollPhaseComplete, isRollingDice, waitingForConfirmation, aiActionLoopActive, startAIActionLoop, gameState]);
 
+  // Resume AI action loop when a trade proposal is resolved
+  useEffect(() => {
+    // Only resume if:
+    // 1. We're in the playing phase
+    // 2. We're in the main step
+    // 3. Trade proposal was just cleared (is now undefined)
+    // 4. Current player is AI
+    // 5. AI action loop is NOT already active
+    if (gameState.phase === 'playing' &&
+        gameState.turnState.step === 'main' &&
+        !gameState.turnState.tradeProposal &&
+        diceRollPhaseComplete &&
+        !aiActionLoopActive) {
+      const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
+
+      if (currentPlayer &&
+          !currentPlayer.isHuman &&
+          currentPlayer.id === gameState.turnState.currentPlayerId) {
+        console.log(`DEBUG: Trade resolved, resuming AI action loop for ${currentPlayer.name}`);
+        const timer = setTimeout(() => {
+          startAIActionLoop(currentPlayer.id);
+        }, 800);
+
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [gameState.phase, gameState.turnState.step, gameState.turnState.tradeProposal, gameState.turnState.currentPlayerId, gameState.currentPlayer, gameState.players, diceRollPhaseComplete, aiActionLoopActive, startAIActionLoop]);
+
   // Helper function to check if a player qualifies for longest road bonus
   const checkLongestRoadBonus = useCallback((
     playerId: string,
@@ -4879,6 +4907,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           if (playerTradeAttempts < 3) {
             actionSuccess = handleAIPlayerTrade(currentPlayer.id);
             console.log(`   ${actionSuccess ? '✓' : '✗'} Player trade ${actionSuccess ? 'initiated' : 'failed'}`);
+
+            // If P2P trade was successfully initiated, pause the action loop
+            // and wait for the trade response (accept/reject)
+            if (actionSuccess) {
+              console.log('   ⏸️  Pausing AI action loop - waiting for trade response');
+              console.log(`${'='.repeat(60)}\n`);
+              return;
+            }
           }
           break;
 
