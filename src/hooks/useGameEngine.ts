@@ -1145,6 +1145,31 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }
   }, [gameState.phase, gameState.turnState.step, gameState.turnState.tradeProposal, gameState.turnState.currentPlayerId, gameState.currentPlayer, gameState.players, diceRollPhaseComplete, aiActionLoopActive, startAIActionLoop]);
 
+  // Recovery mechanism for stuck states
+  useEffect(() => {
+    if (gameState.phase === 'playing' &&
+        gameState.turnState.step === 'main' &&
+        !diceRollPhaseComplete &&
+        !isRollingDice &&
+        !waitingForConfirmation) {
+      const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
+
+      if (currentPlayer && !currentPlayer.isHuman && currentPlayer.id === gameState.turnState.currentPlayerId) {
+        console.warn(`⚠️ RECOVERY: Detected stuck state - step is 'main' but dice roll not complete for ${currentPlayer.name}`);
+        console.warn(`   Recovering by resetting to awaiting_dice_roll`);
+
+        // Reset to awaiting_dice_roll to allow the dice roll to happen
+        setGameState(prev => ({
+          ...prev,
+          turnState: {
+            ...prev.turnState,
+            step: 'awaiting_dice_roll'
+          }
+        }));
+      }
+    }
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.currentPlayerId, gameState.players, diceRollPhaseComplete, isRollingDice, waitingForConfirmation]);
+
   // Helper function to check if a player qualifies for longest road bonus
   const checkLongestRoadBonus = useCallback((
     playerId: string,
@@ -3609,13 +3634,20 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             handlePlayDevCard(cardToPlay);
           } else {
             console.log(`DEBUG: AI player ${currentPlayer.name} skipping dev card play phase`);
-            setGameState(prev => ({
-              ...prev,
-              turnState: {
-                ...prev.turnState,
-                step: 'main'
+            // GUARD: Only transition to main if still the same player and in correct phase
+            setGameState(prev => {
+              if (prev.turnState.step === 'play_dev_cards' &&
+                  prev.turnState.currentPlayerId === currentPlayer.id) {
+                return {
+                  ...prev,
+                  turnState: {
+                    ...prev.turnState,
+                    step: 'main'
+                  }
+                };
               }
-            }));
+              return prev; // No change if guards fail
+            });
           }
         }, 800);
 
@@ -3631,7 +3663,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         !playedCardForModal &&
         aiPlayedDevCardThisPhaseRef.current) {
       const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
-      if (currentPlayer && !currentPlayer.isHuman) {
+      // GUARD: Only transition to main if this is still the same player
+      if (currentPlayer &&
+          !currentPlayer.isHuman &&
+          currentPlayer.id === gameState.turnState.currentPlayerId) {
         console.log(`DEBUG: AI dev card modal closed, advancing to main phase`);
         aiPlayedDevCardThisPhaseRef.current = false;
 
@@ -3642,9 +3677,13 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             step: 'main'
           }
         }));
+      } else {
+        // Reset the flag if player changed
+        console.log(`DEBUG: Player changed, resetting aiPlayedDevCardThisPhaseRef`);
+        aiPlayedDevCardThisPhaseRef.current = false;
       }
     }
-  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.players, playedCardForModal]);
+  }, [gameState.phase, gameState.turnState.step, gameState.currentPlayer, gameState.turnState.currentPlayerId, gameState.players, playedCardForModal]);
 
   // Auto-handle Booming Economy selection for AI players
   useEffect(() => {
