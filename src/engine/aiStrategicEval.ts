@@ -3,7 +3,7 @@ import { BoardSize } from '../data/boardConfigs';
 import { loadBoardForSize } from '../graph/loadBoard';
 import { getAdjacentVertices } from './boardService';
 import { calculateLongestRoadPath, buildVerticesWithOwnership, getValidRoadPlacements } from './gameplayActions';
-import { countViableVillageLocations, getPersonalityForCharacter, PersonalityTrait } from './aiLocationStrategy';
+import { countViableVillageLocations, getPersonalityForCharacter, getStrategicDynamicForCharacter, PersonalityTrait, StrategicDynamic } from './aiLocationStrategy';
 import { canPlaceVillage } from './validators';
 
 export interface VertexEvaluation {
@@ -388,30 +388,32 @@ export function calculateBuildingPriority(
 
   const isBehindOnVillages = villageCount < avgVillages - 0.5;
 
-  let villagePriority = (10 - villageCount) * 4.0;
+  let villagePriority = (10 - villageCount) * 4.5;
 
   if (isEarlyGame) {
-    villagePriority *= 2.0;
+    villagePriority *= 2.2;
     if (villageCount < 3) {
-      villagePriority += 10;
+      villagePriority += 12;
     }
   } else if (isMidGame && villageCount < 4) {
-    villagePriority *= 1.5;
+    villagePriority *= 1.7;
   }
 
   if (isBehindOnVillages) {
-    villagePriority += 8;
+    villagePriority += 10;
   }
 
   if (villageResourcesNeeded > 0) {
-    villagePriority += villageResourcesNeeded * 1.5;
+    villagePriority += villageResourcesNeeded * 2.0;
   }
 
   let estatePriority = villageCount > 0 ? (5 - cityCount) * 3.5 : 0;
   estatePriority -= estateResourcesNeeded * 2.5;
 
-  if (isEarlyGame && villageCount < 3) {
-    estatePriority *= 0.3;
+  if (isEarlyGame && villageCount < 2) {
+    estatePriority *= 0.2;
+  } else if (isEarlyGame && villageCount < 3) {
+    estatePriority *= 0.4;
   }
 
   let devCardPriority = 9;
@@ -528,6 +530,7 @@ export function calculateBuildingPriority(
   }
 
   const personality = getPersonalityForCharacter(player.character?.name);
+  const strategicDynamic = getStrategicDynamicForCharacter(player.character?.name);
 
   switch (personality) {
     case 'aggressive':
@@ -567,6 +570,44 @@ export function calculateBuildingPriority(
       break;
 
     case 'balanced':
+      break;
+  }
+
+  switch (strategicDynamic) {
+    case 'village_rusher':
+      villagePriority *= 1.6;
+      roadPriority *= 1.4;
+      if (villageCount < 4) {
+        villagePriority *= 1.2;
+        roadPriority *= 1.2;
+      }
+      estatePriority *= 0.6;
+      devCardPriority *= 0.7;
+      break;
+
+    case 'estate_climber':
+      if (villageCount >= 2 && cityCount < 2) {
+        estatePriority *= 2.0;
+      } else if (villageCount >= 3) {
+        estatePriority *= 1.8;
+      }
+      if (villageCount < 2) {
+        villagePriority *= 1.1;
+        estatePriority *= 0.3;
+      }
+      devCardPriority *= 0.8;
+      roadPriority *= 0.9;
+      break;
+
+    case 'dev_card_gambler':
+      devCardPriority *= 1.8;
+      if (villageCount < 2) {
+        villagePriority *= 0.8;
+      } else {
+        villagePriority *= 0.9;
+      }
+      estatePriority *= 1.0;
+      roadPriority *= 0.7;
       break;
   }
 

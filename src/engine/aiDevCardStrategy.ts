@@ -2,6 +2,7 @@ import { GameState, Player, DevelopmentCard } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
 import { getMostNeededResources } from './buildingCosts';
 import { loadBoardForSize } from '../graph/loadBoard';
+import { getStrategicDynamicForCharacter } from './aiLocationStrategy';
 
 export interface DevCardPlayDecision {
   shouldPlay: boolean;
@@ -19,13 +20,29 @@ export function shouldBuyDevelopmentCard(
 
   const pointsToWin = gameState.gameSettings.pointsToWin;
   const pointsAway = pointsToWin - (player.score + player.secretPoints);
+  const strategicDynamic = getStrategicDynamicForCharacter(player.character?.name);
+  const villageCount = gameState.villages.filter(v => v.playerId === player.id && v.type === 'settlement').length;
 
   let buyProbability = 0.4;
 
-  if (pointsAway <= 3) {
-    buyProbability = 0.8;
+  switch (strategicDynamic) {
+    case 'dev_card_gambler':
+      buyProbability = 0.65;
+      break;
+    case 'village_rusher':
+      buyProbability = 0.22;
+      break;
+    case 'estate_climber':
+      buyProbability = 0.38;
+      break;
+  }
+
+  if (pointsAway <= 2) {
+    buyProbability = Math.min(buyProbability + 0.3, 0.9);
+  } else if (pointsAway <= 3) {
+    buyProbability = Math.min(buyProbability + 0.25, 0.85);
   } else if (pointsAway <= 5) {
-    buyProbability = 0.6;
+    buyProbability = Math.min(buyProbability + 0.15, 0.75);
   }
 
   if (gameState.gameSettings.largestArmyEnabled) {
@@ -42,7 +59,9 @@ export function shouldBuyDevelopmentCard(
           ? Math.max(currentLargestArmyHolder.guardsPlayed + 1 - myGuardCount, 0)
           : largestArmySize - myGuardCount;
 
-        if (guardsNeeded <= 2) {
+        if (guardsNeeded <= 1) {
+          buyProbability += 0.25;
+        } else if (guardsNeeded <= 2) {
           buyProbability += 0.2;
         }
       }

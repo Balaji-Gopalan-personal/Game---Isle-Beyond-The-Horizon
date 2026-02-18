@@ -22,7 +22,7 @@ export const DIFFICULTY_PRESETS: Record<'easy' | 'normal' | 'hard', DifficultySe
     selectionTopPercent: 0.3,
     randomnessWeight: 0.15,
     tradeFrequency: 0.7,
-    buildingAggression: 0.9,
+    buildingAggression: 1.1,
     devCardPlayRate: 0.7,
     robberOptimality: 0.7,
     planningHorizon: 2
@@ -31,7 +31,7 @@ export const DIFFICULTY_PRESETS: Record<'easy' | 'normal' | 'hard', DifficultySe
     selectionTopPercent: 0.1,
     randomnessWeight: 0.03,
     tradeFrequency: 0.85,
-    buildingAggression: 1.0,
+    buildingAggression: 1.25,
     devCardPlayRate: 0.9,
     robberOptimality: 0.95,
     planningHorizon: 3

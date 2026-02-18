@@ -7,12 +7,19 @@ import { getAdjacentVertices } from './boardService';
 
 export type PersonalityTrait = 'aggressive' | 'expansionist' | 'trader' | 'defensive' | 'developer' | 'balanced';
 
+export type StrategicDynamic = 'village_rusher' | 'estate_climber' | 'dev_card_gambler';
+
 export interface PersonalityWeights {
   productionWeight: number;
   diversityWeight: number;
   portWeight: number;
   expansionWeight: number;
   blockingWeight: number;
+}
+
+export interface PersonalityWithDynamic {
+  trait: PersonalityTrait;
+  dynamic: StrategicDynamic;
 }
 
 export interface VillageLocationDecision {
@@ -96,6 +103,20 @@ export function getPersonalityForCharacter(characterName?: string): PersonalityT
   if (developerNames.some(n => characterName.includes(n))) return 'developer';
 
   return 'balanced';
+}
+
+export function getStrategicDynamicForCharacter(characterName?: string): StrategicDynamic {
+  if (!characterName) return 'village_rusher';
+
+  const villageRusherNames = ['Astro Boy', 'GI Joe', 'Rainbow Brite', 'Voltron', 'Speed Racer', 'Jetson', 'Batman', 'Superman'];
+  const estateClimberNames = ['Scrooge McDuck', 'He-Man', 'Lion-O', 'Optimus Prime', 'Bravestarr', 'Garfield', 'Yogi Bear'];
+  const devCardGamblerNames = ['Brainy Smurf', 'Zummi Gummi', 'Chip', 'Dale', 'Donatello', 'Jem', 'Josie', 'Gadget'];
+
+  if (villageRusherNames.some(n => characterName.includes(n))) return 'village_rusher';
+  if (estateClimberNames.some(n => characterName.includes(n))) return 'estate_climber';
+  if (devCardGamblerNames.some(n => characterName.includes(n))) return 'dev_card_gambler';
+
+  return 'village_rusher';
 }
 
 export function applyDifficultyRandomness<T extends { totalScore: number }>(
@@ -206,6 +227,54 @@ function getGameLeader(gameState: GameState, excludePlayerId: string): Player | 
   }
 
   return leader;
+}
+
+function selectNextTargetVillageVertices(
+  currentVillageVertex: number,
+  gameState: GameState,
+  boardSize: BoardSize,
+  playerId: string,
+  maxDistance: number
+): number[] {
+  const validVertices = getValidVillagePlacements(playerId, gameState, boardSize);
+  if (validVertices.length === 0) return [];
+
+  const player = gameState.players.find(p => p.id === playerId);
+  if (!player) return [];
+
+  const candidates = validVertices
+    .filter(v => {
+      const adjVertices = getAdjacentVertices(v, boardSize);
+      return !adjVertices.some(av => gameState.verticesOccupiedBy[av]);
+    })
+    .map(v => ({
+      vertexId: v,
+      evaluation: evaluateVertex(v, gameState, boardSize, player)
+    }))
+    .sort((a, b) => b.evaluation.totalScore - a.evaluation.totalScore)
+    .slice(0, maxDistance)
+    .map(c => c.vertexId);
+
+  return candidates;
+}
+
+function calculateTargetProximityBonus(
+  currentVertex: number,
+  targetVertex: number,
+  boardSize: BoardSize
+): number {
+  if (currentVertex === targetVertex) return 10.0;
+
+  const adjVertices = getAdjacentVertices(currentVertex, boardSize);
+  if (adjVertices.includes(targetVertex)) return 8.0;
+
+  const adjAdjVertices = new Set<number>();
+  for (const adj of adjVertices) {
+    getAdjacentVertices(adj, boardSize).forEach(v => adjAdjVertices.add(v));
+  }
+  if (adjAdjVertices.has(targetVertex)) return 4.0;
+
+  return 0;
 }
 
 function generateVillageReasoning(
@@ -340,6 +409,14 @@ export function selectStrategicVillageLocation(
 
   const reasoning = generateVillageReasoning(selected, personality, gameState, playerId);
 
+  if (!player.aiTargetVillageVertex) {
+    const nextTargetVertices = selectNextTargetVillageVertices(selected.vertexId, gameState, boardSize, playerId, 2);
+    if (nextTargetVertices.length > 0) {
+      player.aiTargetVillageVertex = nextTargetVertices[0];
+      console.log(`   🎯 Next target village vertex set: ${player.aiTargetVillageVertex}`);
+    }
+  }
+
   return {
     vertexId: selected.vertexId,
     reasoning,
@@ -361,6 +438,7 @@ export function selectStrategicRoadLocation(
   if (validVertices.length === 0) return null;
 
   const personality = getPersonalityForCharacter(player.character?.name);
+  const strategicDynamic = getStrategicDynamicForCharacter(player.character?.name);
   const villageCount = gameState.villages.filter(v => v.playerId === playerId && v.type === 'settlement').length;
   const currentPoints = player.score + player.secretPoints;
   const isEarlyGame = currentPoints < 5;
@@ -415,6 +493,11 @@ export function selectStrategicRoadLocation(
           adjustedScore += evaluation.productionAccess * weights.productionWeight * 0.5;
           adjustedScore += evaluation.portConnectionValue * weights.portWeight;
           adjustedScore += villageExpansionValue * villageExpansionMultiplier;
+
+          if (player.aiTargetVillageVertex && strategicDynamic === 'village_rusher') {
+            const targetProximityBonus = calculateTargetProximityBonus(toVertex, player.aiTargetVillageVertex, boardSize);
+            adjustedScore += targetProximityBonus * 8.0;
+          }
 
           if (villageExpansionValue === 0) {
             adjustedScore -= 15;

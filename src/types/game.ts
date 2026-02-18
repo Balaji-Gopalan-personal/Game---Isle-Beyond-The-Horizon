@@ -178,6 +178,7 @@ export interface Player {
   hasPlacedVillage: boolean;
   hasPlacedRoad: boolean;
   guardsPlayedThisTurn: number;
+  aiTargetVillageVertex?: number;
 }
 
 export interface GameState {
