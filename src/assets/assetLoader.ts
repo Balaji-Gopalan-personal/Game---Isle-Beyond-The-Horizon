@@ -65,7 +65,7 @@ export async function preloadGameAssets(deckType: 'standard' | 'expanded'): Prom
   const devCardAssets = deckType === 'standard'
     ? {
         boomingEconomy: Assets.developmentCards.boomingEconomy,
-        expertNegotiator: Assets.developmentCards.expertNegotiator,
+        closedMarket: Assets.developmentCards.closedMarket,
         extraPoint: Assets.developmentCards.extraPoint,
         guard: Assets.developmentCards.guard,
         roadConstruction: Assets.developmentCards.roadConstruction,

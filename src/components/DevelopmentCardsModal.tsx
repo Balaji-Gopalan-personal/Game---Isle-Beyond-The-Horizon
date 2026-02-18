@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { DevelopmentCard } from '../types/game';
 import { useAssets } from '../contexts/AssetsContext';
@@ -13,8 +13,13 @@ interface DevelopmentCardsModalProps {
 
 export function DevelopmentCardsModal({ isOpen, onClose, cards, playerName }: DevelopmentCardsModalProps) {
   const { assets } = useAssets();
+  const [loadingErrors, setLoadingErrors] = useState<Record<string, boolean>>({});
 
   if (!isOpen) return null;
+
+  const handleImageError = (cardId: string) => {
+    setLoadingErrors(prev => ({ ...prev, [cardId]: true }));
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -50,20 +55,21 @@ export function DevelopmentCardsModal({ isOpen, onClose, cards, playerName }: De
                     className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg shadow-md overflow-hidden border-2 border-amber-200 hover:shadow-lg transition-shadow"
                   >
                     <div className="aspect-[3/4] relative bg-gradient-to-br from-amber-100 to-yellow-200 flex items-center justify-center">
-                      <img
-                        src={getDevelopmentCardImage(assets, card.imageUrl)}
-                        alt={card.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                        }}
-                      />
-                      <div className="hidden absolute inset-0 flex items-center justify-center p-4">
-                        <span className="text-4xl font-bold text-amber-800 text-center">
-                          {card.name}
-                        </span>
-                      </div>
+                      {!loadingErrors[card.id] && (
+                        <img
+                          src={getDevelopmentCardImage(assets, card.imageUrl)}
+                          alt={card.name}
+                          className="w-full h-full object-contain"
+                          onError={() => handleImageError(card.id)}
+                        />
+                      )}
+                      {loadingErrors[card.id] && (
+                        <div className="absolute inset-0 flex items-center justify-center p-4">
+                          <span className="text-4xl font-bold text-amber-800 text-center">
+                            {card.name}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="p-4">
                       <h3 className="font-bold text-lg text-gray-900 mb-2">{card.name}</h3>
