@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { DevelopmentCard } from '../types/game';
 import { useAssets } from '../contexts/AssetsContext';
@@ -26,6 +26,13 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
   const { assets } = useAssets();
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
+
+  useEffect(() => {
+    if (isVisible) {
+      setImageError(false);
+      setImageLoading(true);
+    }
+  }, [card.id, isVisible]);
 
   if (!isVisible) return null;
 
