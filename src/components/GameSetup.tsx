@@ -58,9 +58,20 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
   const [maxResourceHold, setMaxResourceHold] = useState(7);
   const [robberCanReturnToDesert, setRobberCanReturnToDesert] = useState(false);
   const [tradingPortsEnabled, setTradingPortsEnabled] = useState(true);
-  const [numberOfTradingPorts, setNumberOfTradingPorts] = useState(3);
+  const [numberOfTradingPorts, setNumberOfTradingPorts] = useState(5);
   const [developmentCardDeck, setDevelopmentCardDeck] = useState<'standard' | 'expanded'>('standard');
   const [testingMode, setTestingMode] = useState(false);
+
+  const getDefaultPortsForBoardSize = (boardSizeToCheck: BoardSize): number => {
+    const defaults = {
+      tiny: 3,
+      small: 4,
+      standard: 5,
+      large: 6,
+      huge: 7
+    };
+    return defaults[boardSizeToCheck];
+  };
 
   const availableColors = PLAYER_COLOR_ARRAY.map(color => ({
     value: color.name,
@@ -173,13 +184,13 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
     setAiCharacters([]);
     setAiColors([]);
     setPlayerOrder([]);
-    
+
     // Reset game settings with new board size
     setPointsToWin(0);
     const longestRoadOptions = getLongestRoadOptions();
     const middleIndex = Math.floor(longestRoadOptions.length / 2);
     setLongestRoadSize(longestRoadOptions[middleIndex]);
-    setNumberOfTradingPorts(getDefaultTradingPorts());
+    setNumberOfTradingPorts(getDefaultPortsForBoardSize(newBoardSize));
   };
 
   const handleAiCountChange = (count: number) => {
