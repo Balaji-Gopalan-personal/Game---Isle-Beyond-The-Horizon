@@ -71,9 +71,9 @@ export function getCharacterImage(assets: LoadedAssets, imagePath: string): stri
   return Assets.characters[key as keyof typeof Assets.characters];
 }
 
-export function getDevelopmentCardImage(assets: LoadedAssets, imagePath: string): string | undefined {
+export function getDevelopmentCardImage(assets: LoadedAssets, imagePath: string): string {
   const filename = imagePath.split('/').pop()?.replace(/\.png$/, '');
-  if (!filename) return undefined;
+  if (!filename) return imagePath;
 
   const keyMap: Record<string, string> = {
     'Guard': 'guard',
@@ -87,16 +87,17 @@ export function getDevelopmentCardImage(assets: LoadedAssets, imagePath: string)
   };
 
   const key = keyMap[filename];
-  if (!key) return undefined;
+  if (!key) return imagePath;
 
-  // Try to use loaded data URI first
+  // Try to use loaded path/URI first
   const loadedImage = assets.developmentCards?.[key];
   if (loadedImage && loadedImage.length > 0) {
     return loadedImage;
   }
 
-  // Fallback to original path if data URI failed to load
-  return Assets.developmentCards[key as keyof typeof Assets.developmentCards];
+  // Fallback to static registry path
+  const staticPath = Assets.developmentCards[key as keyof typeof Assets.developmentCards];
+  return staticPath || imagePath;
 }
 
 export function getResourceImage(assets: LoadedAssets, resourceType: string): string | undefined {

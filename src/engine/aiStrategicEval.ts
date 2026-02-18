@@ -3,7 +3,8 @@ import { BoardSize } from '../data/boardConfigs';
 import { loadBoardForSize } from '../graph/loadBoard';
 import { getAdjacentVertices } from './boardService';
 import { calculateLongestRoadPath, buildVerticesWithOwnership, getValidRoadPlacements } from './gameplayActions';
-import { countViableVillageLocations, getPersonalityForCharacter, getStrategicDynamicForCharacter, PersonalityTrait, StrategicDynamic } from './aiLocationStrategy';
+import { countViableVillageLocations, getPersonalityForCharacter, PersonalityTrait } from './aiLocationStrategy';
+import { getStrategicDynamicForCharacter, type StrategicDynamic } from './aiPersonality';
 import { canPlaceVillage } from './validators';
 
 export interface VertexEvaluation {

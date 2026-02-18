@@ -2,7 +2,7 @@ import { GameState, Player, DevelopmentCard } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
 import { getMostNeededResources } from './buildingCosts';
 import { loadBoardForSize } from '../graph/loadBoard';
-import { getStrategicDynamicForCharacter } from './aiLocationStrategy';
+import { getStrategicDynamicForCharacter } from './aiPersonality';
 
 export interface DevCardPlayDecision {
   shouldPlay: boolean;

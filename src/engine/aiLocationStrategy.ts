@@ -4,10 +4,9 @@ import { loadBoardForSize } from '../graph/loadBoard';
 import { getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages, calculateLongestRoadPath, buildVerticesWithOwnership } from './gameplayActions';
 import { evaluateVertex, evaluateRoadEdge, calculateProductionValue, VertexEvaluation, EdgeEvaluation } from './aiStrategicEval';
 import { getAdjacentVertices } from './boardService';
+import { getStrategicDynamicForCharacter, type StrategicDynamic } from './aiPersonality';
 
 export type PersonalityTrait = 'aggressive' | 'expansionist' | 'trader' | 'defensive' | 'developer' | 'balanced';
-
-export type StrategicDynamic = 'village_rusher' | 'estate_climber' | 'dev_card_gambler';
 
 export interface PersonalityWeights {
   productionWeight: number;
@@ -105,19 +104,6 @@ export function getPersonalityForCharacter(characterName?: string): PersonalityT
   return 'balanced';
 }
 
-export function getStrategicDynamicForCharacter(characterName?: string): StrategicDynamic {
-  if (!characterName) return 'village_rusher';
-
-  const villageRusherNames = ['Astro Boy', 'GI Joe', 'Rainbow Brite', 'Voltron', 'Speed Racer', 'Jetson', 'Batman', 'Superman'];
-  const estateClimberNames = ['Scrooge McDuck', 'He-Man', 'Lion-O', 'Optimus Prime', 'Bravestarr', 'Garfield', 'Yogi Bear'];
-  const devCardGamblerNames = ['Brainy Smurf', 'Zummi Gummi', 'Chip', 'Dale', 'Donatello', 'Jem', 'Josie', 'Gadget'];
-
-  if (villageRusherNames.some(n => characterName.includes(n))) return 'village_rusher';
-  if (estateClimberNames.some(n => characterName.includes(n))) return 'estate_climber';
-  if (devCardGamblerNames.some(n => characterName.includes(n))) return 'dev_card_gambler';
-
-  return 'village_rusher';
-}
 
 export function applyDifficultyRandomness<T extends { totalScore: number }>(
   options: T[],

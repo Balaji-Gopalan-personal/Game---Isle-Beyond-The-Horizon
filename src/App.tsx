@@ -154,7 +154,7 @@ function App() {
 
     try {
       const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Asset loading timeout')), 3000)
+        setTimeout(() => reject(new Error('Asset loading timeout')), 10000)
       );
 
       const gameAssets = await Promise.race([
@@ -166,7 +166,11 @@ function App() {
       setAppPhase('playing');
     } catch (error) {
       console.error('Failed to load game assets:', error);
-      alert('Failed to load some game assets. The game may not display correctly. Check the console for details.');
+      if (error instanceof Error && error.message.includes('timeout')) {
+        console.warn('Asset preloading timed out - using fallback image paths');
+      } else {
+        alert('Failed to load some game assets. The game may not display correctly. Check the console for details.');
+      }
       setAppPhase('playing');
     }
   };
