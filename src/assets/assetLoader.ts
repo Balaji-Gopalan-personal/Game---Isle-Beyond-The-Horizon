@@ -7,15 +7,6 @@ const loadCategory = async (
 ): Promise<Record<string, string>> => {
   const entries = Object.entries(assets);
 
-  if (categoryName === 'development card') {
-    console.log(`Loaded ${entries.length} ${categoryName} assets (served as-is from static files)`);
-    const staticAssets: Record<string, string> = {};
-    entries.forEach(([key, path]) => {
-      staticAssets[key] = path;
-    });
-    return staticAssets;
-  }
-
   const results = await Promise.allSettled(
     entries.map(async ([key, path]) => {
       const extension = path.split('.').pop()?.toLowerCase();
