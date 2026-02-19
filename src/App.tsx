@@ -9,7 +9,6 @@ import { GameStatus } from './components/GameStatus';
 import { BuildingPriceGuide } from './components/BuildingPriceGuide';
 import { GameTimer } from './components/GameTimer';
 import { DiscardModal } from './components/DiscardModal';
-import { DevelopmentCardsModal } from './components/DevelopmentCardsModal';
 import { CardDrawnModal } from './components/CardDrawnModal';
 import { DevCardHandModal } from './components/DevCardHandModal';
 import { CardValidationErrorModal } from './components/CardValidationErrorModal';
@@ -153,24 +152,11 @@ function App() {
     setAppPhase('loading-game');
 
     try {
-      const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Asset loading timeout')), 10000)
-      );
-
-      const gameAssets = await Promise.race([
-        preloadGameAssets(settings.developmentCardDeck),
-        timeout
-      ]) as Awaited<ReturnType<typeof preloadGameAssets>>;
-
+      const gameAssets = await preloadGameAssets(settings.developmentCardDeck);
       updateGameAssets(gameAssets);
-      setAppPhase('playing');
     } catch (error) {
       console.error('Failed to load game assets:', error);
-      if (error instanceof Error && error.message.includes('timeout')) {
-        console.warn('Asset preloading timed out - using fallback image paths');
-      } else {
-        alert('Failed to load some game assets. The game may not display correctly. Check the console for details.');
-      }
+    } finally {
       setAppPhase('playing');
     }
   };

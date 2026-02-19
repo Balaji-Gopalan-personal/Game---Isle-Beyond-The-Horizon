@@ -25,12 +25,10 @@ export const CardDrawnModal: React.FC<CardDrawnModalProps> = ({
 }) => {
   const { assets } = useAssets();
   const [imageError, setImageError] = useState(false);
-  const [imageLoading, setImageLoading] = useState(true);
 
   useEffect(() => {
     if (isVisible) {
       setImageError(false);
-      setImageLoading(true);
     }
   }, [card.id, isVisible]);
 
@@ -38,16 +36,7 @@ export const CardDrawnModal: React.FC<CardDrawnModalProps> = ({
 
   const isExtraPoint = card.name === 'Extra Point';
   const isPlayedMode = mode === 'played';
-
-  const handleImageError = () => {
-    setImageError(true);
-    setImageLoading(false);
-  };
-
-  const handleImageLoad = () => {
-    setImageLoading(false);
-    setImageError(false);
-  };
+  const imageSrc = getDevelopmentCardImage(assets, card.imageUrl);
 
   const getPlayerColorStyle = (color: string) => {
     const colorMap: Record<string, string> = {
@@ -92,28 +81,18 @@ export const CardDrawnModal: React.FC<CardDrawnModalProps> = ({
           </h2>
 
           <div className="mb-6 flex justify-center">
-            <div className="border-4 border-amber-700 rounded-lg overflow-hidden shadow-lg bg-gradient-to-br from-amber-100 to-yellow-200">
+            <div className="border-4 border-amber-700 rounded-lg overflow-hidden shadow-lg bg-gradient-to-br from-amber-100 to-yellow-200 w-64 h-80 flex items-center justify-center">
               {!imageError ? (
-                <>
-                  {imageLoading && (
-                    <div className="w-64 h-80 flex items-center justify-center">
-                      <div className="animate-pulse text-amber-800 text-lg">Loading...</div>
-                    </div>
-                  )}
-                  <img
-                    src={getDevelopmentCardImage(assets, card.imageUrl)}
-                    alt={card.name}
-                    className={`w-64 h-auto ${imageLoading ? 'hidden' : 'block'}`}
-                    onError={handleImageError}
-                    onLoad={handleImageLoad}
-                  />
-                </>
+                <img
+                  src={imageSrc}
+                  alt={card.name}
+                  className="w-full h-full object-contain"
+                  onError={() => setImageError(true)}
+                />
               ) : (
-                <div className="w-64 h-80 flex items-center justify-center p-6">
-                  <span className="text-4xl font-bold text-amber-800 text-center">
-                    {card.name}
-                  </span>
-                </div>
+                <span className="text-4xl font-bold text-amber-800 text-center p-6">
+                  {card.name}
+                </span>
               )}
             </div>
           </div>
