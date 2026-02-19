@@ -390,6 +390,7 @@ export function calculateBuildingPriority(
   const isBehindOnVillages = villageCount < avgVillages - 0.5;
 
   let villagePriority = (10 - villageCount) * 4.5;
+  const villagePriorityBase = villagePriority;
 
   if (isEarlyGame) {
     villagePriority *= 2.2;
@@ -405,8 +406,11 @@ export function calculateBuildingPriority(
   }
 
   if (villageResourcesNeeded > 0) {
-    villagePriority += villageResourcesNeeded * 2.0;
+    const resourceBonus = isEarlyGame ? 6.0 : isMidGame ? 5.0 : 4.0;
+    villagePriority += villageResourcesNeeded * resourceBonus;
   }
+
+  console.log(`   🏘️ VILLAGE PRIORITY CALC: base=${villagePriorityBase.toFixed(1)} villages=${villageCount} cities=${cityCount} phase=${isEarlyGame ? 'early' : isMidGame ? 'mid' : isLateGame ? 'late' : 'unknown'} behindAvg=${isBehindOnVillages} resNeeded=${villageResourcesNeeded} → after-phase=${villagePriority.toFixed(1)}`);
 
   let estatePriority = villageCount > 0 ? (5 - cityCount) * 3.5 : 0;
   estatePriority -= estateResourcesNeeded * 2.5;
@@ -425,25 +429,36 @@ export function calculateBuildingPriority(
   console.log(`   📍 Viable village locations: ${viableVillageLocations}`);
 
   // Board saturation check
-  const isBoardSaturated = viableVillageLocations <= 2;
+  const isBoardSaturated = viableVillageLocations === 0;
+  const isBoardScarce = viableVillageLocations > 0 && viableVillageLocations <= 3;
 
-  if (viableVillageLocations <= 4) {
-    villagePriority *= 0.7;
-    estatePriority *= 1.5;
-    devCardPriority *= 1.5;
+  if (isBoardScarce) {
+    // Locations are scarce but available - BOOST village priority to claim them before others do
+    villagePriority *= 1.4;
+    console.log(`   ⚠️ Village locations scarce (${viableVillageLocations}) - BOOSTING village priority x1.4`);
   }
 
   if (isBoardSaturated) {
-    villagePriority *= 0.5;
+    // Truly no village locations available - shift to estates and dev cards
+    villagePriority *= 0.3;
     estatePriority *= 1.8;
-    devCardPriority *= 2.2;
-    console.log(`   🚧 Board saturated (${viableVillageLocations} locations) - prioritizing estates and dev cards`);
+    devCardPriority *= 1.8;
+    console.log(`   🚧 Board saturated (0 locations) - prioritizing estates and dev cards`);
   }
 
   let roadPriority = Math.max(8 - roadCount, 3);
 
   if (isEarlyGame && villageCount < 3) {
     roadPriority *= 0.6;
+  }
+
+  // If the player already has open vertices on their network where a village can be placed,
+  // roads should be strongly deprioritized in favor of building that village
+  const hasOpenVillageOnNetwork = viableVillageLocations > 0;
+  if (hasOpenVillageOnNetwork && villageCount < 5) {
+    const suppressFactor = villageCount < 3 ? 0.4 : 0.6;
+    roadPriority *= suppressFactor;
+    console.log(`   🏘️ Open village vertex on network (${viableVillageLocations} spots, ${villageCount} villages) - road priority x${suppressFactor}`);
   }
 
   // Check if roads could open new village locations
@@ -544,8 +559,13 @@ export function calculateBuildingPriority(
       break;
 
     case 'expansionist':
-      roadPriority *= 1.8;
-      villagePriority *= 1.1;
+      if (viableVillageLocations > 0) {
+        villagePriority *= 1.4;
+        roadPriority *= 1.2;
+      } else {
+        roadPriority *= 1.8;
+        villagePriority *= 1.1;
+      }
       devCardPriority *= 0.7;
       estatePriority *= 0.9;
       break;
@@ -556,7 +576,7 @@ export function calculateBuildingPriority(
         devCardPriority *= 1.3;
       }
       estatePriority *= 1.3;
-      villagePriority *= 0.7;
+      villagePriority *= 1.0;
       roadPriority *= 0.6;
       break;
 
@@ -593,8 +613,10 @@ export function calculateBuildingPriority(
         estatePriority *= 1.8;
       }
       if (villageCount < 2) {
-        villagePriority *= 1.1;
+        villagePriority *= 1.5;
         estatePriority *= 0.3;
+      } else if (villageCount < 3) {
+        villagePriority *= 1.3;
       }
       devCardPriority *= 0.8;
       roadPriority *= 0.9;
@@ -603,14 +625,16 @@ export function calculateBuildingPriority(
     case 'dev_card_gambler':
       devCardPriority *= 1.8;
       if (villageCount < 2) {
-        villagePriority *= 0.8;
+        villagePriority *= 1.1;
       } else {
-        villagePriority *= 0.9;
+        villagePriority *= 1.0;
       }
       estatePriority *= 1.0;
       roadPriority *= 0.7;
       break;
   }
+
+  console.log(`   🏘️ VILLAGE PRIORITY FINAL: ${villagePriority.toFixed(1)} | road=${roadPriority.toFixed(1)} | estate=${estatePriority.toFixed(1)} | devCard=${devCardPriority.toFixed(1)} | personality=${personality} | dynamic=${strategicDynamic}`);
 
   priorities.push({ type: 'village', priority: Math.max(villagePriority, 1) });
   priorities.push({ type: 'estate', priority: Math.max(estatePriority, 1) });
@@ -618,6 +642,8 @@ export function calculateBuildingPriority(
   priorities.push({ type: 'dev_card', priority: devCardPriority });
 
   priorities.sort((a, b) => b.priority - a.priority);
+
+  console.log(`   🏘️ BUILD PRIORITY ORDER: ${priorities.map(p => `${p.type}(${p.priority.toFixed(1)})`).join(' > ')}`);
 
   return priorities;
 }
