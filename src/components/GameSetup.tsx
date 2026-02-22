@@ -112,7 +112,8 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
   };
 
   // Longest road size options based on board size
-  const getLongestRoadOptions = () => {
+  const getLongestRoadOptions = (boardSizeParam?: BoardSize) => {
+    const sizeToUse = boardSizeParam ?? boardSize;
     const ranges = {
       tiny: { min: 2, max: 4 },
       small: { min: 2, max: 6 },
@@ -120,8 +121,8 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
       large: { min: 4, max: 8 },
       huge: { min: 6, max: 10 }
     };
-    
-    const range = ranges[boardSize];
+
+    const range = ranges[sizeToUse];
     const options = [];
     for (let i = range.min; i <= range.max; i++) {
       options.push(i);
@@ -130,7 +131,8 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
   };
 
   // Trading ports options based on board size
-  const getTradingPortsOptions = () => {
+  const getTradingPortsOptions = (boardSizeParam?: BoardSize) => {
+    const sizeToUse = boardSizeParam ?? boardSize;
     const ranges = {
       tiny: { min: 1, max: 6 },
       small: { min: 1, max: 8 },
@@ -138,8 +140,8 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
       large: { min: 1, max: 12 },
       huge: { min: 1, max: 14 }
     };
-    
-    const range = ranges[boardSize];
+
+    const range = ranges[sizeToUse];
     const options = [];
     for (let i = range.min; i <= range.max; i++) {
       options.push(i);
@@ -148,8 +150,8 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
   };
 
   // Get default trading ports count (middle value)
-  const getDefaultTradingPorts = () => {
-    const options = getTradingPortsOptions();
+  const getDefaultTradingPorts = (boardSizeParam?: BoardSize) => {
+    const options = getTradingPortsOptions(boardSizeParam);
     if (options.length === 0) return 3;
     const middleIndex = Math.floor(options.length / 2);
     return options[middleIndex];
@@ -169,10 +171,10 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
   const resetGameSettings = () => {
     if (aiPlayerCount > 0) {
       setPointsToWin(getDefaultPointsToWin());
-      const longestRoadOptions = getLongestRoadOptions();
+      const longestRoadOptions = getLongestRoadOptions(boardSize);
       const middleIndex = Math.floor(longestRoadOptions.length / 2);
       setLongestRoadSize(longestRoadOptions[middleIndex]);
-      setNumberOfTradingPorts(getDefaultTradingPorts());
+      setNumberOfTradingPorts(getDefaultTradingPorts(boardSize));
     } else {
       setPointsToWin(0);
     }
@@ -187,10 +189,10 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartWithConfig, default
 
     // Reset game settings with new board size
     setPointsToWin(0);
-    const longestRoadOptions = getLongestRoadOptions();
+    const longestRoadOptions = getLongestRoadOptions(newBoardSize);
     const middleIndex = Math.floor(longestRoadOptions.length / 2);
     setLongestRoadSize(longestRoadOptions[middleIndex]);
-    setNumberOfTradingPorts(getDefaultPortsForBoardSize(newBoardSize));
+    setNumberOfTradingPorts(getDefaultTradingPorts(newBoardSize));
   };
 
   const handleAiCountChange = (count: number) => {
