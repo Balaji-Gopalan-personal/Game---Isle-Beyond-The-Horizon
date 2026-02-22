@@ -169,6 +169,16 @@ export function createTurnPlan(
     }
   }
 
+  // Safety check: if buying a dev card this turn, remove any scheduled plays of new cards
+  const hasBuyDevCard = actions.some(a => a.type === 'build' && a.data?.buildingType === 'dev_card');
+  if (hasBuyDevCard) {
+    const devCardPlayIndex = actions.findIndex(a => a.type === 'play_dev_card');
+    if (devCardPlayIndex !== -1) {
+      console.log(`   ⚠️ Removing dev card play from plan - cannot buy and play same turn`);
+      actions.splice(devCardPlayIndex, 1);
+    }
+  }
+
   actions.sort((a, b) => b.priority - a.priority);
 
   const actionSummary = actions.map(a => a.type).join(' → ');

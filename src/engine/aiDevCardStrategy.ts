@@ -81,9 +81,17 @@ export function evaluateDevCardPlay(
     return { shouldPlay: false, reasoning: 'No cards in hand' };
   }
 
-  const playableCards = player.developmentCardsInHand.filter(
-    card => card.turnDrawn !== gameState.turn && card.name !== 'Extra Point'
-  );
+  const playableCards = player.developmentCardsInHand.filter(card => {
+    if (card.turnDrawn === player.currentTurn) {
+      console.log(`   [Dev Card Filter] Skipping ${card.name} - drawn this turn (turnDrawn=${card.turnDrawn}, currentTurn=${player.currentTurn})`);
+      return false;
+    }
+    if (card.name === 'Extra Point') {
+      console.log(`   [Dev Card Filter] Skipping ${card.name} - cannot be played`);
+      return false;
+    }
+    return true;
+  });
 
   if (playableCards.length === 0) {
     return { shouldPlay: false, reasoning: 'No playable cards (all drawn this turn or Extra Point cards)' };
