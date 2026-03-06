@@ -415,6 +415,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           }]
         }));
 
+        setAiActionLoopActive(false);
+        setAiActionLoopIterations(0);
+        setDiceRollPhaseComplete(false);
+
         return; // Don't advance to next player, game is over
       }
     }
@@ -2283,6 +2287,23 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         console.log("Resetting game for new session", { wasUndefined, configChanged });
         setInitialized(false);
         setGameState(DEFAULT_GAME_STATE);
+        setAiActionLoopActive(false);
+        setAiActionLoopIterations(0);
+        setDiceRollPhaseComplete(false);
+        setDiceRoll(null);
+        setIsRollingDice(false);
+        setWaitingForConfirmation(false);
+        setShowDiceResult(false);
+        setDiscardState({ playersNeedingDiscard: [], currentDiscardIndex: 0, isProcessing: false });
+        setPlayedCardForModal(null);
+        setDrawnCardForModal(null);
+        setSelectedCentre(null);
+        setSelectedStealTarget(null);
+        setEligibleStealTargets([]);
+        setRobberMovementInitiated(false);
+        aiPlayedDevCardThisPhaseRef.current = false;
+        aiCardEffectProcessingRef.current = false;
+        setTurnTradeHistory({ tradesExecuted: [], resourcesGained: {}, resourcesLost: {} });
       }
     }
   }, [config, initialized]);
