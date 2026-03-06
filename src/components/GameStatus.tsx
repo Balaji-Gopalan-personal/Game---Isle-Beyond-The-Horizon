@@ -62,21 +62,29 @@ export const GameStatus: React.FC<GameStatusProps> = ({ gameState }) => {
           <div className="flex items-center justify-between">
             <span className="text-gray-600 flex items-center gap-1">
               <Route className="w-4 h-4" />
-              Min Longest Road:
+              Longest Road:
             </span>
-            <span className="font-semibold text-gray-800">
-              {settings?.longestRoadSize || 5}+ (+{settings?.longestRoadBonus || 2}pts)
-            </span>
+            {settings?.longestRoadEnabled !== false ? (
+              <span className="font-semibold text-gray-800">
+                {settings?.longestRoadSize || 5}+ (+{settings?.longestRoadBonus || 2}pts)
+              </span>
+            ) : (
+              <span className="font-semibold text-gray-500">Disabled</span>
+            )}
           </div>
-          
+
           <div className="flex items-center justify-between">
             <span className="text-gray-600 flex items-center gap-1">
               <Shield className="w-4 h-4" />
-              Min Largest Army:
+              Largest Army:
             </span>
-            <span className="font-semibold text-gray-800">
-              {settings?.largestArmySize || 3}+ (+{settings?.largestArmyBonus || 2}pts)
-            </span>
+            {settings?.largestArmyEnabled !== false ? (
+              <span className="font-semibold text-gray-800">
+                {settings?.largestArmySize || 3}+ (+{settings?.largestArmyBonus || 2}pts)
+              </span>
+            ) : (
+              <span className="font-semibold text-gray-500">Disabled</span>
+            )}
           </div>
           
           <div className="flex items-center justify-between">

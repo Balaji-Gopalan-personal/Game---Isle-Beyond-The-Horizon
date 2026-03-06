@@ -1180,6 +1180,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     newLength: number,
     customRoadLengths?: Map<string, number>
   ) => {
+    if (!gameState.gameSettings?.longestRoadEnabled) {
+      return { shouldAward: false, bonus: 0 };
+    }
     const minLength = gameState.gameSettings?.longestRoadSize || 5;
     const bonus = gameState.gameSettings?.longestRoadBonus || 2;
     const roadLengthsToUse = customRoadLengths || gameState.longestRoadLengths;
