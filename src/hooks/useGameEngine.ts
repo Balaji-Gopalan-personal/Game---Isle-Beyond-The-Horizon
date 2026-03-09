@@ -1217,6 +1217,9 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
             roadLength: newLength,
             isFirstAchievement: false
           };
+        } else if (newLength === currentHolderLength) {
+          // Tie: current holder keeps it (they reached it first)
+          return { shouldAward: false, bonus: 0 };
         }
       }
     }
@@ -4514,6 +4517,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       );
 
       const currentHolder = updatedPlayers.find(p => p.hasLongestRoad);
+      let longestRoadStolenLog = '';
       if (currentHolder && roadDisruptions.some(d => d.playerId === currentHolder.id)) {
         const holderNewLength = updatedRoadLengths.get(currentHolder.id) || 0;
         const minLength = prev.gameSettings?.longestRoadSize || 5;
@@ -4524,6 +4528,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
               ? { ...p, hasLongestRoad: false, score: p.score - (prev.gameSettings?.longestRoadBonus || 2) }
               : p
           );
+          longestRoadStolenLog = `Longest Road bonus was stolen from ${currentHolder.name} (fell below ${minLength} segments)`;
         } else {
           const otherPlayers = Array.from(updatedRoadLengths.entries())
             .filter(([pid]) => pid !== currentHolder.id);
@@ -4534,6 +4539,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
               curr[1] > max[1] ? curr : max
             );
 
+            const newHolderPlayer = updatedPlayers.find(p => p.id === newHolderId);
             updatedPlayers = updatedPlayers.map(p => {
               if (p.id === currentHolder.id) {
                 return { ...p, hasLongestRoad: false, score: p.score - (prev.gameSettings?.longestRoadBonus || 2) };
@@ -4542,6 +4548,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
               }
               return p;
             });
+            longestRoadStolenLog = `Longest Road bonus was stolen from ${currentHolder.name} and awarded to ${newHolderPlayer?.name} (${newHolderLength} segments)`;
           }
         }
       }
@@ -4576,6 +4583,10 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         addToLog(disruptionMessage);
       }
     });
+
+    if (longestRoadStolenLog) {
+      addToLog(longestRoadStolenLog);
+    }
 
     return true;
   }, [gameState, boardSize, getPlayerColorStyle, addToLog, addColoredLog, checkAndLogTradingPortAccess]);
