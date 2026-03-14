@@ -45,8 +45,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [animatingRoads, setAnimatingRoads] = React.useState<Set<string>>(new Set());
   const [animatingVillages, setAnimatingVillages] = React.useState<Set<number>>(new Set());
   const [upgradingVillages, setUpgradingVillages] = React.useState<Set<number>>(new Set());
+  const [flashingRobberHexes, setFlashingRobberHexes] = React.useState<Set<number>>(new Set());
   const prevRoadsRef = React.useRef<string[]>([]);
   const prevVillagesRef = React.useRef<{id: number, type: string}[]>([]);
+  const prevRobberPositionRef = React.useRef<number | undefined>(undefined);
 
   React.useEffect(() => {
     const currentRoadIds = gameState.roads.map(r => r.id);
@@ -103,6 +105,32 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
     prevVillagesRef.current = currentVillages;
   }, [gameState.villages]);
+
+  React.useEffect(() => {
+    const newPos = gameState.robberPosition;
+    const oldPos = prevRobberPositionRef.current;
+
+    if (newPos !== undefined && oldPos !== undefined && newPos !== oldPos) {
+      setFlashingRobberHexes(prev => new Set(prev).add(oldPos));
+      setTimeout(() => {
+        setFlashingRobberHexes(prev => {
+          const next = new Set(prev);
+          next.delete(oldPos);
+          next.add(newPos);
+          return next;
+        });
+        setTimeout(() => {
+          setFlashingRobberHexes(prev => {
+            const next = new Set(prev);
+            next.delete(newPos);
+            return next;
+          });
+        }, 250);
+      }, 250);
+    }
+
+    prevRobberPositionRef.current = newPos;
+  }, [gameState.robberPosition]);
 
   const boardData = React.useMemo(() => {
     console.log('Loading board graph...');
@@ -596,6 +624,21 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     fill="rgba(128, 128, 128, 0.3)"
                     stroke="none"
                     pointerEvents="none"
+                  />
+                )}
+
+                {/* Robber movement flash */}
+                {flashingRobberHexes.has(center.id) && (
+                  <circle
+                    key={`robber-flash-${center.id}-${Date.now()}`}
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={circleRadius * 1.15}
+                    fill="none"
+                    stroke="#FF8C00"
+                    strokeWidth="8"
+                    pointerEvents="none"
+                    style={{ animation: 'robber-hex-flash 0.25s ease-out forwards' }}
                   />
                 )}
 

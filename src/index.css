@@ -133,6 +133,17 @@ div[style*=".gif"] {
   image-rendering: auto;
 }
 
+@keyframes robber-hex-flash {
+  0% {
+    opacity: 1;
+    stroke-width: 8;
+  }
+  100% {
+    opacity: 0;
+    stroke-width: 4;
+  }
+}
+
 @keyframes bounce {
   0%, 100% {
     transform: translateX(0) rotate(0deg);
