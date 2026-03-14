@@ -14,6 +14,8 @@ interface TradingModalProps {
   onProposePlayerTrade: (offeredResources: any, requestedResources: any) => void;
   activeTradeProposal?: TradeProposal;
   initialMode?: 'bank' | 'player';
+  humanP2PTradeLimit: number | null;
+  humanP2PTradesUsed: number;
 }
 
 type TradeMode = 'bank' | 'player';
@@ -34,7 +36,9 @@ export const TradingModal: React.FC<TradingModalProps> = ({
   onExecuteBankTrade,
   onProposePlayerTrade,
   activeTradeProposal,
-  initialMode = 'bank'
+  initialMode = 'bank',
+  humanP2PTradeLimit,
+  humanP2PTradesUsed
 }) => {
   const { assets } = useAssets();
   const [tradeMode, setTradeMode] = useState<TradeMode>(initialMode);
@@ -218,9 +222,10 @@ export const TradingModal: React.FC<TradingModalProps> = ({
 
   const bankValidationError = getBankTradeValidation();
   const playerValidationError = getPlayerTradeValidation();
+  const p2pLimitReached = tradeMode === 'player' && humanP2PTradeLimit !== null && humanP2PTradesUsed >= humanP2PTradeLimit;
   const canConfirm = tradeMode === 'bank'
     ? bankValidationError === null
-    : playerValidationError === null;
+    : playerValidationError === null && !p2pLimitReached;
 
   const opponentPlayers = gameState.players.filter(p => p.id !== currentPlayer.id);
 
@@ -281,7 +286,23 @@ export const TradingModal: React.FC<TradingModalProps> = ({
 
         {tradeMode === 'player' && (
           <div className="mb-3 bg-blue-50 border border-blue-200 rounded-lg p-2">
-            <div className="text-xs font-semibold text-blue-800 mb-1.5">Opponents:</div>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-xs font-semibold text-blue-800">Opponents:</div>
+              {humanP2PTradeLimit !== null && (
+                <div className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  p2pLimitReached
+                    ? 'bg-red-100 text-red-700 border border-red-300'
+                    : humanP2PTradesUsed >= humanP2PTradeLimit - 1
+                    ? 'bg-amber-100 text-amber-700 border border-amber-300'
+                    : 'bg-gray-100 text-gray-600 border border-gray-200'
+                }`}>
+                  {p2pLimitReached
+                    ? 'Trade limit reached'
+                    : `${humanP2PTradeLimit - humanP2PTradesUsed} trade${humanP2PTradeLimit - humanP2PTradesUsed === 1 ? '' : 's'} remaining`
+                  }
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-1.5">
               {opponentPlayers.map(player => (
                 <div

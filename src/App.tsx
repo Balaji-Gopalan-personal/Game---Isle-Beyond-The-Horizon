@@ -884,6 +884,13 @@ function App() {
             }}
             activeTradeProposal={gameState.turnState.tradeProposal}
             initialMode={lastTradeMode}
+            humanP2PTradeLimit={(() => {
+              const aiPlayer = gameState.players.find(p => !p.isHuman);
+              const difficulty = aiPlayer?.difficulty ?? 'normal';
+              if (difficulty === 'easy') return null;
+              return difficulty === 'hard' ? 2 : 3;
+            })()}
+            humanP2PTradesUsed={gameState.turnState.humanTradeAttemptsThisTurn ?? 0}
           />
 
           {gameState.turnState.tradeProposal && (

@@ -475,7 +475,8 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           },
           lock: false,
           aiTradeAttemptsThisTurn: 0,
-          aiFailedTradeProposalsThisTurn: new Set<string>()
+          aiFailedTradeProposalsThisTurn: new Set<string>(),
+          humanTradeAttemptsThisTurn: 0
         };
         console.log('DEBUG: Reset turnState to awaiting_dice_roll for playing phase (cleared trade tracking)');
       }
@@ -5590,6 +5591,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       const currentPlayer = prev.players.find(p => p.id === prev.currentPlayer);
       if (!currentPlayer) return prev;
 
+      if (currentPlayer.isHuman) {
+        const aiPlayer = prev.players.find(p => !p.isHuman);
+        const difficulty = aiPlayer?.difficulty ?? 'normal';
+        const limit = difficulty === 'hard' ? 2 : difficulty === 'normal' ? 3 : null;
+        const used = prev.turnState.humanTradeAttemptsThisTurn ?? 0;
+        if (limit !== null && used >= limit) return prev;
+      }
+
       const otherPlayers = prev.players.filter(p => p.id !== currentPlayer.id);
 
       const sortedPlayers = [...prev.players].sort((a, b) => a.order - b.order);
@@ -5632,11 +5641,17 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         requestedList
       };
 
+      const currentPlayer2 = prev.players.find(p => p.id === prev.currentPlayer);
+      const isHumanProposal = currentPlayer2?.isHuman === true;
+
       return {
         ...prev,
         turnState: {
           ...prev.turnState,
-          tradeProposal
+          tradeProposal,
+          humanTradeAttemptsThisTurn: isHumanProposal
+            ? (prev.turnState.humanTradeAttemptsThisTurn ?? 0) + 1
+            : prev.turnState.humanTradeAttemptsThisTurn
         }
       };
     });

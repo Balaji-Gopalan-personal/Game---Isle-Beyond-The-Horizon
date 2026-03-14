@@ -113,6 +113,7 @@ export interface TurnState {
   expertNegotiatorActive?: boolean;
   aiTradeAttemptsThisTurn?: number;
   aiFailedTradeProposalsThisTurn?: Set<string>;
+  humanTradeAttemptsThisTurn?: number;
   committedBuildingGoal?: 'village' | 'estate' | 'road' | 'dev_card';
   tradeIterationsForGoal?: number;
 }
