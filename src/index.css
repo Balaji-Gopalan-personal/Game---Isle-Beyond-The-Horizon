@@ -136,11 +136,33 @@ div[style*=".gif"] {
 @keyframes robber-hex-flash {
   0% {
     opacity: 1;
-    stroke-width: 8;
+    stroke-width: 12;
   }
   100% {
     opacity: 0;
-    stroke-width: 4;
+    stroke-width: 6;
+  }
+}
+
+@keyframes robber-wipe-out {
+  0% {
+    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+    opacity: 1;
+  }
+  100% {
+    clip-path: polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%);
+    opacity: 0;
+  }
+}
+
+@keyframes robber-wipe-in {
+  0% {
+    clip-path: polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%);
+    opacity: 0;
+  }
+  100% {
+    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+    opacity: 1;
   }
 }
 

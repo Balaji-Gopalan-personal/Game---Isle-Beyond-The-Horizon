@@ -46,6 +46,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [animatingVillages, setAnimatingVillages] = React.useState<Set<number>>(new Set());
   const [upgradingVillages, setUpgradingVillages] = React.useState<Set<number>>(new Set());
   const [flashingRobberHexes, setFlashingRobberHexes] = React.useState<Map<number, number>>(new Map());
+  const [robberWipeOutHex, setRobberWipeOutHex] = React.useState<number | undefined>(undefined);
+  const [robberWipeInHex, setRobberWipeInHex] = React.useState<number | undefined>(undefined);
   const prevRoadsRef = React.useRef<string[]>([]);
   const prevVillagesRef = React.useRef<{id: number, type: string}[]>([]);
   const prevRobberPositionRef = React.useRef<number | undefined>(undefined);
@@ -113,6 +115,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     if (newPos !== undefined && oldPos !== undefined && newPos !== oldPos) {
       const t0 = Date.now();
       setFlashingRobberHexes(prev => new Map(prev).set(oldPos, t0));
+      setRobberWipeOutHex(oldPos);
       setTimeout(() => {
         setFlashingRobberHexes(prev => {
           const next = new Map(prev);
@@ -120,12 +123,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           next.set(newPos, Date.now());
           return next;
         });
+        setRobberWipeOutHex(undefined);
+        setRobberWipeInHex(newPos);
         setTimeout(() => {
           setFlashingRobberHexes(prev => {
             const next = new Map(prev);
             next.delete(newPos);
             return next;
           });
+          setRobberWipeInHex(undefined);
         }, 750);
       }, 750);
     }
@@ -635,9 +641,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     cx={pos.x}
                     cy={pos.y}
                     r={circleRadius * 1.15}
-                    fill="rgba(255,140,0,0.25)"
-                    stroke="#FF8C00"
-                    strokeWidth="8"
+                    fill="rgba(255,255,255,0.2)"
+                    stroke="#ffffff"
+                    strokeWidth="12"
                     pointerEvents="none"
                     style={{ animation: 'robber-hex-flash 0.75s ease-out forwards' }}
                   />
@@ -699,22 +705,45 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             );
           })}
           
-          {/* Draw robber */}
-          {gameState.robberPosition !== undefined && (() => {
-            const robberCentre = centers.find(c => c.id === gameState.robberPosition);
+          {/* Draw robber wipe-out (old position) */}
+          {robberWipeOutHex !== undefined && (() => {
+            const robberCentre = centers.find(c => c.id === robberWipeOutHex);
             if (!robberCentre) return null;
-
             const pos = getCenterPosition(robberCentre);
             const robberRadius = Math.max(10.8, scale * 0.27);
-
             return (
               <circle
+                key={`robber-wipeout-${robberWipeOutHex}`}
                 cx={pos.x}
                 cy={pos.y}
                 r={robberRadius}
                 fill="url(#checkerboard)"
                 stroke="#000"
                 strokeWidth="1.5"
+                pointerEvents="none"
+                style={{ animation: 'robber-wipe-out 0.75s ease-out forwards' }}
+              />
+            );
+          })()}
+
+          {/* Draw robber (static or wipe-in at new position) */}
+          {gameState.robberPosition !== undefined && robberWipeOutHex === undefined && (() => {
+            const targetHex = robberWipeInHex ?? gameState.robberPosition;
+            const robberCentre = centers.find(c => c.id === targetHex);
+            if (!robberCentre) return null;
+            const pos = getCenterPosition(robberCentre);
+            const robberRadius = Math.max(10.8, scale * 0.27);
+            return (
+              <circle
+                key={`robber-${targetHex}-${robberWipeInHex !== undefined ? 'in' : 'static'}`}
+                cx={pos.x}
+                cy={pos.y}
+                r={robberRadius}
+                fill="url(#checkerboard)"
+                stroke="#000"
+                strokeWidth="1.5"
+                pointerEvents="none"
+                style={robberWipeInHex !== undefined ? { animation: 'robber-wipe-in 0.75s ease-out forwards' } : {}}
               />
             );
           })()}
