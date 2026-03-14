@@ -45,7 +45,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [animatingRoads, setAnimatingRoads] = React.useState<Set<string>>(new Set());
   const [animatingVillages, setAnimatingVillages] = React.useState<Set<number>>(new Set());
   const [upgradingVillages, setUpgradingVillages] = React.useState<Set<number>>(new Set());
-  const [flashingRobberHexes, setFlashingRobberHexes] = React.useState<Set<number>>(new Set());
+  const [flashingRobberHexes, setFlashingRobberHexes] = React.useState<Map<number, number>>(new Map());
   const prevRoadsRef = React.useRef<string[]>([]);
   const prevVillagesRef = React.useRef<{id: number, type: string}[]>([]);
   const prevRobberPositionRef = React.useRef<number | undefined>(undefined);
@@ -111,22 +111,23 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     const oldPos = prevRobberPositionRef.current;
 
     if (newPos !== undefined && oldPos !== undefined && newPos !== oldPos) {
-      setFlashingRobberHexes(prev => new Set(prev).add(oldPos));
+      const t0 = Date.now();
+      setFlashingRobberHexes(prev => new Map(prev).set(oldPos, t0));
       setTimeout(() => {
         setFlashingRobberHexes(prev => {
-          const next = new Set(prev);
+          const next = new Map(prev);
           next.delete(oldPos);
-          next.add(newPos);
+          next.set(newPos, Date.now());
           return next;
         });
         setTimeout(() => {
           setFlashingRobberHexes(prev => {
-            const next = new Set(prev);
+            const next = new Map(prev);
             next.delete(newPos);
             return next;
           });
-        }, 250);
-      }, 250);
+        }, 750);
+      }, 750);
     }
 
     prevRobberPositionRef.current = newPos;
@@ -630,15 +631,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 {/* Robber movement flash */}
                 {flashingRobberHexes.has(center.id) && (
                   <circle
-                    key={`robber-flash-${center.id}-${Date.now()}`}
+                    key={`robber-flash-${center.id}-${flashingRobberHexes.get(center.id)}`}
                     cx={pos.x}
                     cy={pos.y}
                     r={circleRadius * 1.15}
-                    fill="none"
+                    fill="rgba(255,140,0,0.25)"
                     stroke="#FF8C00"
                     strokeWidth="8"
                     pointerEvents="none"
-                    style={{ animation: 'robber-hex-flash 0.25s ease-out forwards' }}
+                    style={{ animation: 'robber-hex-flash 0.75s ease-out forwards' }}
                   />
                 )}
 
