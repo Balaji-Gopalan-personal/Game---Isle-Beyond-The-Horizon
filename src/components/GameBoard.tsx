@@ -46,11 +46,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [animatingVillages, setAnimatingVillages] = React.useState<Set<number>>(new Set());
   const [upgradingVillages, setUpgradingVillages] = React.useState<Set<number>>(new Set());
   const [flashingRobberHexes, setFlashingRobberHexes] = React.useState<Map<number, number>>(new Map());
-  const [robberWipeOutHex, setRobberWipeOutHex] = React.useState<number | undefined>(undefined);
-  const [robberWipeInHex, setRobberWipeInHex] = React.useState<number | undefined>(undefined);
+  const [robberAnimPos, setRobberAnimPos] = React.useState<{x: number; y: number} | null>(null);
   const prevRoadsRef = React.useRef<string[]>([]);
   const prevVillagesRef = React.useRef<{id: number, type: string}[]>([]);
   const prevRobberPositionRef = React.useRef<number | undefined>(undefined);
+  const robberRafRef = React.useRef<number | null>(null);
+  const centersRef = React.useRef<typeof centers>([] as unknown as typeof centers);
+  const boardTransformRef = React.useRef({ minX: 0, minY: 0, scale: 1, padding: 60 });
 
   React.useEffect(() => {
     const currentRoadIds = gameState.roads.map(r => r.id);
@@ -113,27 +115,61 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     const oldPos = prevRobberPositionRef.current;
 
     if (newPos !== undefined && oldPos !== undefined && newPos !== oldPos) {
-      const t0 = Date.now();
-      setFlashingRobberHexes(prev => new Map(prev).set(oldPos, t0));
-      setRobberWipeOutHex(oldPos);
-      setTimeout(() => {
-        setFlashingRobberHexes(prev => {
-          const next = new Map(prev);
-          next.delete(oldPos);
-          next.set(newPos, Date.now());
-          return next;
-        });
-        setRobberWipeOutHex(undefined);
-        setRobberWipeInHex(newPos);
-        setTimeout(() => {
-          setFlashingRobberHexes(prev => {
-            const next = new Map(prev);
-            next.delete(newPos);
-            return next;
+      const { minX, minY, scale: s, padding: pad } = boardTransformRef.current;
+      const allCenters = centersRef.current;
+
+      const oldCentre = allCenters.find(c => c.id === oldPos);
+      const newCentre = allCenters.find(c => c.id === newPos);
+
+      if (oldCentre && newCentre) {
+        const fromX = (oldCentre.x - minX) * s + pad;
+        const fromY = (oldCentre.y - minY) * s + pad;
+        const toX = (newCentre.x - minX) * s + pad;
+        const toY = (newCentre.y - minY) * s + pad;
+
+        const duration = 1500;
+        const startTime = performance.now();
+
+        setFlashingRobberHexes(prev => new Map(prev).set(oldPos, Date.now()));
+        setRobberAnimPos({ x: fromX, y: fromY });
+
+        if (robberRafRef.current !== null) {
+          cancelAnimationFrame(robberRafRef.current);
+        }
+
+        const animate = (now: number) => {
+          const elapsed = now - startTime;
+          const t = Math.min(elapsed / duration, 1);
+          const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
+          setRobberAnimPos({
+            x: fromX + (toX - fromX) * ease,
+            y: fromY + (toY - fromY) * ease,
           });
-          setRobberWipeInHex(undefined);
-        }, 750);
-      }, 750);
+
+          if (t < 1) {
+            robberRafRef.current = requestAnimationFrame(animate);
+          } else {
+            robberRafRef.current = null;
+            setRobberAnimPos(null);
+            setFlashingRobberHexes(prev => {
+              const next = new Map(prev);
+              next.delete(oldPos);
+              next.set(newPos, Date.now());
+              return next;
+            });
+            setTimeout(() => {
+              setFlashingRobberHexes(prev => {
+                const next = new Map(prev);
+                next.delete(newPos);
+                return next;
+              });
+            }, 750);
+          }
+        };
+
+        robberRafRef.current = requestAnimationFrame(animate);
+      }
     }
 
     prevRobberPositionRef.current = newPos;
@@ -216,6 +252,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     x: (center.x - minX) * scale + padding,
     y: (center.y - minY) * scale + padding
   });
+
+  centersRef.current = centers;
+  boardTransformRef.current = { minX, minY, scale, padding };
 
   const getResourceImageSrc = (resourceType: string): string | undefined => {
     return getResourceImage(assets, resourceType);
@@ -705,15 +744,29 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             );
           })}
           
-          {/* Draw robber wipe-out (old position) */}
-          {robberWipeOutHex !== undefined && (() => {
-            const robberCentre = centers.find(c => c.id === robberWipeOutHex);
+          {/* Draw robber — slides to new position or sits statically */}
+          {gameState.robberPosition !== undefined && (() => {
+            const robberRadius = Math.max(10.8, scale * 0.27);
+            if (robberAnimPos) {
+              return (
+                <circle
+                  key="robber-moving"
+                  cx={robberAnimPos.x}
+                  cy={robberAnimPos.y}
+                  r={robberRadius}
+                  fill="url(#checkerboard)"
+                  stroke="#000"
+                  strokeWidth="1.5"
+                  pointerEvents="none"
+                />
+              );
+            }
+            const robberCentre = centers.find(c => c.id === gameState.robberPosition);
             if (!robberCentre) return null;
             const pos = getCenterPosition(robberCentre);
-            const robberRadius = Math.max(10.8, scale * 0.27);
             return (
               <circle
-                key={`robber-wipeout-${robberWipeOutHex}`}
+                key={`robber-static-${gameState.robberPosition}`}
                 cx={pos.x}
                 cy={pos.y}
                 r={robberRadius}
@@ -721,29 +774,6 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 stroke="#000"
                 strokeWidth="1.5"
                 pointerEvents="none"
-                style={{ animation: 'robber-wipe-out 0.75s ease-out forwards' }}
-              />
-            );
-          })()}
-
-          {/* Draw robber (static or wipe-in at new position) */}
-          {gameState.robberPosition !== undefined && robberWipeOutHex === undefined && (() => {
-            const targetHex = robberWipeInHex ?? gameState.robberPosition;
-            const robberCentre = centers.find(c => c.id === targetHex);
-            if (!robberCentre) return null;
-            const pos = getCenterPosition(robberCentre);
-            const robberRadius = Math.max(10.8, scale * 0.27);
-            return (
-              <circle
-                key={`robber-${targetHex}-${robberWipeInHex !== undefined ? 'in' : 'static'}`}
-                cx={pos.x}
-                cy={pos.y}
-                r={robberRadius}
-                fill="url(#checkerboard)"
-                stroke="#000"
-                strokeWidth="1.5"
-                pointerEvents="none"
-                style={robberWipeInHex !== undefined ? { animation: 'robber-wipe-in 0.75s ease-out forwards' } : {}}
               />
             );
           })()}
