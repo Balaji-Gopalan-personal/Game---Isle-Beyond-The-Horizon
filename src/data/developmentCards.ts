@@ -1,4 +1,4 @@
-import { DevelopmentCard } from '../types/game';
+import { DevelopmentCard, CardLocation } from '../types/game';
 
 interface CardDefinition {
   name: string;
@@ -154,6 +154,28 @@ export function reshuffleDeck(discardPile: DevelopmentCard[]): DevelopmentCard[]
   }));
 
   return shuffleDeck(reshuffledCards);
+}
+
+export function discardCard(
+  card: DevelopmentCard,
+  currentDeck: DevelopmentCard[],
+  currentDiscard: DevelopmentCard[]
+): { newDeck: DevelopmentCard[]; newDiscard: DevelopmentCard[]; movedToDeck: boolean } {
+  const discardedCard = { ...card, location: 'discard' as CardLocation };
+
+  if (currentDeck.length === 0) {
+    return {
+      newDeck: [{ ...discardedCard, location: 'deck' as CardLocation }],
+      newDiscard: currentDiscard,
+      movedToDeck: true
+    };
+  }
+
+  return {
+    newDeck: currentDeck,
+    newDiscard: [...currentDiscard, discardedCard],
+    movedToDeck: false
+  };
 }
 
 export { CARD_DEFINITIONS };

@@ -15,7 +15,7 @@ import { shouldPlayDevCardAfterRoll, selectBoomingEconomyResources, selectClosed
 import { evaluateTradeOpportunity, TurnTradeHistory, identifyTradeGoals } from '../engine/aiTradingStrategy';
 import { ResourceType } from '../utils/tradingUtils';
 import { createTurnPlan, shouldContinueTurn } from '../engine/aiTurnOrchestrator';
-import { createInitialDeck, shuffleDeck, reshuffleDeck } from '../data/developmentCards';
+import { createInitialDeck, shuffleDeck, reshuffleDeck, discardCard } from '../data/developmentCards';
 import { checkVictoryCondition } from '../utils/victoryDetection';
 import { generateTradingPorts } from '../utils/tradingPortUtils';
 import { getPlayerTradingPorts, canExecuteBankTrade, canProposePlayerTrade, getTradeRateDisplay, getBestTradeRateForResource } from '../utils/tradingUtils';
@@ -2869,24 +2869,33 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         setAiDevCardDecision(null);
       }
 
-      setGameState(prev => ({
-        ...prev,
-        players: prev.players.map(p => {
-          if (p.id === currentPlayer.id) {
-            return {
-              ...p,
-              developmentCardsInHand: p.developmentCardsInHand.filter(c => c.id !== card.id),
-              developmentCards: p.developmentCards - 1
-            };
+      const expertNegotiatorDiscard = discardCard(card, gameState.developmentCardDeck, gameState.developmentCardDiscard);
+      if (expertNegotiatorDiscard.movedToDeck) {
+        setTimeout(() => addToLog('Development Card draw pile replenished from played card'), 300);
+      }
+
+      setGameState(prev => {
+        const { newDeck, newDiscard } = discardCard(card, prev.developmentCardDeck, prev.developmentCardDiscard);
+        return {
+          ...prev,
+          players: prev.players.map(p => {
+            if (p.id === currentPlayer.id) {
+              return {
+                ...p,
+                developmentCardsInHand: p.developmentCardsInHand.filter(c => c.id !== card.id),
+                developmentCards: p.developmentCards - 1
+              };
+            }
+            return p;
+          }),
+          developmentCardDeck: newDeck,
+          developmentCardDiscard: newDiscard,
+          turnState: {
+            ...prev.turnState,
+            expertNegotiatorActive: true
           }
-          return p;
-        }),
-        developmentCardDiscard: [...prev.developmentCardDiscard, { ...card, location: 'discard' as CardLocation }],
-        turnState: {
-          ...prev.turnState,
-          expertNegotiatorActive: true
-        }
-      }));
+        };
+      });
 
       setPlayedCardForModal({
         card,
@@ -2982,20 +2991,29 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       }
     } else {
       // Non-interactive cards: remove immediately
-      setGameState(prev => ({
-        ...prev,
-        players: prev.players.map(p => {
-          if (p.id === currentPlayer.id) {
-            return {
-              ...p,
-              developmentCardsInHand: p.developmentCardsInHand.filter(c => c.id !== card.id),
-              developmentCards: p.developmentCards - 1
-            };
-          }
-          return p;
-        }),
-        developmentCardDiscard: [...prev.developmentCardDiscard, { ...card, location: 'discard' as const }]
-      }));
+      const nonInteractiveDiscard = discardCard(card, gameState.developmentCardDeck, gameState.developmentCardDiscard);
+      if (nonInteractiveDiscard.movedToDeck) {
+        setTimeout(() => addToLog('Development Card draw pile replenished from played card'), 300);
+      }
+
+      setGameState(prev => {
+        const { newDeck, newDiscard } = discardCard(card, prev.developmentCardDeck, prev.developmentCardDiscard);
+        return {
+          ...prev,
+          players: prev.players.map(p => {
+            if (p.id === currentPlayer.id) {
+              return {
+                ...p,
+                developmentCardsInHand: p.developmentCardsInHand.filter(c => c.id !== card.id),
+                developmentCards: p.developmentCards - 1
+              };
+            }
+            return p;
+          }),
+          developmentCardDeck: newDeck,
+          developmentCardDiscard: newDiscard
+        };
+      });
     }
   }, [gameState, addToLog, getPlayerColorStyle]);
 
@@ -3259,12 +3277,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
+      const { newDeck: beNewDeck, newDiscard: beNewDiscard } = cardToDiscard
+        ? discardCard(cardToDiscard, prev.developmentCardDeck, prev.developmentCardDiscard)
+        : { newDeck: prev.developmentCardDeck, newDiscard: prev.developmentCardDiscard };
+
       return {
         ...prev,
         players: updatedPlayers,
-        developmentCardDiscard: cardToDiscard
-          ? [...prev.developmentCardDiscard, { ...cardToDiscard, location: 'discard' as const }]
-          : prev.developmentCardDiscard,
+        developmentCardDeck: beNewDeck,
+        developmentCardDiscard: beNewDiscard,
         turnState: {
           ...prev.turnState,
           step: 'play_dev_cards',
@@ -3285,7 +3306,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         boomingEconomyLogDataRef.current = null; // Clear after use
       }
     }, 100);
-  }, [addToLog, getPlayerColorStyle]);
+
+    if (gameState.developmentCardDeck.length === 0) {
+      setTimeout(() => addToLog('Development Card draw pile replenished from played card'), 200);
+    }
+  }, [addToLog, getPlayerColorStyle, gameState.developmentCardDeck]);
 
   const handleClosedMarketResourceSelection = useCallback((resourceType: 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral') => {
     console.log('DEBUG: Closed Market resource type selected:', resourceType);
@@ -3395,12 +3420,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
+      const { newDeck: cmNewDeck, newDiscard: cmNewDiscard } = cardToDiscard
+        ? discardCard(cardToDiscard, prev.developmentCardDeck, prev.developmentCardDiscard)
+        : { newDeck: prev.developmentCardDeck, newDiscard: prev.developmentCardDiscard };
+
       return {
         ...prev,
         players: finalPlayers,
-        developmentCardDiscard: cardToDiscard
-          ? [...prev.developmentCardDiscard, { ...cardToDiscard, location: 'discard' as const }]
-          : prev.developmentCardDiscard,
+        developmentCardDeck: cmNewDeck,
+        developmentCardDiscard: cmNewDiscard,
         turnState: {
           ...prev.turnState,
           step: 'play_dev_cards',
@@ -3433,7 +3461,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         closedMarketLogDataRef.current = null; // Clear after use
       }
     }, 200);
-  }, [addToLog, getPlayerColorStyle]);
+
+    if (gameState.developmentCardDeck.length === 0) {
+      setTimeout(() => addToLog('Development Card draw pile replenished from played card'), 300);
+    }
+  }, [addToLog, getPlayerColorStyle, gameState.developmentCardDeck]);
 
   const handleResourceSwapPlayerSelection = useCallback((targetPlayerId: string) => {
     console.log('DEBUG: Resource Swap target player selected:', targetPlayerId);
@@ -3495,12 +3527,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       // Find the card to move to discard
       const cardToDiscard = currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId);
 
+      const { newDeck: rsNewDeck, newDiscard: rsNewDiscard } = cardToDiscard
+        ? discardCard(cardToDiscard, prev.developmentCardDeck, prev.developmentCardDiscard)
+        : { newDeck: prev.developmentCardDeck, newDiscard: prev.developmentCardDiscard };
+
       return {
         ...prev,
         players: updatedPlayers,
-        developmentCardDiscard: cardToDiscard
-          ? [...prev.developmentCardDiscard, { ...cardToDiscard, location: 'discard' as const }]
-          : prev.developmentCardDiscard,
+        developmentCardDeck: rsNewDeck,
+        developmentCardDiscard: rsNewDiscard,
         turnState: {
           ...prev.turnState,
           step: 'play_dev_cards',
@@ -3522,7 +3557,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         resourceSwapLogDataRef.current = null; // Clear after use
       }
     }, 100);
-  }, [addToLog, getPlayerColorStyle]);
+
+    if (gameState.developmentCardDeck.length === 0) {
+      setTimeout(() => addToLog('Development Card draw pile replenished from played card'), 200);
+    }
+  }, [addToLog, getPlayerColorStyle, gameState.developmentCardDeck]);
 
   const handleCancelCardEffect = useCallback(() => {
     setGameState(prev => ({
@@ -3603,13 +3642,16 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
       console.log(`🔥 FREE UPGRADE: Prepared log message for ${currentPlayer.name}`);
 
+      const { newDeck: fuNewDeck, newDiscard: fuNewDiscard } = cardToDiscard
+        ? discardCard(cardToDiscard, prev.developmentCardDeck, prev.developmentCardDiscard)
+        : { newDeck: prev.developmentCardDeck, newDiscard: prev.developmentCardDiscard };
+
       return {
         ...prev,
         players: updatedPlayers,
         villages: updatedVillages,
-        developmentCardDiscard: cardToDiscard
-          ? [...prev.developmentCardDiscard, { ...cardToDiscard, location: 'discard' as const }]
-          : prev.developmentCardDiscard,
+        developmentCardDeck: fuNewDeck,
+        developmentCardDiscard: fuNewDiscard,
         turnState: {
           ...prev.turnState,
           step: 'play_dev_cards',
@@ -3629,7 +3671,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         freeUpgradeLogDataRef.current = null; // Clear after use
       }
     }, 100);
-  }, [addToLog, getPlayerColorStyle]);
+
+    if (gameState.developmentCardDeck.length === 0) {
+      setTimeout(() => addToLog('Development Card draw pile replenished from played card'), 200);
+    }
+  }, [addToLog, getPlayerColorStyle, gameState.developmentCardDeck]);
 
   // Auto-handle play_dev_cards phase for AI players
   useEffect(() => {
@@ -4047,14 +4093,17 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         ? currentPlayer.developmentCardsInHand.find(c => c.id === pendingCardId)
         : null;
 
+      const { newDeck: rcNewDeck, newDiscard: rcNewDiscard } = cardToDiscard
+        ? discardCard(cardToDiscard, prev.developmentCardDeck, prev.developmentCardDiscard)
+        : { newDeck: prev.developmentCardDeck, newDiscard: prev.developmentCardDiscard };
+
       return {
         ...prev,
         roads: updatedRoads,
         edgesOccupiedBy: updatedEdgesOccupiedBy,
         longestRoadLengths: new Map([...prev.longestRoadLengths, [playerId, longestPath]]),
-        developmentCardDiscard: cardToDiscard
-          ? [...prev.developmentCardDiscard, { ...cardToDiscard, location: 'discard' as const }]
-          : prev.developmentCardDiscard,
+        developmentCardDeck: rcNewDeck,
+        developmentCardDiscard: rcNewDiscard,
         players: prev.players.map(p => {
           if (p.id === playerId) {
             return {
@@ -4094,6 +4143,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         }
       };
     });
+
+    const isCompletingRoadConstructionOuter = isFreeRoad && ((gameState.turnState.placementContext.freeRoadsRemaining ?? 0) - 1) === 0 && gameState.turnState.placementContext.pendingCardId;
+    if (isCompletingRoadConstructionOuter && gameState.developmentCardDeck.length === 0) {
+      setTimeout(() => addToLog('Development Card draw pile replenished from played card'), 200);
+    }
 
     const playerColor = getPlayerColorStyle(currentPlayer.color);
     const freeRoadSuffix = isFreeRoad ? ' for free' : '';
