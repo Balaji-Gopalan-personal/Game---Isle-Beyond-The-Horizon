@@ -3,6 +3,7 @@ import { BoardSize } from '../data/boardStructure';
 import { getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages } from './gameplayActions';
 import { loadBoardForSize } from '../graph/loadBoard';
 import { calculateBuildingPriority, evaluateVertex } from './aiStrategicEval';
+import { shouldHoldForHigherValue } from './aiPlanning';
 
 export type BuildingType = 'road' | 'village' | 'estate' | 'dev_card';
 
@@ -134,7 +135,7 @@ export function makeStrategicBuildDecision(
   difficulty: 'easy' | 'normal' | 'hard' = 'normal'
 ): AIBuildDecision {
   const options = checkBuildingAvailability(playerId, gameState, boardSize);
-  const availableOptions = options.filter(opt => opt.canAfford && opt.hasValidLocation);
+  let availableOptions = options.filter(opt => opt.canAfford && opt.hasValidLocation);
 
   if (availableOptions.length === 0) {
     return { shouldBuild: false };
@@ -142,6 +143,25 @@ export function makeStrategicBuildDecision(
 
   const player = gameState.players.find(p => p.id === playerId);
   if (!player) return { shouldBuild: false };
+
+  // Planning-horizon lookahead: defer low-value builds (road / dev card) when a
+  // higher-value build (city / settlement) is reachable within the horizon via
+  // expected income and building now would set it back. Easy stays greedy.
+  const heldBack = availableOptions.filter(opt => {
+    const decision = shouldHoldForHigherValue(player, gameState, opt.type, boardSize, difficulty);
+    if (decision.hold) {
+      console.log(`   🪙 [${player.name}] Deferring ${opt.type}: ${decision.reason}`);
+      return false;
+    }
+    return true;
+  });
+
+  if (heldBack.length === 0) {
+    // Every affordable build is worth deferring - hold resources this turn.
+    console.log(`   🪙 [${player.name}] Holding all resources to save toward a higher-value build`);
+    return { shouldBuild: false };
+  }
+  availableOptions = heldBack;
 
   availableOptions.sort((a, b) => b.priority - a.priority);
 
