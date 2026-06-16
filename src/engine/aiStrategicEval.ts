@@ -415,6 +415,25 @@ export function calculateBuildingPriority(
   let estatePriority = villageCount > 0 ? (5 - cityCount) * 3.5 : 0;
   estatePriority -= estateResourcesNeeded * 2.5;
 
+  // A city is guaranteed +1 point AND doubles production. When the player owns a
+  // settlement on a strong-production tile, upgrading it is one of the most
+  // efficient plays available - reflect that so cities aren't under-valued.
+  const boardCentersForEstate = gameState.boardCenters && gameState.boardCenters.length > 0
+    ? gameState.boardCenters
+    : loadBoardForSize(gameState.gameSettings.boardSize as BoardSize).centers;
+  const upgradeableSettlements = gameState.villages.filter(
+    v => v.playerId === player.id && v.type === 'settlement'
+  );
+  if (upgradeableSettlements.length > 0) {
+    const bestUpgradeProduction = Math.max(
+      ...upgradeableSettlements.map(v =>
+        calculateProductionValue(v.vertexId, gameState.gameSettings.boardSize as BoardSize, boardCentersForEstate)
+      )
+    );
+    // bestUpgradeProduction is on the same ~0-30 scale as other production values.
+    estatePriority += bestUpgradeProduction * 0.4;
+  }
+
   if (isEarlyGame && villageCount < 2) {
     estatePriority *= 0.2;
   } else if (isEarlyGame && villageCount < 3) {

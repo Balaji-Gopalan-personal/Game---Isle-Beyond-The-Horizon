@@ -12,7 +12,7 @@ import { selectStrategicRoadLocation, selectStrategicVillageLocation, selectStra
 import { findDesertCentre, isValidRobberDestination, getPlayersWithAdjacentBuildings, selectRandomRobberDestination, stealRandomResource, selectRandomStealTarget, CentreData } from '../engine/robberActions';
 import { selectRobberPlacement } from '../engine/aiRobberStrategy';
 import { shouldPlayDevCardAfterRoll, selectBoomingEconomyResources, selectClosedMarketResource, selectResourceSwapTarget } from '../engine/aiDevCardStrategy';
-import { evaluateTradeOpportunity, TurnTradeHistory, identifyTradeGoals } from '../engine/aiTradingStrategy';
+import { evaluateTradeOpportunity, TurnTradeHistory, identifyTradeGoals, evaluatePlayerTradeProposal } from '../engine/aiTradingStrategy';
 import { ResourceType } from '../utils/tradingUtils';
 import { createTurnPlan, shouldContinueTurn } from '../engine/aiTurnOrchestrator';
 import { createInitialDeck, shuffleDeck, reshuffleDeck, discardCard } from '../data/developmentCards';
@@ -5692,7 +5692,19 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         ([resource, amount]) => currentResponder.resources[resource as keyof typeof currentResponder.resources] >= (amount as number)
       );
 
-      const willAccept = hasEnoughResources && Math.random() < 0.35;
+      // Use the strategic evaluator instead of a flat random accept. This
+      // factors net resource value (from the responder's perspective), refuses
+      // to feed the leader / players near a win or swing bonus, and scales
+      // rejection strictness by the responder's difficulty.
+      const willAccept = hasEnoughResources && evaluatePlayerTradeProposal(
+        {
+          offeredResources: tradeProposal.offeredResources,
+          requestedResources: tradeProposal.requestedResources,
+          fromPlayerId: tradeProposal.proposingPlayerId,
+        },
+        currentResponder,
+        gameState
+      );
 
       if (willAccept) {
         const proposingPlayer = gameState.players.find(p => p.id === tradeProposal.proposingPlayerId);

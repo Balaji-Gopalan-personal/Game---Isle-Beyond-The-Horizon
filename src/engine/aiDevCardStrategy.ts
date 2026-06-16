@@ -3,6 +3,7 @@ import { BoardSize } from '../data/boardConfigs';
 import { getMostNeededResources } from './buildingCosts';
 import { loadBoardForSize } from '../graph/loadBoard';
 import { getStrategicDynamicForCharacter } from './aiPersonality';
+import { scaleDevCardProbability } from './aiDifficultyTuning';
 
 export interface DevCardPlayDecision {
   shouldPlay: boolean;
@@ -67,6 +68,11 @@ export function shouldBuyDevelopmentCard(
       }
     }
   }
+
+  // Scale by difficulty so harder AIs invest in development cards more decisively
+  // (normal is the 1.0x baseline). Keeps difficulty tuning centralized.
+  const difficulty = player.difficulty || 'normal';
+  buyProbability = scaleDevCardProbability(buyProbability, difficulty);
 
   return Math.random() < Math.min(buyProbability, 0.95);
 }

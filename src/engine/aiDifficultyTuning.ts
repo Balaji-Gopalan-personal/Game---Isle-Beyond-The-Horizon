@@ -1,14 +1,23 @@
 export interface DifficultySettings {
+  /** Fraction of (score-sorted) options the AI is willing to pick from. Lower = sharper. */
   selectionTopPercent: number;
+  /** Random jitter applied to scores before ranking. Lower = more consistent. */
   randomnessWeight: number;
+  /** Multiplier on how eagerly the AI trades toward its goals. */
   tradeFrequency: number;
+  /** Multiplier on how aggressively the AI commits resources to building. */
   buildingAggression: number;
+  /** Relative willingness to buy/play development cards (normal = 0.7 baseline). */
   devCardPlayRate: number;
+  /** How close to optimal robber placement is (1 = always best). */
   robberOptimality: number;
+  /** Reserved for future multi-turn lookahead depth. */
   planningHorizon: number;
 }
 
-export const DIFFICULTY_PRESETS: Record<'easy' | 'normal' | 'hard', DifficultySettings> = {
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
+export const DIFFICULTY_PRESETS: Record<Difficulty, DifficultySettings> = {
   easy: {
     selectionTopPercent: 0.6,
     randomnessWeight: 0.35,
@@ -38,112 +47,32 @@ export const DIFFICULTY_PRESETS: Record<'easy' | 'normal' | 'hard', DifficultySe
   }
 };
 
-export function applyDifficultyVariance<T extends { score: number }>(
-  options: T[],
-  difficulty: 'easy' | 'normal' | 'hard'
-): T[] {
+/** Normal difficulty is treated as the reference point (1.0x) for relative scalars. */
+const BASELINE_DEV_CARD_RATE = DIFFICULTY_PRESETS.normal.devCardPlayRate;
+
+/**
+ * Scale a base probability by how dev-card-happy the difficulty is, using normal
+ * as the 1.0x baseline. Hard buys/plays more, easy less.
+ */
+export function scaleDevCardProbability(baseProbability: number, difficulty: Difficulty): number {
   const settings = DIFFICULTY_PRESETS[difficulty];
-
-  const optionsWithVariance = options.map(option => ({
-    ...option,
-    score: option.score + (Math.random() - 0.5) * option.score * settings.randomnessWeight
-  }));
-
-  optionsWithVariance.sort((a, b) => b.score - a.score);
-
-  return optionsWithVariance;
+  return baseProbability * (settings.devCardPlayRate / BASELINE_DEV_CARD_RATE);
 }
 
-export function selectFromTopOptions<T>(
-  options: T[],
-  difficulty: 'easy' | 'normal' | 'hard'
-): T {
-  const settings = DIFFICULTY_PRESETS[difficulty];
-  const topCount = Math.max(1, Math.ceil(options.length * settings.selectionTopPercent));
-  const topOptions = options.slice(0, topCount);
+/**
+ * Pick from a list already sorted by score (best first), with sharpness driven by
+ * the difficulty preset. Hard is deterministic (always the best option); normal and
+ * easy sample from the top `selectionTopPercent` of options.
+ */
+export function pickByDifficulty<T>(sortedByScoreDesc: T[], difficulty: Difficulty): T {
+  if (sortedByScoreDesc.length === 1) return sortedByScoreDesc[0];
 
-  const randomIndex = Math.floor(Math.random() * topOptions.length);
-  return topOptions[randomIndex];
-}
-
-export function shouldPerformAction(
-  baseRate: number,
-  difficulty: 'easy' | 'normal' | 'hard'
-): boolean {
-  const settings = DIFFICULTY_PRESETS[difficulty];
-
-  const adjustedRate = baseRate * getDifficultyMultiplier(difficulty);
-
-  return Math.random() < adjustedRate;
-}
-
-function getDifficultyMultiplier(difficulty: 'easy' | 'normal' | 'hard'): number {
-  switch (difficulty) {
-    case 'easy':
-      return 0.7;
-    case 'normal':
-      return 1.0;
-    case 'hard':
-      return 1.2;
-  }
-}
-
-export function addDecisionDelay(difficulty: 'easy' | 'normal' | 'hard'): number {
-  switch (difficulty) {
-    case 'easy':
-      return Math.random() * 200 + 100;
-    case 'normal':
-      return Math.random() * 150 + 50;
-    case 'hard':
-      return Math.random() * 100 + 25;
-  }
-}
-
-export function adjustScoreByDifficulty(
-  score: number,
-  difficulty: 'easy' | 'normal' | 'hard',
-  isOptimalChoice: boolean
-): number {
-  if (difficulty === 'easy' && isOptimalChoice) {
-    return score * 0.7;
-  } else if (difficulty === 'easy' && !isOptimalChoice) {
-    return score * 1.3;
+  if (difficulty === 'hard') {
+    return sortedByScoreDesc[0];
   }
 
-  return score;
-}
-
-export function shouldMakeSuboptimalChoice(
-  difficulty: 'easy' | 'normal' | 'hard'
-): boolean {
-  const suboptimalRates = {
-    easy: 0.25,
-    normal: 0.10,
-    hard: 0.02
-  };
-
-  return Math.random() < suboptimalRates[difficulty];
-}
-
-export function calculateMistakeRate(difficulty: 'easy' | 'normal' | 'hard'): number {
-  switch (difficulty) {
-    case 'easy':
-      return 0.15;
-    case 'normal':
-      return 0.05;
-    case 'hard':
-      return 0.01;
-  }
-}
-
-export function applyDifficultyToEvaluation(
-  evaluation: number,
-  difficulty: 'easy' | 'normal' | 'hard'
-): number {
   const settings = DIFFICULTY_PRESETS[difficulty];
-
-  const variance = (Math.random() - 0.5) * 2 * settings.randomnessWeight;
-  const adjustedEvaluation = evaluation * (1 + variance);
-
-  return Math.max(0, adjustedEvaluation);
+  const topCount = Math.max(1, Math.ceil(sortedByScoreDesc.length * settings.selectionTopPercent));
+  const randomIndex = Math.floor(Math.random() * topCount);
+  return sortedByScoreDesc[randomIndex];
 }
