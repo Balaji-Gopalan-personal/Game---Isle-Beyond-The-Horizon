@@ -2,6 +2,8 @@ import { GameState, Player } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
 import { loadBoardForSize } from '../graph/loadBoard';
 import { getMostNeededResources, BUILDING_COSTS } from './buildingCosts';
+import { isHighThreat } from './aiTradingStrategy';
+import { DIFFICULTY_PRESETS } from './aiDifficultyTuning';
 
 export interface RobberPlacement {
   hexId: number;
@@ -84,7 +86,10 @@ export function selectRobberPlacement(
   });
 
   if (difficulty === 'normal') {
-    const topPlacements = scoredPlacements.slice(0, Math.max(3, Math.ceil(scoredPlacements.length * 0.2)));
+    // Candidate band driven by the shared difficulty preset (normal = top 30%),
+    // keeping at least the top 3 so placement stays sensible on small boards.
+    const topPercent = DIFFICULTY_PRESETS.normal.selectionTopPercent;
+    const topPlacements = scoredPlacements.slice(0, Math.max(3, Math.ceil(scoredPlacements.length * topPercent)));
     const selected = topPlacements[Math.floor(Math.random() * topPlacements.length)];
     console.log(`   ✓ Selected from top ${topPlacements.length}: Hex ${selected.hexId}`);
     return selected;
@@ -210,6 +215,13 @@ function scoreRobberPlacement(
       score += 10;
     }
 
+    // Threat-aware targeting: a player about to seize Longest Road / Largest Army
+    // (or otherwise close to winning) is worth denying production to, even if
+    // they aren't the current points leader.
+    if (isHighThreat(targetPlayer, gameState)) {
+      score += 35;
+    }
+
     const villageCount = gameState.villages.filter(
       v => v.playerId === playerId && hex.vertices.includes(v.vertexId)
     ).length;
@@ -329,6 +341,8 @@ function selectStealTarget(
       score += 40;
     } else if (leader && p.id === leader.id) {
       score += 30;
+    } else if (isHighThreat(p, gameState)) {
+      score += 25;
     }
 
     if (hex && hex.resourceType !== 'desert' && topNeeds.has(hex.resourceType)) {

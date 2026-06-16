@@ -1368,6 +1368,42 @@ function getGameLeader(gameState: GameState): Player | null {
   return leader;
 }
 
+// A player is a "high threat" if they're poised to grab a swing bonus on their
+// next turn: already hold (or are one step from) Longest Road or Largest Army,
+// or are close enough on points that a single bonus would put them in command.
+export function isHighThreat(target: Player, gameState: GameState): boolean {
+  const settings = gameState.gameSettings;
+  const pointsToWin = settings.pointsToWin;
+  const pointsAway = pointsToWin - (target.score + target.secretPoints);
+
+  // Already within striking distance overall.
+  if (pointsAway <= 3) return true;
+
+  // Largest Army: holds it, or is one guard away from the threshold/leader.
+  if (settings.largestArmyEnabled) {
+    if (target.hasLargestArmy) return true;
+    const holder = gameState.players.find(p => p.hasLargestArmy);
+    const needed = holder
+      ? Math.max(holder.armyCount + 1 - target.armyCount, 0)
+      : settings.largestArmySize - target.armyCount;
+    if (needed <= 1) return true;
+  }
+
+  // Longest Road: holds it, or is one segment from taking it.
+  if (settings.longestRoadEnabled) {
+    if (target.hasLongestRoad) return true;
+    const myLen = gameState.longestRoadLengths?.get(target.id) || 0;
+    const holder = gameState.players.find(p => p.hasLongestRoad);
+    const holderLen = holder ? (gameState.longestRoadLengths?.get(holder.id) || 0) : 0;
+    const needed = holder
+      ? Math.max(holderLen + 1 - myLen, 0)
+      : settings.longestRoadSize - myLen;
+    if (needed <= 1) return true;
+  }
+
+  return false;
+}
+
 export function evaluatePlayerTradeProposal(
   proposal: {
     offeredResources: Resources;
@@ -1393,13 +1429,23 @@ export function evaluatePlayerTradeProposal(
         return false;
       }
 
+      // Don't feed a player who is about to seize a swing bonus (Longest Road /
+      // Largest Army). On hard difficulty this is a hard rule; softer below.
+      const difficulty = player.difficulty || 'normal';
+      if (isHighThreat(proposingPlayer, gameState)) {
+        const rejectChance = difficulty === 'hard' ? 1.0 : difficulty === 'normal' ? 0.85 : 0.5;
+        if (Math.random() < rejectChance) {
+          console.log(`   ✗ Rejecting trade from ${proposingPlayer.name} - they're close to a swing bonus (Longest Road / Largest Army)`);
+          return false;
+        }
+      }
+
       const gameLeader = getGameLeader(gameState);
       if (gameLeader && gameLeader.id === proposingPlayer.id) {
         const netGain = calculateTradeValue(proposal.offeredResources, proposal.requestedResources, player, gameState);
         const isVeryHelpful = netGain >= 3.0;
 
         if (!isVeryHelpful) {
-          const difficulty = player.difficulty || 'normal';
           let rejectChance = 1.0;
 
           if (difficulty === 'easy') {
@@ -1459,16 +1505,48 @@ function calculateTradeValue(
 ): number {
   let value = 0;
 
+  // `player` is the RESPONDER evaluating the proposal: they RECEIVE the
+  // proposer's `offered` resources and GIVE UP the `requested` resources.
+  // Net gain = value(received) - value(given). (Previously inverted, which made
+  // the AI accept trades that were good for the proposer and bad for itself.)
   (['clay', 'lumber', 'grain', 'fabric', 'mineral'] as ResourceType[]).forEach(resource => {
     const offeredAmount = offered[resource] || 0;
     const requestedAmount = requested[resource] || 0;
 
     const resourceValue = getResourceValueForPlayer(resource, player, gameState);
 
-    value += (requestedAmount * resourceValue) - (offeredAmount * resourceValue);
+    value += (offeredAmount * resourceValue) - (requestedAmount * resourceValue);
   });
 
   return value;
+}
+
+// How much of `resource` this player produces per turn (sum of pip probabilities
+// across their settlements/cities adjacent to that resource). 0 means the player
+// has no production for it and can only obtain it by trading.
+function getPlayerProductionRate(
+  resource: ResourceType,
+  player: Player,
+  gameState: GameState
+): number {
+  if (!gameState.boardCenters || gameState.boardCenters.length === 0) return 0;
+
+  const PIP: Record<number, number> = {
+    2: 1 / 36, 3: 2 / 36, 4: 3 / 36, 5: 4 / 36, 6: 5 / 36,
+    8: 5 / 36, 9: 4 / 36, 10: 3 / 36, 11: 2 / 36, 12: 1 / 36,
+  };
+
+  let rate = 0;
+  const playerVillages = gameState.villages.filter(v => v.playerId === player.id);
+  for (const village of playerVillages) {
+    const multiplier = village.type === 'city' ? 2 : 1;
+    for (const center of gameState.boardCenters) {
+      if (center.resourceType === resource && center.vertices.includes(village.vertexId)) {
+        rate += (PIP[center.value] || 0) * multiplier;
+      }
+    }
+  }
+  return rate;
 }
 
 function getResourceValueForPlayer(
@@ -1476,19 +1554,30 @@ function getResourceValueForPlayer(
   player: Player,
   gameState: GameState
 ): number {
-  const baseValue = 1.0;
+  let value = 1.0;
 
   const currentAmount = player.resources[resource];
 
   if (currentAmount === 0) {
-    return baseValue * 2.0;
+    value = 2.0;
   } else if (currentAmount === 1) {
-    return baseValue * 1.5;
+    value = 1.5;
   } else if (currentAmount >= 5) {
-    return baseValue * 0.5;
+    value = 0.5;
   }
 
-  return baseValue;
+  // Scarcity in PRODUCTION matters more than scarcity in hand: a resource the
+  // player can never roll is far more valuable than one they already produce.
+  const productionRate = getPlayerProductionRate(resource, player, gameState);
+  if (productionRate === 0) {
+    value *= 2.0;            // cannot produce at all - only obtainable via trade
+  } else if (productionRate < 0.12) {
+    value *= 1.4;            // produces it only rarely (~roughly one weak hex)
+  } else if (productionRate > 0.28) {
+    value *= 0.8;            // produces it abundantly - cheap to replace
+  }
+
+  return value;
 }
 
 function canAffordProposal(offered: Resources, current: Resources): boolean {

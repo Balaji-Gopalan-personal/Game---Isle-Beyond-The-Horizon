@@ -5,6 +5,7 @@ import { getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages, c
 import { evaluateVertex, evaluateRoadEdge, calculateProductionValue, VertexEvaluation, EdgeEvaluation } from './aiStrategicEval';
 import { getAdjacentVertices } from './boardService';
 import { getStrategicDynamicForCharacter, type StrategicDynamic } from './aiPersonality';
+import { pickByDifficulty } from './aiDifficultyTuning';
 
 export type PersonalityTrait = 'aggressive' | 'expansionist' | 'trader' | 'defensive' | 'developer' | 'balanced';
 
@@ -109,31 +110,10 @@ export function applyDifficultyRandomness<T extends { totalScore: number }>(
   options: T[],
   difficulty: 'easy' | 'normal' | 'hard'
 ): T {
-  if (difficulty === 'hard') {
-    // Hard ALWAYS picks the absolute best
-    return options[0];
-  }
-
-  if (difficulty === 'normal') {
-    // Normal picks from top 2 only (or top 1 if only 1 option)
-    const topCandidates = options.slice(0, Math.min(2, options.length));
-    const randomIndex = Math.floor(Math.random() * topCandidates.length);
-    return topCandidates[randomIndex];
-  }
-
-  // Easy difficulty
-  const randomnessChance = 0.3;
-
-  if (Math.random() < randomnessChance) {
-    // 30% chance to pick randomly from all options
-    const randomIndex = Math.floor(Math.random() * options.length);
-    return options[randomIndex];
-  }
-
-  // 70% chance to pick from top 5 or top 50% (whichever is larger)
-  const topCandidates = options.slice(0, Math.max(5, Math.ceil(options.length * 0.5)));
-  const randomIndex = Math.floor(Math.random() * topCandidates.length);
-  return topCandidates[randomIndex];
+  // Sharpness of selection is driven by the shared difficulty presets so that
+  // tuning lives in one place (aiDifficultyTuning). Options are already sorted
+  // best-first by callers. Hard is deterministic; easy/normal sample the top band.
+  return pickByDifficulty(options, difficulty);
 }
 
 function scoreVertexWithPersonality(
@@ -678,8 +658,30 @@ export function selectStrategicEstateLocation(
       return occupier && occupier !== playerId;
     }).length;
 
+    // Upgrading to a city doubles output, so the *gain* equals one extra
+    // village's worth of production at this vertex - i.e. productionValue again.
+    // Reward upgrading the best-producing village most.
+    const productionDelta = productionValue;
+
+    // Tiles currently under the robber produce nothing, so upgrading a village
+    // that is partly blocked is wasteful until the robber moves.
+    const adjacentCenters = boardCenters.filter(c => c.vertices.includes(village.vertexId));
+    const blockedByRobber = adjacentCenters.some(c => c.id === gameState.robberPosition);
+    const robberPenalty = blockedByRobber ? -15 : 0;
+
+    // Explicit nudge toward high-probability hexes (6/8) where doubling pays off most.
+    const highPipBonus = adjacentCenters.reduce((sum, c) => {
+      if (c.value === 6 || c.value === 8) return sum + 6;
+      if (c.value === 5 || c.value === 9) return sum + 3;
+      return sum;
+    }, 0);
+
     const weights = PERSONALITY_PROFILES[personality];
-    const totalScore = productionValue * weights.productionWeight + adjacentEnemies * weights.blockingWeight * 2;
+    const totalScore =
+      productionDelta * weights.productionWeight +
+      highPipBonus +
+      robberPenalty +
+      adjacentEnemies * weights.blockingWeight * 2;
 
     return {
       vertexId: village.vertexId,
