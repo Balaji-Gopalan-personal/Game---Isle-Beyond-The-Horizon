@@ -155,20 +155,40 @@ function calculateBlockingValue(vertexId: number, gameState: GameState, playerId
     const boardData = loadBoardForSize(boardSize);
     const verticesWithOwnership = buildVerticesWithOwnership(boardData.graph, gameState.verticesOccupiedBy);
 
-    const leaderRoads = gameState.roads.filter(r => r.playerId === leader.id);
-    if (leaderRoads.length >= 4) {
-      const currentLongestPath = calculateLongestRoadPath(leader.id, leaderRoads, verticesWithOwnership);
+    // The road threat is whoever holds the Longest Road, else the opponent with
+    // the longest current path — NOT necessarily the points leader. Settling on a
+    // vertex that lies on their path severs it (the classic longest-road steal).
+    const opponents = gameState.players.filter(p => p.id !== playerId);
+    let roadThreat: Player | null = opponents.find(p => p.hasLongestRoad) ?? null;
+    let currentLongestPath = roadThreat
+      ? calculateLongestRoadPath(roadThreat.id, gameState.roads, verticesWithOwnership)
+      : 0;
+    if (!roadThreat) {
+      for (const p of opponents) {
+        const path = calculateLongestRoadPath(p.id, gameState.roads, verticesWithOwnership);
+        if (path > currentLongestPath) {
+          roadThreat = p;
+          currentLongestPath = path;
+        }
+      }
+    }
 
+    if (roadThreat && currentLongestPath >= 4) {
       const simulatedVerticesOccupiedBy = { ...gameState.verticesOccupiedBy, [vertexId]: playerId };
       const simulatedVerticesWithOwnership = buildVerticesWithOwnership(boardData.graph, simulatedVerticesOccupiedBy);
-      const newLongestPath = calculateLongestRoadPath(leader.id, leaderRoads, simulatedVerticesWithOwnership);
+      const newLongestPath = calculateLongestRoadPath(roadThreat.id, gameState.roads, simulatedVerticesWithOwnership);
 
       const roadDisruption = currentLongestPath - newLongestPath;
       if (roadDisruption > 0) {
         blockingScore += roadDisruption * 8;
 
         const longestRoadSize = gameState.gameSettings.longestRoadSize;
-        if (currentLongestPath >= longestRoadSize && newLongestPath < longestRoadSize) {
+        // Stripping the actual bonus — either from the current holder, or by
+        // pushing a leader below the threshold — is worth far more than shaving
+        // a segment off a road that isn't winning anything yet.
+        const stripsBonus = roadThreat.hasLongestRoad ||
+          (currentLongestPath >= longestRoadSize && newLongestPath < longestRoadSize);
+        if (stripsBonus) {
           blockingScore += 20;
         }
       }
@@ -419,6 +439,11 @@ export function selectStrategicRoadLocation(
   });
   playerVillages.forEach(v => allPlayerVertices.add(v.vertexId));
 
+  // How aggressively this player should value longest-road extension this turn.
+  // Computed from live game state so placement is goal-aware on every road, not
+  // just when `prioritizeLongestRoad` is forced (e.g. Road Construction card).
+  const longestRoadUrgency = calculateLongestRoadUrgency(player, gameState, boardSize, prioritizeLongestRoad);
+
   const validEdges: { fromVertex: number; toVertex: number; edgeId: string; evaluation: EdgeEvaluation }[] = [];
   const boardData = loadBoardForSize(boardSize);
 
@@ -434,9 +459,12 @@ export function selectStrategicRoadLocation(
 
           let adjustedScore = evaluation.totalScore;
 
-          if (prioritizeLongestRoad) {
-            adjustedScore += calculateLongestRoadPotential(fromVertex, toVertex, playerId, gameState, boardSize) * 3.0;
-          }
+          // Reward edges that actually extend our longest path, weighted by how
+          // much we should care about the bonus right now (defend / pursue / steal).
+          const longestRoadDelta = longestRoadUrgency > 0
+            ? calculateLongestRoadPotential(fromVertex, toVertex, playerId, gameState, boardSize)
+            : 0;
+          adjustedScore += longestRoadDelta * longestRoadUrgency;
 
           const villageExpansionValue = calculateVillageExpansionValue(
             toVertex, gameState, boardSize, player
@@ -466,7 +494,11 @@ export function selectStrategicRoadLocation(
           }
 
           if (villageExpansionValue === 0) {
-            adjustedScore -= 15;
+            // Normally a road that opens no new village spot is heavily penalized,
+            // but don't punish a genuine longest-road extension when the bonus is
+            // live (held or actively being pursued) — that's the whole point of it.
+            const extendsLongestRoad = longestRoadDelta > 0 && longestRoadUrgency >= 3.0;
+            adjustedScore -= extendsLongestRoad ? 3 : 15;
           }
 
           const fromRoadCount = playerRoads.filter(
@@ -559,6 +591,66 @@ function calculateLongestRoadPotential(
   const newLongestPath = calculateLongestRoadPath(playerId, updatedRoads, verticesWithOwnership);
 
   return newLongestPath - currentLongestPath;
+}
+
+/**
+ * How much the player should value extending its own longest road *right now*,
+ * used as the per-segment weight on longest-road potential when scoring an edge.
+ *
+ * This makes road *placement* coherent with the longest-road goal on every turn,
+ * not just when a Road Construction dev card passes `forcePrioritize`. Returns a
+ * standing baseline so roads break ties toward extension, scaling up sharply when
+ * the bonus is held (defend) or within reach (pursue / steal).
+ */
+function calculateLongestRoadUrgency(
+  player: Player,
+  gameState: GameState,
+  boardSize: BoardSize,
+  forcePrioritize: boolean
+): number {
+  if (!gameState.gameSettings.longestRoadEnabled) {
+    return forcePrioritize ? 3.0 : 0;
+  }
+
+  const boardData = loadBoardForSize(boardSize);
+  const verticesWithOwnership = buildVerticesWithOwnership(boardData.graph, gameState.verticesOccupiedBy);
+
+  const longestRoadSize = gameState.gameSettings.longestRoadSize;
+  const myPath = calculateLongestRoadPath(player.id, gameState.roads, verticesWithOwnership);
+
+  let bestOpponentPath = 0;
+  for (const p of gameState.players) {
+    if (p.id === player.id) continue;
+    const path = calculateLongestRoadPath(p.id, gameState.roads, verticesWithOwnership);
+    if (path > bestOpponentPath) bestOpponentPath = path;
+  }
+
+  const holder = gameState.players.find(p => p.hasLongestRoad);
+  const iHoldIt = holder?.id === player.id;
+
+  // Standing interest: every road should prefer to extend our longest path when
+  // it is otherwise a wash against alternatives.
+  let urgency = 1.0;
+
+  if (iHoldIt) {
+    // Defend: the smaller our lead, the more we care about staying ahead.
+    const margin = myPath - bestOpponentPath;
+    urgency = margin <= 1 ? 8.0 : margin <= 2 ? 5.0 : 3.0;
+  } else if (myPath >= 2) {
+    // Pursue / steal: how many segments until we take the bonus?
+    const target = holder ? bestOpponentPath + 1 : longestRoadSize;
+    const roadsNeeded = Math.max(target - myPath, 0);
+    if (roadsNeeded <= 1) urgency = 10.0;
+    else if (roadsNeeded <= 2) urgency = 7.0;
+    else if (roadsNeeded <= 3) urgency = 4.0;
+    else urgency = 2.0;
+  }
+
+  if (forcePrioritize) {
+    urgency = Math.max(urgency, 4.0);
+  }
+
+  return urgency;
 }
 
 function calculateVillageExpansionValue(
