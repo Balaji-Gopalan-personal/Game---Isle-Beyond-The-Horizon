@@ -25,7 +25,7 @@ export interface EdgeEvaluation {
   totalScore: number;
 }
 
-const PIP_PROBABILITIES: Record<number, number> = {
+export const PIP_PROBABILITIES: Record<number, number> = {
   2: 1 / 36,
   3: 2 / 36,
   4: 3 / 36,
@@ -109,6 +109,80 @@ function getResourceBaseValue(
     default:
       return 1.0;
   }
+}
+
+function getEstateResourceValue(
+  resourceType: 'desert' | 'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral'
+): number {
+  // In the estate phase, mineral and grain are the resources spent on upgrades/dev cards,
+  // so doubling their production is worth more than doubling early-game road-building resources.
+  switch (resourceType) {
+    case 'mineral': return 1.4;
+    case 'grain':   return 1.3;
+    case 'fabric':  return 1.1;
+    case 'clay':    return 1.1;
+    case 'lumber':  return 1.0;
+    case 'desert':  return 0;
+    default:        return 1.0;
+  }
+}
+
+export function calculateEstateProductionValue(vertexId: number, boardSize: BoardSize, boardCenters?: any[]): number {
+  const centers = boardCenters || loadBoardForSize(boardSize).centers;
+  const adjacentCenters = centers.filter((center: any) => center.vertices.includes(vertexId));
+
+  let totalValue = 0;
+  for (const center of adjacentCenters) {
+    if (center.resourceType === 'desert') continue;
+    const pipProbability = PIP_PROBABILITIES[center.value] || 0;
+    const resourceValue = getEstateResourceValue(center.resourceType);
+    totalValue += pipProbability * resourceValue * 100;
+  }
+  return totalValue;
+}
+
+export function calculatePlayerResourceProduction(
+  playerId: string,
+  gameState: GameState,
+  boardCenters: any[]
+): Record<'clay' | 'lumber' | 'grain' | 'fabric' | 'mineral', number> {
+  const production = { clay: 0, lumber: 0, grain: 0, fabric: 0, mineral: 0 };
+
+  for (const building of gameState.villages.filter(v => v.playerId === playerId)) {
+    const multiplier = building.type === 'city' ? 2 : 1;
+    const adjacentCenters = boardCenters.filter((c: any) => c.vertices.includes(building.vertexId));
+    for (const center of adjacentCenters) {
+      if (center.resourceType && center.resourceType !== 'desert' && center.resourceType in production) {
+        production[center.resourceType as keyof typeof production] +=
+          (PIP_PROBABILITIES[center.value] || 0) * multiplier;
+      }
+    }
+  }
+
+  return production;
+}
+
+export function calculateEstateScarcityBonus(
+  vertexId: number,
+  boardCenters: any[],
+  playerProduction: Record<string, number>
+): number {
+  const prodValues = Object.values(playerProduction);
+  const maxProd = Math.max(...prodValues, 0.001);
+
+  const adjacentCenters = boardCenters.filter((c: any) => c.vertices.includes(vertexId));
+
+  let bonus = 0;
+  for (const center of adjacentCenters) {
+    if (!center.resourceType || center.resourceType === 'desert') continue;
+    const currentProd = playerProduction[center.resourceType] ?? 0;
+    // scarcityRatio: 1.0 = player produces none of this, 0.0 = produces as much as their best resource
+    const scarcityRatio = 1 - currentProd / maxProd;
+    const pip = PIP_PROBABILITIES[center.value] || 0;
+    bonus += scarcityRatio * pip * 100 * 0.4;
+  }
+
+  return bonus;
 }
 
 export function calculateResourceDiversity(vertexId: number, boardSize: BoardSize, boardCenters?: any[]): number {

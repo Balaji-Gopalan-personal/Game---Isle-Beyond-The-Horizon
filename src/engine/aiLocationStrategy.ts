@@ -2,7 +2,7 @@ import { GameState, Player, Road } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
 import { loadBoardForSize } from '../graph/loadBoard';
 import { getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages, calculateLongestRoadPath, buildVerticesWithOwnership } from './gameplayActions';
-import { evaluateVertex, evaluateRoadEdge, calculateProductionValue, VertexEvaluation, EdgeEvaluation } from './aiStrategicEval';
+import { evaluateVertex, evaluateRoadEdge, calculateProductionValue, calculateEstateProductionValue, calculatePlayerResourceProduction, calculateEstateScarcityBonus, VertexEvaluation, EdgeEvaluation } from './aiStrategicEval';
 import { getAdjacentVertices } from './boardService';
 import { getStrategicDynamicForCharacter, type StrategicDynamic } from './aiPersonality';
 import { pickByDifficulty } from './aiDifficultyTuning';
@@ -336,7 +336,7 @@ function generateRoadReasoning(
 }
 
 function generateEstateReasoning(
-  evaluation: { productionValue: number; adjacentEnemies: number },
+  evaluation: { productionValue: number; scarcityBonus: number },
   personality: PersonalityTrait
 ): string {
   const reasons: string[] = [];
@@ -347,8 +347,8 @@ function generateEstateReasoning(
     reasons.push('boost resource income');
   }
 
-  if (evaluation.adjacentEnemies > 0) {
-    reasons.push('defensive positioning');
+  if (evaluation.scarcityBonus > 4) {
+    reasons.push('fill resource gaps');
   }
 
   if (reasons.length === 0) {
@@ -741,44 +741,45 @@ export function selectStrategicEstateLocation(
     ? gameState.boardCenters
     : loadBoardForSize(boardSize).centers;
 
+  // Pre-compute the player's per-resource production rate across all their buildings.
+  // Used for the scarcity bonus: resources the player rarely generates are worth more to double.
+  const playerProduction = calculatePlayerResourceProduction(playerId, gameState, boardCenters);
+
   const evaluations = upgradableVillages.map(village => {
-    const productionValue = calculateProductionValue(village.vertexId, boardSize, boardCenters);
+    // Use estate-phase resource values: mineral/grain weighted higher than clay/lumber
+    // because those are the resources spent to buy further estates and dev cards.
+    const productionValue = calculateEstateProductionValue(village.vertexId, boardSize, boardCenters);
 
-    const adjacentVertices = getAdjacentVertices(village.vertexId, boardSize);
-    const adjacentEnemies = adjacentVertices.filter(v => {
-      const occupier = gameState.verticesOccupiedBy[v];
-      return occupier && occupier !== playerId;
-    }).length;
+    const adjacentCenters = boardCenters.filter((c: any) => c.vertices.includes(village.vertexId));
 
-    // Upgrading to a city doubles output, so the *gain* equals one extra
-    // village's worth of production at this vertex - i.e. productionValue again.
-    // Reward upgrading the best-producing village most.
+    // Upgrading doubles output, so the gain equals one extra settlement's worth of production.
     const productionDelta = productionValue;
 
-    // Tiles currently under the robber produce nothing, so upgrading a village
-    // that is partly blocked is wasteful until the robber moves.
-    const adjacentCenters = boardCenters.filter(c => c.vertices.includes(village.vertexId));
-    const blockedByRobber = adjacentCenters.some(c => c.id === gameState.robberPosition);
-    const robberPenalty = blockedByRobber ? -15 : 0;
+    // The robber is transient — softer penalty than during village placement.
+    const blockedByRobber = adjacentCenters.some((c: any) => c.id === gameState.robberPosition);
+    const robberPenalty = blockedByRobber ? -8 : 0;
 
-    // Explicit nudge toward high-probability hexes (6/8) where doubling pays off most.
-    const highPipBonus = adjacentCenters.reduce((sum, c) => {
+    // Explicit nudge toward high-probability hexes where doubling pays off most.
+    const highPipBonus = adjacentCenters.reduce((sum: number, c: any) => {
       if (c.value === 6 || c.value === 8) return sum + 6;
       if (c.value === 5 || c.value === 9) return sum + 3;
       return sum;
     }, 0);
+
+    // Prefer doubling resources the player currently produces least — fills gaps in their economy.
+    const scarcityBonus = calculateEstateScarcityBonus(village.vertexId, boardCenters, playerProduction);
 
     const weights = PERSONALITY_PROFILES[personality];
     const totalScore =
       productionDelta * weights.productionWeight +
       highPipBonus +
       robberPenalty +
-      adjacentEnemies * weights.blockingWeight * 2;
+      scarcityBonus;
 
     return {
       vertexId: village.vertexId,
       productionValue,
-      adjacentEnemies,
+      scarcityBonus,
       totalScore
     };
   });
@@ -787,7 +788,7 @@ export function selectStrategicEstateLocation(
 
   console.log(`   Top 3 candidates:`);
   evaluations.slice(0, 3).forEach((e, i) => {
-    console.log(`     ${i + 1}. Vertex ${e.vertexId} - Score: ${e.totalScore.toFixed(1)} (Prod: ${e.productionValue.toFixed(1)}, Enemies: ${e.adjacentEnemies})`);
+    console.log(`     ${i + 1}. Vertex ${e.vertexId} - Score: ${e.totalScore.toFixed(1)} (Prod: ${e.productionValue.toFixed(1)}, Scarcity: ${e.scarcityBonus.toFixed(1)})`);
   });
 
   const selected = applyDifficultyRandomness(evaluations, difficulty);
