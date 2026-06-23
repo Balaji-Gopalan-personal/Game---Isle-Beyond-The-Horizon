@@ -85,6 +85,7 @@ const DEFAULT_GAME_STATE: GameState = {
   villages: [],
   roads: [],
   longestRoadLengths: new Map(),
+  longestRoadAchievementOrder: [],
   adjacentVertices: [],
   lastPlacedVillage: null,
   totalVertices: 54,
@@ -1584,7 +1585,15 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         longestRoadLengths: new Map([
           ...prev.longestRoadLengths,
           [playerId, newLongestRoadLength]
-        ])
+        ]),
+        longestRoadAchievementOrder: (() => {
+          const minLen = prev.gameSettings?.longestRoadSize || 5;
+          const oldLen = prev.longestRoadLengths.get(playerId) || 0;
+          const order = prev.longestRoadAchievementOrder || [];
+          return newLongestRoadLength >= minLen && oldLen < minLen && !order.includes(playerId)
+            ? [...order, playerId]
+            : order;
+        })()
       }));
 
       // Add to activity log with parsed vertices
@@ -1848,6 +1857,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         ...prev.longestRoadLengths,
         [playerId, newLongestRoadLength]
       ]) : prev.longestRoadLengths,
+      longestRoadAchievementOrder: roadAdded ? (() => {
+        const minLen = prev.gameSettings?.longestRoadSize || 5;
+        const oldLen = prev.longestRoadLengths.get(playerId) || 0;
+        const order = prev.longestRoadAchievementOrder || [];
+        return newLongestRoadLength >= minLen && oldLen < minLen && !order.includes(playerId)
+          ? [...order, playerId]
+          : order;
+      })() : (prev.longestRoadAchievementOrder || []),
       players: prev.players.map(p => {
         if (p.id === playerId) {
           const villageScore = villagePlaced ? 1 : 0;
@@ -2510,6 +2527,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         villages: [],
         roads: [],
         longestRoadLengths: new Map(),
+        longestRoadAchievementOrder: [],
         adjacentVertices: [], // Will be populated when needed
         lastPlacedVillage: null,
         totalVertices,
@@ -4103,6 +4121,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         roads: updatedRoads,
         edgesOccupiedBy: updatedEdgesOccupiedBy,
         longestRoadLengths: new Map([...prev.longestRoadLengths, [playerId, longestPath]]),
+        longestRoadAchievementOrder: (() => {
+          const minLen = prev.gameSettings?.longestRoadSize || 5;
+          const oldLen = prev.longestRoadLengths.get(playerId) || 0;
+          const order = prev.longestRoadAchievementOrder || [];
+          return longestPath >= minLen && oldLen < minLen && !order.includes(playerId)
+            ? [...order, playerId]
+            : order;
+        })(),
         developmentCardDeck: rcNewDeck,
         developmentCardDiscard: rcNewDiscard,
         players: prev.players.map(p => {
@@ -4297,29 +4323,41 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       if (currentHolder && roadDisruptions.some(d => d.playerId === currentHolder.id)) {
         const holderNewLength = updatedRoadLengths.get(currentHolder.id) || 0;
         const minLength = prev.gameSettings?.longestRoadSize || 5;
+        const bonus = prev.gameSettings?.longestRoadBonus || 2;
+        const achievementOrder = prev.longestRoadAchievementOrder || [];
+
+        const pickNewHolder = (excludeId: string): string | null => {
+          const candidates = Array.from(updatedRoadLengths.entries())
+            .filter(([pid, len]) => pid !== excludeId && len >= minLength);
+          if (candidates.length === 0) return null;
+          const maxLen = Math.max(...candidates.map(([, len]) => len));
+          const top = candidates.filter(([, len]) => len === maxLen);
+          return top.reduce((best, [pid]) => {
+            const bestRank = achievementOrder.indexOf(best);
+            const currRank = achievementOrder.indexOf(pid);
+            if (bestRank === -1) return pid;
+            if (currRank === -1) return best;
+            return currRank < bestRank ? pid : best;
+          }, top[0][0]);
+        };
 
         if (holderNewLength < minLength) {
-          updatedPlayers = updatedPlayers.map(p =>
-            p.id === currentHolder.id
-              ? { ...p, hasLongestRoad: false, score: p.score - (prev.gameSettings?.longestRoadBonus || 2) }
-              : p
-          );
+          const newHolderId = pickNewHolder(currentHolder.id);
+          updatedPlayers = updatedPlayers.map(p => {
+            if (p.id === currentHolder.id) return { ...p, hasLongestRoad: false, score: p.score - bonus };
+            if (newHolderId && p.id === newHolderId) return { ...p, hasLongestRoad: true, score: p.score + bonus };
+            return p;
+          });
         } else {
           const otherPlayers = Array.from(updatedRoadLengths.entries())
             .filter(([pid]) => pid !== currentHolder.id);
           const someoneHasLonger = otherPlayers.some(([, length]) => length > holderNewLength);
 
           if (someoneHasLonger) {
-            const [newHolderId, newHolderLength] = otherPlayers.reduce((max, curr) =>
-              curr[1] > max[1] ? curr : max
-            );
-
+            const newHolderId = pickNewHolder(currentHolder.id);
             updatedPlayers = updatedPlayers.map(p => {
-              if (p.id === currentHolder.id) {
-                return { ...p, hasLongestRoad: false, score: p.score - (prev.gameSettings?.longestRoadBonus || 2) };
-              } else if (p.id === newHolderId) {
-                return { ...p, hasLongestRoad: true, score: p.score + (prev.gameSettings?.longestRoadBonus || 2) };
-              }
+              if (p.id === currentHolder.id) return { ...p, hasLongestRoad: false, score: p.score - bonus };
+              if (newHolderId && p.id === newHolderId) return { ...p, hasLongestRoad: true, score: p.score + bonus };
               return p;
             });
           }
@@ -4460,6 +4498,14 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         roads: updatedRoads,
         edgesOccupiedBy: updatedEdgesOccupiedBy,
         longestRoadLengths: new Map([...prev.longestRoadLengths, [playerId, longestPath]]),
+        longestRoadAchievementOrder: (() => {
+          const minLen = prev.gameSettings?.longestRoadSize || 5;
+          const oldLen = prev.longestRoadLengths.get(playerId) || 0;
+          const order = prev.longestRoadAchievementOrder || [];
+          return longestPath >= minLen && oldLen < minLen && !order.includes(playerId)
+            ? [...order, playerId]
+            : order;
+        })(),
         players: prev.players.map(p => {
           if (p.id === playerId) {
             return {
@@ -4576,31 +4622,47 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
       if (currentHolder && roadDisruptions.some(d => d.playerId === currentHolder.id)) {
         const holderNewLength = updatedRoadLengths.get(currentHolder.id) || 0;
         const minLength = prev.gameSettings?.longestRoadSize || 5;
+        const bonus = prev.gameSettings?.longestRoadBonus || 2;
+        const achievementOrder = prev.longestRoadAchievementOrder || [];
+
+        const pickNewHolder = (excludeId: string): string | null => {
+          const candidates = Array.from(updatedRoadLengths.entries())
+            .filter(([pid, len]) => pid !== excludeId && len >= minLength);
+          if (candidates.length === 0) return null;
+          const maxLen = Math.max(...candidates.map(([, len]) => len));
+          const top = candidates.filter(([, len]) => len === maxLen);
+          return top.reduce((best, [pid]) => {
+            const bestRank = achievementOrder.indexOf(best);
+            const currRank = achievementOrder.indexOf(pid);
+            if (bestRank === -1) return pid;
+            if (currRank === -1) return best;
+            return currRank < bestRank ? pid : best;
+          }, top[0][0]);
+        };
 
         if (holderNewLength < minLength) {
-          updatedPlayers = updatedPlayers.map(p =>
-            p.id === currentHolder.id
-              ? { ...p, hasLongestRoad: false, score: p.score - (prev.gameSettings?.longestRoadBonus || 2) }
-              : p
-          );
-          longestRoadStolenLog = `Longest Road bonus was stolen from ${currentHolder.name} (fell below ${minLength} segments)`;
+          const newHolderId = pickNewHolder(currentHolder.id);
+          const newHolderPlayer = newHolderId ? updatedPlayers.find(p => p.id === newHolderId) : null;
+          updatedPlayers = updatedPlayers.map(p => {
+            if (p.id === currentHolder.id) return { ...p, hasLongestRoad: false, score: p.score - bonus };
+            if (newHolderId && p.id === newHolderId) return { ...p, hasLongestRoad: true, score: p.score + bonus };
+            return p;
+          });
+          longestRoadStolenLog = newHolderPlayer
+            ? `Longest Road bonus transferred from ${currentHolder.name} to ${newHolderPlayer.name} (${updatedRoadLengths.get(newHolderId!) || 0} segments)`
+            : `Longest Road bonus was removed from ${currentHolder.name} (fell below ${minLength} segments)`;
         } else {
           const otherPlayers = Array.from(updatedRoadLengths.entries())
             .filter(([pid]) => pid !== currentHolder.id);
           const someoneHasLonger = otherPlayers.some(([, length]) => length > holderNewLength);
 
           if (someoneHasLonger) {
-            const [newHolderId, newHolderLength] = otherPlayers.reduce((max, curr) =>
-              curr[1] > max[1] ? curr : max
-            );
-
-            const newHolderPlayer = updatedPlayers.find(p => p.id === newHolderId);
+            const newHolderId = pickNewHolder(currentHolder.id);
+            const newHolderPlayer = newHolderId ? updatedPlayers.find(p => p.id === newHolderId) : null;
+            const newHolderLength = newHolderId ? updatedRoadLengths.get(newHolderId) || 0 : 0;
             updatedPlayers = updatedPlayers.map(p => {
-              if (p.id === currentHolder.id) {
-                return { ...p, hasLongestRoad: false, score: p.score - (prev.gameSettings?.longestRoadBonus || 2) };
-              } else if (p.id === newHolderId) {
-                return { ...p, hasLongestRoad: true, score: p.score + (prev.gameSettings?.longestRoadBonus || 2) };
-              }
+              if (p.id === currentHolder.id) return { ...p, hasLongestRoad: false, score: p.score - bonus };
+              if (newHolderId && p.id === newHolderId) return { ...p, hasLongestRoad: true, score: p.score + bonus };
               return p;
             });
             longestRoadStolenLog = `Longest Road bonus was stolen from ${currentHolder.name} and awarded to ${newHolderPlayer?.name} (${newHolderLength} segments)`;

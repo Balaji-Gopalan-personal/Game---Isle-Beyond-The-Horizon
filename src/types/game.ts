@@ -195,6 +195,7 @@ export interface GameState {
   villages: Village[];
   roads: Road[];
   longestRoadLengths: Map<string, number>;
+  longestRoadAchievementOrder: string[];
   adjacentVertices: number[];
   lastPlacedVillage: number | null;
   totalVertices: number;
