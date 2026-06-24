@@ -256,6 +256,7 @@ export function createInitialGameState(
     villages: [],
     roads: [],
     longestRoadLengths: new Map(),
+    longestRoadAchievementOrder: [],
     adjacentVertices: [],
     lastPlacedVillage: null,
     totalVertices: Object.keys(boardGraph.vertices).length,
