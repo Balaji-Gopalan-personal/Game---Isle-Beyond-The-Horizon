@@ -3,7 +3,7 @@ import { BoardSize } from '../data/boardConfigs';
 import { loadBoardForSize } from '../graph/loadBoard';
 import { getAdjacentVertices } from './boardService';
 import { calculateLongestRoadPath, buildVerticesWithOwnership, getValidRoadPlacements } from './gameplayActions';
-import { countViableVillageLocations, getPersonalityForCharacter, PersonalityTrait } from './aiLocationStrategy';
+import { countViableVillageLocations, countVillageSpotsByHops, getPersonalityForCharacter, PersonalityTrait } from './aiLocationStrategy';
 import { getStrategicDynamicForCharacter, type StrategicDynamic } from './aiPersonality';
 import { canPlaceVillage } from './validators';
 
@@ -517,26 +517,39 @@ export function calculateBuildingPriority(
   let devCardPriority = 9;
 
   const boardSize = gameState.gameSettings.boardSize as BoardSize;
-  const viableVillageLocations = countViableVillageLocations(player.id, gameState, boardSize);
+  // BFS-based reachability: count legal village spots at depth 0 (now), 1 road, 2 roads away.
+  const villageReachability = countVillageSpotsByHops(player.id, gameState, boardSize, 2);
+  const viableVillageLocations = villageReachability.byDepth[0]; // instantly placeable (old metric)
+  const spotsIn1Road = villageReachability.byDepth[1];
+  const spotsIn2Roads = villageReachability.byDepth[2];
+  const nearbySpots = villageReachability.total; // all spots reachable within 2 roads
+  const minHopsToVillage = villageReachability.minHops;
 
-  console.log(`   📍 Viable village locations: ${viableVillageLocations}`);
+  console.log(`   📍 Village reachability: now=${viableVillageLocations} in1=${spotsIn1Road} in2=${spotsIn2Roads} total=${nearbySpots} minHops=${minHopsToVillage}`);
 
-  // Board saturation check
-  const isBoardSaturated = viableVillageLocations === 0;
-  const isBoardScarce = viableVillageLocations > 0 && viableVillageLocations <= 3;
+  // True saturation: no legal village spot within 2 roads (the board is genuinely full or player is boxed in)
+  const isBoardSaturated = nearbySpots === 0;
+  // Currently placeable or 1 road away — village is the immediate goal, not roads
+  const isVillageImminent = viableVillageLocations > 0 || spotsIn1Road > 0;
+  // Approaching: 2 roads needed but good spots exist; keep saving, 1 enabling road is ok
+  const isVillageApproaching = !isVillageImminent && spotsIn2Roads > 0;
+  const isBoardScarce = nearbySpots > 0 && nearbySpots <= 3;
 
-  if (isBoardScarce) {
-    // Locations are scarce but available - BOOST village priority to claim them before others do
+  if (isVillageImminent) {
+    // A settlement is right there (or one road away) — strongly prioritise saving for it
+    villagePriority *= viableVillageLocations > 0 ? 1.5 : 1.35;
+    console.log(`   ⚠️ Village imminent (now=${viableVillageLocations} 1-road=${spotsIn1Road}) - BOOSTING village priority`);
+  } else if (isBoardScarce) {
     villagePriority *= 1.4;
-    console.log(`   ⚠️ Village locations scarce (${viableVillageLocations}) - BOOSTING village priority x1.4`);
+    console.log(`   ⚠️ Village locations scarce (${nearbySpots} within 2 roads) - BOOSTING village priority x1.4`);
   }
 
   if (isBoardSaturated) {
-    // Truly no village locations available - shift to estates and dev cards
+    // Truly no village locations reachable within 2 roads - shift to estates and dev cards
     villagePriority *= 0.3;
     estatePriority *= 1.8;
     devCardPriority *= 1.8;
-    console.log(`   🚧 Board saturated (0 locations) - prioritizing estates and dev cards`);
+    console.log(`   🚧 Board saturated (0 spots within 2 roads) - prioritizing estates and dev cards`);
   }
 
   let roadPriority = Math.max(8 - roadCount, 3);
@@ -545,31 +558,31 @@ export function calculateBuildingPriority(
     roadPriority *= 0.6;
   }
 
-  // If the player already has open vertices on their network where a village can be placed,
-  // roads should be strongly deprioritized in favor of building that village
-  const hasOpenVillageOnNetwork = viableVillageLocations > 0;
-  if (hasOpenVillageOnNetwork && villageCount < 5) {
+  // Village instantly placeable on existing network → roads are not what's needed
+  if (viableVillageLocations > 0 && villageCount < 5) {
     const suppressFactor = villageCount < 3 ? 0.4 : 0.6;
     roadPriority *= suppressFactor;
-    console.log(`   🏘️ Open village vertex on network (${viableVillageLocations} spots, ${villageCount} villages) - road priority x${suppressFactor}`);
+    console.log(`   🏘️ Village directly placeable on network (${viableVillageLocations} spots) - road priority x${suppressFactor}`);
+  } else if (spotsIn1Road > 0 && villageCount < 5) {
+    // One road will unlock a settlement — allow exactly one road but don't keep chaining
+    roadPriority *= 0.75;
+    console.log(`   🛤️ Village 1 road away (${spotsIn1Road} spots) - mild road suppression x0.75`);
   }
 
-  // Check if roads could open new village locations
+  // Late game or genuinely saturated: roads add little unless pursuing Longest Road
   const roadsCanOpenVillageSpots = canRoadsOpenVillageSpots(player.id, gameState, boardSize);
-
-  // Late game or saturated board: roads are mostly pointless unless pursuing Longest Road OR opening village spots
   if ((isLateGame || isBoardSaturated) && !roadsCanOpenVillageSpots) {
-    roadPriority *= 0.3;  // Severe reduction only if roads won't help
-    console.log(`   🛤️ Late game/saturated - road priority severely reduced`);
+    roadPriority *= 0.3;
+    console.log(`   🛤️ Late game/saturated and roads won't open spots - road priority severely reduced`);
   } else if (isBoardSaturated && roadsCanOpenVillageSpots) {
-    // Board saturated but roads can open new spots - BOOST priority
-    roadPriority = Math.max(roadPriority, 14);  // Higher than base estate priority
-    roadPriority *= 1.5;
+    roadPriority = Math.max(roadPriority, 14) * 1.5;
     console.log(`   🛤️ Board saturated but roads can open village spots - BOOSTING road priority to ${roadPriority.toFixed(1)}`);
   }
 
-  if (viableVillageLocations <= 3 && !isLateGame && !roadsCanOpenVillageSpots) {
-    roadPriority *= 0.5;
+  // Approaching (2 roads needed): allow road building toward the target but don't over-invest
+  if (isVillageApproaching) {
+    roadPriority *= 0.85;
+    console.log(`   🛤️ Village 2 roads away (${spotsIn2Roads} spots) - slight road suppression x0.85`);
   }
 
   if (gameState.gameSettings.longestRoadEnabled) {
