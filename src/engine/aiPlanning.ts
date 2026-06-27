@@ -4,6 +4,7 @@ import { ResourceType } from '../utils/tradingUtils';
 import { BUILDING_COSTS } from './buildingCosts';
 import { getValidVillagePlacements, getPlayerVillages } from './gameplayActions';
 import { DIFFICULTY_PRESETS } from './aiDifficultyTuning';
+import { countVillageSpotsByHops } from './aiLocationStrategy';
 
 export type BuildingType = 'road' | 'village' | 'estate' | 'dev_card';
 
@@ -140,9 +141,23 @@ export function shouldHoldForHigherValue(
   const settlementCount = gameState.villages.filter(
     v => v.playerId === player.id && v.type === 'settlement'
   ).length;
-  // Saving toward another settlement only makes sense once past the opening and
-  // when there's somewhere legal to put it.
-  if (settlementCount >= 2 && getValidVillagePlacements(player.id, gameState, boardSize).length > 0) {
+  // Saving toward another settlement is worthwhile when there is a legal spot
+  // either reachable NOW (0 roads) or reachable with 1 road (approaching).
+  // Only consider candidate=road as conflicting when the spot is already
+  // placeable; for the approaching case the road is actually helping, so we
+  // skip the conflict check and won't wrongly hold.
+  const villageReach = settlementCount >= 2
+    ? countVillageSpotsByHops(player.id, gameState, boardSize, 1)
+    : null;
+  const hasImmediateVillageSpot = (villageReach?.byDepth[0] ?? 0) > 0;
+  const hasApproachingVillageSpot = (villageReach?.byDepth[1] ?? 0) > 0;
+
+  if (hasImmediateVillageSpot) {
+    // Spot is directly placeable — save for it (old behaviour, broadened to 1-road as well)
+    targets.push('village');
+  } else if (hasApproachingVillageSpot && candidate !== 'road') {
+    // Spot needs 1 more road: don't block road builds (they help), but DO block
+    // dev-card buys that would drain grain/fabric needed for the settlement later.
     targets.push('village');
   }
 

@@ -660,50 +660,52 @@ function calculateVillageExpansionValue(
   player: Player
 ): number {
   let expansionValue = 0;
+  const occupiedVertices = gameState.verticesOccupiedBy || {};
 
-  if (!gameState.verticesOccupiedBy[vertexId]) {
+  // Helper: an opponent settlement at `v` breaks road continuity through it.
+  const blockedByOpponent = (v: number) => {
+    const owner = occupiedVertices[v];
+    return owner != null && owner !== player.id;
+  };
+
+  // Depth-0: the road tip itself could become a village
+  if (!occupiedVertices[vertexId]) {
     const adjVertices = getAdjacentVertices(vertexId, boardSize);
-    const hasAdjacentSettlement = adjVertices.some(v => gameState.verticesOccupiedBy[v]);
+    const hasAdjacentSettlement = adjVertices.some(v => occupiedVertices[v]);
 
     if (!hasAdjacentSettlement) {
-      const vertexEval = evaluateVertex(vertexId, gameState, boardSize, player);
-      const villageScore = vertexEval.totalScore;
-
-      if (villageScore > 20) {
-        expansionValue += 12;
-      } else if (villageScore > 15) {
-        expansionValue += 8;
-      } else if (villageScore > 10) {
-        expansionValue += 5;
-      } else {
-        expansionValue += 2;
-      }
+      const villageScore = evaluateVertex(vertexId, gameState, boardSize, player).totalScore;
+      if (villageScore > 20) expansionValue += 12;
+      else if (villageScore > 15) expansionValue += 8;
+      else if (villageScore > 10) expansionValue += 5;
+      else expansionValue += 2;
     }
+  }
+
+  // Depth-1 neighbours only count if the road tip isn't blocked by an opponent
+  // (an opponent's settlement at vertexId cuts road continuity past it).
+  if (blockedByOpponent(vertexId)) {
+    return expansionValue;
   }
 
   const adjacentVertices = getAdjacentVertices(vertexId, boardSize);
 
   for (const adjVertex of adjacentVertices) {
-    if (gameState.verticesOccupiedBy[adjVertex]) {
-      continue;
-    }
+    if (occupiedVertices[adjVertex]) continue; // occupied — can't place a village there
+    // The edge to adjVertex must not already be occupied by someone else
+    const edgeId = vertexId < adjVertex ? `${vertexId}__${adjVertex}` : `${adjVertex}__${vertexId}`;
+    const edgeOwner = gameState.edgesOccupiedBy[edgeId];
+    if (edgeOwner && edgeOwner !== player.id) continue;
 
     const adjAdjVertices = getAdjacentVertices(adjVertex, boardSize);
-    const hasAdjacentSettlement = adjAdjVertices.some(v => gameState.verticesOccupiedBy[v]);
+    const hasAdjacentSettlement = adjAdjVertices.some(v => occupiedVertices[v]);
 
     if (!hasAdjacentSettlement) {
-      const vertexEval = evaluateVertex(adjVertex, gameState, boardSize, player);
-      const villageScore = vertexEval.totalScore;
-
-      if (villageScore > 20) {
-        expansionValue += 8;
-      } else if (villageScore > 15) {
-        expansionValue += 5;
-      } else if (villageScore > 10) {
-        expansionValue += 3;
-      } else {
-        expansionValue += 1;
-      }
+      const villageScore = evaluateVertex(adjVertex, gameState, boardSize, player).totalScore;
+      if (villageScore > 20) expansionValue += 8;
+      else if (villageScore > 15) expansionValue += 5;
+      else if (villageScore > 10) expansionValue += 3;
+      else expansionValue += 1;
     }
   }
 
@@ -717,6 +719,88 @@ export function countViableVillageLocations(
 ): number {
   const validPlacements = getValidVillagePlacements(playerId, gameState, boardSize);
   return validPlacements.length;
+}
+
+/**
+ * BFS from all player-owned vertices (roads + villages) outward over unoccupied
+ * edges, up to `maxRoads` hops. Returns the count of vertices that would be
+ * legal village placements at each hop depth, and the minimum hops to any legal
+ * spot. An opponent-owned vertex blocks the BFS through it (the road-interrupt rule).
+ *
+ * depth 0 = already on network and placeable now (same as countViableVillageLocations)
+ * depth 1 = one new road needed
+ * depth 2 = two new roads needed
+ */
+export function countVillageSpotsByHops(
+  playerId: string,
+  gameState: GameState,
+  boardSize: BoardSize,
+  maxRoads: number = 2
+): { total: number; byDepth: number[]; minHops: number } {
+  const boardData = loadBoardForSize(boardSize);
+  const occupiedVertices = gameState.verticesOccupiedBy || {};
+
+  const playerRoads = gameState.roads.filter(r => r.playerId === playerId);
+  const playerVillages = gameState.villages.filter(v => v.playerId === playerId);
+
+  // Seed BFS with vertices already on this player's network
+  const seedVertices = new Set<number>();
+  playerRoads.forEach(r => { seedVertices.add(r.from); seedVertices.add(r.to); });
+  playerVillages.forEach(v => seedVertices.add(v.vertexId));
+
+  // BFS: visited tracks the minimum depth each vertex was reached at
+  const visited = new Map<number, number>(); // vertexId → depth reached
+  seedVertices.forEach(v => visited.set(v, 0));
+
+  const frontier: number[] = Array.from(seedVertices);
+  const byDepth: number[] = Array(maxRoads + 1).fill(0);
+
+  // depth 0: count spots placeable right now on existing network
+  for (const v of frontier) {
+    if (!occupiedVertices[v]) {
+      const adjVertices = boardData.adjacencyMap[v] || [];
+      const distanceRuleOk = !adjVertices.some(n => occupiedVertices[n]);
+      if (distanceRuleOk) {
+        byDepth[0]++;
+      }
+    }
+  }
+
+  // BFS for deeper depths
+  let currentFrontier = frontier.slice();
+  for (let depth = 1; depth <= maxRoads; depth++) {
+    const nextFrontier: number[] = [];
+    for (const v of currentFrontier) {
+      // Don't expand through an opponent-owned vertex (their settlement breaks road continuity)
+      if (occupiedVertices[v] && occupiedVertices[v] !== playerId) continue;
+
+      const neighbors = boardData.adjacencyMap[v] || [];
+      for (const neighbor of neighbors) {
+        if (visited.has(neighbor)) continue;
+        const edgeId = v < neighbor ? `${v}__${neighbor}` : `${neighbor}__${v}`;
+        // Can only traverse an unoccupied edge
+        if (gameState.edgesOccupiedBy[edgeId]) continue;
+
+        visited.set(neighbor, depth);
+        nextFrontier.push(neighbor);
+
+        // Would a village at `neighbor` be legal?
+        if (!occupiedVertices[neighbor]) {
+          const adjVertices = boardData.adjacencyMap[neighbor] || [];
+          const distanceRuleOk = !adjVertices.some(n => occupiedVertices[n]);
+          if (distanceRuleOk) {
+            byDepth[depth]++;
+          }
+        }
+      }
+    }
+    currentFrontier = nextFrontier;
+  }
+
+  const total = byDepth.reduce((a, b) => a + b, 0);
+  const minHops = byDepth.findIndex(c => c > 0);
+
+  return { total, byDepth, minHops: minHops === -1 ? Infinity : minHops };
 }
 
 export function selectStrategicEstateLocation(
