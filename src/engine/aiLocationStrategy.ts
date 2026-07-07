@@ -5,7 +5,7 @@ import { getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages, c
 import { evaluateVertex, evaluateRoadEdge, calculateProductionValue, calculateEstateProductionValue, calculatePlayerResourceProduction, calculateEstateScarcityBonus, VertexEvaluation, EdgeEvaluation } from './aiStrategicEval';
 import { getAdjacentVertices } from './boardService';
 import { getStrategicDynamicForCharacter, type StrategicDynamic } from './aiPersonality';
-import { pickByDifficulty } from './aiDifficultyTuning';
+import { chooseByRubric } from './aiDifficultyTuning';
 
 export type PersonalityTrait = 'aggressive' | 'expansionist' | 'trader' | 'defensive' | 'developer' | 'balanced';
 
@@ -105,16 +105,6 @@ export function getPersonalityForCharacter(characterName?: string): PersonalityT
   return 'balanced';
 }
 
-
-export function applyDifficultyRandomness<T extends { totalScore: number }>(
-  options: T[],
-  difficulty: 'easy' | 'normal' | 'hard'
-): T {
-  // Sharpness of selection is driven by the shared difficulty presets so that
-  // tuning lives in one place (aiDifficultyTuning). Options are already sorted
-  // best-first by callers. Hard is deterministic; easy/normal sample the top band.
-  return pickByDifficulty(options, difficulty);
-}
 
 function scoreVertexWithPersonality(
   evaluation: VertexEvaluation,
@@ -390,7 +380,7 @@ export function selectStrategicVillageLocation(
     console.log(`     ${i + 1}. Vertex ${e.vertexId} - Score: ${e.totalScore.toFixed(1)} (Prod: ${e.productionValue.toFixed(1)}, Div: ${e.resourceDiversity.toFixed(1)}, Port: ${e.portAccess.toFixed(1)}, Exp: ${e.expansionPotential.toFixed(1)})`);
   });
 
-  const selected = applyDifficultyRandomness(evaluations, difficulty);
+  const selected = chooseByRubric(evaluations, difficulty);
   console.log(`   ✓ Selected: Vertex ${selected.vertexId} (Score: ${selected.totalScore.toFixed(1)})`);
 
   const reasoning = generateVillageReasoning(selected, personality, gameState, playerId);
@@ -546,7 +536,7 @@ export function selectStrategicRoadLocation(
   });
 
   const evaluations = validEdges.map(e => e.evaluation);
-  const selected = applyDifficultyRandomness(evaluations, difficulty);
+  const selected = chooseByRubric(evaluations, difficulty);
   const selectedIndex = evaluations.indexOf(selected);
   const selectedEdge = selectedIndex >= 0 ? validEdges[selectedIndex] : null;
 
@@ -875,7 +865,7 @@ export function selectStrategicEstateLocation(
     console.log(`     ${i + 1}. Vertex ${e.vertexId} - Score: ${e.totalScore.toFixed(1)} (Prod: ${e.productionValue.toFixed(1)}, Scarcity: ${e.scarcityBonus.toFixed(1)})`);
   });
 
-  const selected = applyDifficultyRandomness(evaluations, difficulty);
+  const selected = chooseByRubric(evaluations, difficulty);
   console.log(`   ✓ Selected: Vertex ${selected.vertexId} (Score: ${selected.totalScore.toFixed(1)})`);
 
   const reasoning = generateEstateReasoning(selected, personality);
@@ -892,7 +882,9 @@ export function selectStrategicDiscardResources(
   discardAmount: number,
   gameState: GameState
 ): { clay: number; lumber: number; grain: number; fabric: number; mineral: number } {
-  console.log(`\n🗑️  [${player.name}] STRATEGIC DISCARD SELECTION`);
+  const difficulty = player.difficulty || 'normal';
+
+  console.log(`\n🗑️  [${player.name}] STRATEGIC DISCARD SELECTION (${difficulty} difficulty)`);
   console.log(`   Must discard: ${discardAmount} resources`);
   console.log(`   Current: Clay=${player.resources.clay} Lumber=${player.resources.lumber} Grain=${player.resources.grain} Fabric=${player.resources.fabric} Mineral=${player.resources.mineral}`);
 
@@ -911,15 +903,20 @@ export function selectStrategicDiscardResources(
     console.log(`     ${r.type}: ${r.value.toFixed(2)} (have ${r.amount})`);
   });
 
+  // Discard one unit at a time, each unit choosing which resource to give up
+  // through the shared rubric gate (lowest-value resource = "optimal" pick).
+  // This keeps discard consistent with every other AI decision instead of a
+  // one-off greedy allocation.
   const discard = { clay: 0, lumber: 0, grain: 0, fabric: 0, mineral: 0 };
   let remaining = discardAmount;
 
-  for (const resource of resourceValues) {
-    if (remaining === 0) break;
+  while (remaining > 0) {
+    const available = resourceValues.filter(r => discard[r.type] < r.amount);
+    if (available.length === 0) break;
 
-    const toDiscard = Math.min(resource.amount, remaining);
-    discard[resource.type] = toDiscard;
-    remaining -= toDiscard;
+    const chosen = chooseByRubric(available, difficulty);
+    discard[chosen.type] += 1;
+    remaining -= 1;
   }
 
   console.log(`   ✓ Discarding: Clay=${discard.clay} Lumber=${discard.lumber} Grain=${discard.grain} Fabric=${discard.fabric} Mineral=${discard.mineral}`);

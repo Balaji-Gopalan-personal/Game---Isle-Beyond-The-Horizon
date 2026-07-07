@@ -7,7 +7,7 @@ import { loadBoardGraph, loadBoardForSize } from '../graph/loadBoard';
 import { canPlaceVillage, legalRoadEdgesFrom, edgeTouchesVertex, whyNotVillage, initializeValidators } from '../engine/validators';
 import { placeVillage_P1, placeRoad_P1_byEdgeId, aiTakeTurn_P1 } from '../engine/phase1';
 import { calculateLongestRoadPath, getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages, buildVerticesWithOwnership, checkForRoadDisruptions, recalculateAllPlayersRoadLengths, RoadDisruption } from '../engine/gameplayActions';
-import { makeRandomBuildDecision, makeStrategicBuildDecision, getAvailableBuildingTypes } from '../engine/aiBuilding';
+import { makeStrategicBuildDecision, getAvailableBuildingTypes } from '../engine/aiBuilding';
 import { selectStrategicRoadLocation, selectStrategicVillageLocation, selectStrategicEstateLocation, selectStrategicDiscardResources, VillageLocationDecision, RoadLocationDecision, EstateLocationDecision, getPersonalityForCharacter } from '../engine/aiLocationStrategy';
 import { findDesertCentre, isValidRobberDestination, getPlayersWithAdjacentBuildings, selectRandomRobberDestination, stealRandomResource, selectRandomStealTarget, CentreData } from '../engine/robberActions';
 import { selectRobberPlacement } from '../engine/aiRobberStrategy';

@@ -2,7 +2,8 @@ import { loadBoardGraph, loadBoardForSize } from '../graph/loadBoard';
 import { legalRoadEdgesFrom, canPlaceVillage, edgeTouchesVertex, whyNotVillage, initializeValidators } from './validators';
 import { BoardSize } from '../data/boardConfigs';
 import { evaluateVertex, evaluateRoadEdge } from './aiStrategicEval';
-import { getPersonalityForCharacter, applyDifficultyRandomness, PersonalityTrait } from './aiLocationStrategy';
+import { getPersonalityForCharacter, PersonalityTrait } from './aiLocationStrategy';
+import { chooseByRubric } from './aiDifficultyTuning';
 
 // We'll get board size from state
 let currentBoardSize: BoardSize = 'standard';
@@ -195,19 +196,7 @@ function chooseBestVillageVertex(state: any, candidates: number[], playerId: str
     console.log(`     ${i + 1}. Vertex ${e.vertexId} - Score: ${e.totalScore.toFixed(1)}`);
   });
 
-  const randomnessChance = difficulty === 'easy' ? 0.4 : difficulty === 'normal' ? 0.2 : 0;
-  let selected;
-
-  if (difficulty === 'hard' || Math.random() >= randomnessChance) {
-    const topCandidates = difficulty === 'easy'
-      ? evaluations.slice(0, Math.max(3, Math.ceil(evaluations.length * 0.5)))
-      : evaluations.slice(0, Math.max(2, Math.ceil(evaluations.length * 0.3)));
-    const randomIndex = Math.floor(Math.random() * topCandidates.length);
-    selected = topCandidates[randomIndex];
-  } else {
-    const randomIndex = Math.floor(Math.random() * evaluations.length);
-    selected = evaluations[randomIndex];
-  }
+  const selected = chooseByRubric(evaluations, difficulty);
 
   console.log(`   ✓ Selected: Vertex ${selected.vertexId} (Score: ${selected.totalScore.toFixed(1)})`);
   return selected.vertexId;
@@ -243,19 +232,7 @@ function chooseBestRoadEdge(state: any, options: string[], playerId: string, v: 
     console.log(`     ${i + 1}. Edge ${e.edgeId} - Score: ${e.totalScore.toFixed(1)}`);
   });
 
-  const randomnessChance = difficulty === 'easy' ? 0.4 : difficulty === 'normal' ? 0.2 : 0;
-  let selected;
-
-  if (difficulty === 'hard' || Math.random() >= randomnessChance) {
-    const topCandidates = difficulty === 'easy'
-      ? evaluations.slice(0, Math.max(3, Math.ceil(evaluations.length * 0.5)))
-      : evaluations.slice(0, Math.max(2, Math.ceil(evaluations.length * 0.3)));
-    const randomIndex = Math.floor(Math.random() * topCandidates.length);
-    selected = topCandidates[randomIndex];
-  } else {
-    const randomIndex = Math.floor(Math.random() * evaluations.length);
-    selected = evaluations[randomIndex];
-  }
+  const selected = chooseByRubric(evaluations, difficulty);
 
   console.log(`   ✓ Selected: Edge ${selected.edgeId} (Score: ${selected.totalScore.toFixed(1)})`);
   return selected.edgeId;
