@@ -3,7 +3,7 @@ import { BoardSize } from '../data/boardConfigs';
 import { getMostNeededResources } from './buildingCosts';
 import { loadBoardForSize } from '../graph/loadBoard';
 import { getStrategicDynamicForCharacter } from './aiPersonality';
-import { scaleDevCardProbability } from './aiDifficultyTuning';
+import { chooseByRubric } from './aiDifficultyTuning';
 
 export interface DevCardPlayDecision {
   shouldPlay: boolean;
@@ -69,12 +69,15 @@ export function shouldBuyDevelopmentCard(
     }
   }
 
-  // Scale by difficulty so harder AIs invest in development cards more decisively
-  // (normal is the 1.0x baseline). Keeps difficulty tuning centralized.
+  // buyProbability aggregates the strategic case for buying (points-away,
+  // largest-army race, personality). Whether the AI actually acts on that
+  // case - versus deviating - is decided by the shared difficulty rubric,
+  // the same way as every other AI decision.
   const difficulty = player.difficulty || 'normal';
-  buyProbability = scaleDevCardProbability(buyProbability, difficulty);
+  const optimalAction: 'buy' | 'skip' = buyProbability >= 0.5 ? 'buy' : 'skip';
+  const alternativeAction: 'buy' | 'skip' = optimalAction === 'buy' ? 'skip' : 'buy';
 
-  return Math.random() < Math.min(buyProbability, 0.95);
+  return chooseByRubric([optimalAction, alternativeAction], difficulty) === 'buy';
 }
 
 export function evaluateDevCardPlay(
@@ -115,33 +118,22 @@ export function evaluateDevCardPlay(
   const maxBonus = Math.max(largestArmyBonus, longestRoadBonus);
   const bonusAdjustment = maxBonus >= 4 ? -1 : 0;
 
-  if (difficulty === 'easy') {
-    if (scoredCards[0].score > (5 + bonusAdjustment) && Math.random() < 0.4) {
-      return {
-        shouldPlay: true,
-        cardId: scoredCards[0].card.id,
-        reasoning: `Playing ${scoredCards[0].card.name} (score: ${scoredCards[0].score})`
-      };
-    }
-  } else if (difficulty === 'normal') {
-    if (scoredCards[0].score > (6 + bonusAdjustment) && Math.random() < 0.6) {
-      return {
-        shouldPlay: true,
-        cardId: scoredCards[0].card.id,
-        reasoning: `Playing ${scoredCards[0].card.name} (score: ${scoredCards[0].score})`
-      };
-    }
-  } else {
-    if (scoredCards[0].score > (4 + bonusAdjustment)) {
-      return {
-        shouldPlay: true,
-        cardId: scoredCards[0].card.id,
-        reasoning: `Playing ${scoredCards[0].card.name} (score: ${scoredCards[0].score})`
-      };
-    }
+  // "Worth playing at all" is a single strategic threshold, not a per-difficulty
+  // one. Whether the AI acts on it - and which card it plays if so - both go
+  // through the shared rubric, the same way as every other AI decision.
+  const isWorthPlaying = scoredCards[0].score > (5 + bonusAdjustment);
+  const playOptions: Array<'play' | 'hold'> = isWorthPlaying ? ['play', 'hold'] : ['hold', 'play'];
+
+  if (chooseByRubric(playOptions, difficulty) !== 'play') {
+    return { shouldPlay: false, reasoning: 'No high-value card plays available' };
   }
 
-  return { shouldPlay: false, reasoning: 'No high-value card plays available' };
+  const chosen = chooseByRubric(scoredCards, difficulty);
+  return {
+    shouldPlay: true,
+    cardId: chosen.card.id,
+    reasoning: `Playing ${chosen.card.name} (score: ${chosen.score})`
+  };
 }
 
 function scoreCardPlayTiming(
@@ -675,36 +667,11 @@ export function selectBoomingEconomyResources(
     console.log(`     ${idx + 1}. ${rs.resource}: ${rs.score.toFixed(1)} (have ${current}) - ${rs.reason}`);
   });
 
-  let selected: string[];
-
-  if (difficulty === 'hard') {
-    selected = [resourceScores[0].resource, resourceScores[1].resource];
-    console.log(`   ✓ Hard difficulty: Selected top 2 (optimal)`);
-  } else if (difficulty === 'normal') {
-    if (Math.random() < 0.8) {
-      selected = [resourceScores[0].resource, resourceScores[1].resource];
-      console.log(`   ✓ Normal difficulty: Selected top 2 (80% optimal choice)`);
-    } else {
-      const topFour = resourceScores.slice(0, 4);
-      const first = topFour[Math.floor(Math.random() * topFour.length)];
-      const remaining = topFour.filter(r => r.resource !== first.resource);
-      const second = remaining[Math.floor(Math.random() * remaining.length)];
-      selected = [first.resource, second.resource];
-      console.log(`   ✓ Normal difficulty: Selected from top 4 (20% suboptimal choice)`);
-    }
-  } else {
-    if (Math.random() < 0.6) {
-      selected = [resourceScores[0].resource, resourceScores[1].resource];
-      console.log(`   ✓ Easy difficulty: Selected top 2 (60% optimal choice)`);
-    } else {
-      const topHalf = resourceScores.slice(0, 3);
-      const first = topHalf[Math.floor(Math.random() * topHalf.length)];
-      const remaining = resourceScores.filter(r => r.resource !== first.resource);
-      const second = remaining[Math.floor(Math.random() * remaining.length)];
-      selected = [first.resource, second.resource];
-      console.log(`   ✓ Easy difficulty: Random selection (40% suboptimal choice)`);
-    }
-  }
+  // Two distinct picks, each going through the shared rubric gate in turn.
+  const first = chooseByRubric(resourceScores, difficulty);
+  const remainingScores = resourceScores.filter(r => r.resource !== first.resource);
+  const second = chooseByRubric(remainingScores, difficulty);
+  const selected = [first.resource, second.resource];
 
   const reasoning = `Selected ${selected[0]} and ${selected[1]} for ${topGoal.targetBuilding}`;
   console.log(`   🎁 Final selection: ${selected[0]}, ${selected[1]}`);
@@ -794,30 +761,7 @@ export function selectClosedMarketResource(
     console.log(`     ${idx + 1}. ${rs.resource}: ${rs.score.toFixed(1)} (leader has ${leaderAmount}) - ${rs.reason}`);
   });
 
-  // Apply difficulty-based selection
-  let selectedScore: { resource: string; score: number; reason: string };
-
-  if (difficulty === 'hard') {
-    selectedScore = resourceScores[0];
-    console.log(`   ✓ Hard difficulty: Selected most impactful (optimal)`);
-  } else if (difficulty === 'normal') {
-    if (Math.random() < 0.8) {
-      selectedScore = resourceScores[0];
-      console.log(`   ✓ Normal difficulty: Selected most impactful (80% optimal)`);
-    } else {
-      const topThree = resourceScores.slice(0, 3);
-      selectedScore = topThree[Math.floor(Math.random() * topThree.length)];
-      console.log(`   ✓ Normal difficulty: Selected from top 3 (20% suboptimal)`);
-    }
-  } else {
-    if (Math.random() < 0.6) {
-      selectedScore = resourceScores[0];
-      console.log(`   ✓ Easy difficulty: Selected most impactful (60% optimal)`);
-    } else {
-      selectedScore = resourceScores[Math.floor(Math.random() * resourceScores.length)];
-      console.log(`   ✓ Easy difficulty: Random selection (40% suboptimal)`);
-    }
-  }
+  const selectedScore = chooseByRubric(resourceScores, difficulty);
 
   const reasoning = `Target: ${leader.name}; selecting ${selectedScore.resource} because ${selectedScore.reason}`;
   console.log(`   🎯 Final selection: ${selectedScore.resource}`);
@@ -927,30 +871,7 @@ export function selectResourceSwapTarget(
     console.log(`     ${idx + 1}. ${st.player.name}: ${st.score.toFixed(1)} (${st.player.resources.total} resources) - ${st.reasoning}`);
   });
 
-  // Apply difficulty-based selection
-  let selected: typeof scoredTargets[0];
-
-  if (difficulty === 'hard') {
-    selected = scoredTargets[0];
-    console.log(`   ✓ Hard difficulty: Selected best target (100% optimal)`);
-  } else if (difficulty === 'normal') {
-    if (Math.random() < 0.8) {
-      selected = scoredTargets[0];
-      console.log(`   ✓ Normal difficulty: Selected best target (80% optimal)`);
-    } else {
-      const topThree = scoredTargets.slice(0, Math.min(3, scoredTargets.length));
-      selected = topThree[Math.floor(Math.random() * topThree.length)];
-      console.log(`   ✓ Normal difficulty: Selected from top 3 (20% suboptimal)`);
-    }
-  } else {
-    if (Math.random() < 0.6) {
-      selected = scoredTargets[0];
-      console.log(`   ✓ Easy difficulty: Selected best target (60% optimal)`);
-    } else {
-      selected = scoredTargets[Math.floor(Math.random() * scoredTargets.length)];
-      console.log(`   ✓ Easy difficulty: Random selection (40% suboptimal)`);
-    }
-  }
+  const selected = chooseByRubric(scoredTargets, difficulty);
 
   console.log(`   🔄 Final target: ${selected.player.name} (${selected.reasoning})`);
 
@@ -1041,8 +962,11 @@ function selectDiverseResources(player: Player, difficulty: 'easy' | 'normal' | 
   const amounts = resourceTypes.map(r => ({ resource: r, amount: (player.resources as any)[r] }));
   amounts.sort((a, b) => a.amount - b.amount);
 
-  // Pick the 2 resources we have least of
-  const selected = [amounts[0].resource, amounts[1].resource];
+  // Pick the 2 resources we have least of, each via the shared rubric gate.
+  const first = chooseByRubric(amounts, difficulty);
+  const remaining = amounts.filter(a => a.resource !== first.resource);
+  const second = chooseByRubric(remaining, difficulty);
+  const selected = [first.resource, second.resource];
 
   return {
     resources: [selected[0], selected[1]] as [string, string],
@@ -1069,16 +993,11 @@ function selectOpponentsMostAbundantResource(player: Player, gameState: GameStat
     }
   }
 
-  // Find the most common
-  let maxResource = 'clay';
-  let maxAmount = 0;
-  for (const resource of resourceTypes) {
-    if (totalsByResource[resource] > maxAmount) {
-      maxAmount = totalsByResource[resource];
-      maxResource = resource;
-    }
-  }
+  const ranked = resourceTypes
+    .map(resource => ({ resource, amount: totalsByResource[resource] }))
+    .sort((a, b) => b.amount - a.amount);
 
-  const reasoning = `Opponents collectively have ${maxAmount} ${maxResource}, the most abundant resource`;
-  return { resource: maxResource, reasoning };
+  const selected = chooseByRubric(ranked, difficulty);
+  const reasoning = `Opponents collectively have ${selected.amount} ${selected.resource}, the most abundant resource`;
+  return { resource: selected.resource, reasoning };
 }

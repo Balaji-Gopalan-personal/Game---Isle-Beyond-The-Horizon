@@ -3,7 +3,7 @@ import { BoardSize } from '../data/boardConfigs';
 import { loadBoardForSize } from '../graph/loadBoard';
 import { getMostNeededResources, BUILDING_COSTS } from './buildingCosts';
 import { isHighThreat } from './aiTradingStrategy';
-import { DIFFICULTY_PRESETS } from './aiDifficultyTuning';
+import { chooseByRubric } from './aiDifficultyTuning';
 
 export interface RobberPlacement {
   hexId: number;
@@ -47,22 +47,6 @@ export function selectRobberPlacement(
     };
   }
 
-  if (difficulty === 'easy') {
-    const randomHex = validHexes[Math.floor(Math.random() * validHexes.length)];
-    const targetPlayer = selectStealTarget(randomHex.id, gameState, player.id, boardSize);
-    console.log(`   ✓ Random selection: Hex ${randomHex.id}`);
-    if (targetPlayer) {
-      const target = gameState.players.find(p => p.id === targetPlayer);
-      console.log(`   Target: ${target?.name}`);
-    }
-    return {
-      hexId: randomHex.id,
-      targetPlayerId: targetPlayer,
-      score: 0,
-      reasoning: 'Random placement (easy difficulty)'
-    };
-  }
-
   const scoredPlacements = validHexes.map(hex => {
     const score = scoreRobberPlacement(hex.id, player, gameState, boardSize);
     const targetPlayer = selectStealTarget(hex.id, gameState, player.id, boardSize);
@@ -85,18 +69,9 @@ export function selectRobberPlacement(
     console.log(`     ${i + 1}. Hex ${p.hexId} (${hex?.resourceType} ${hex?.value}) - Score: ${p.score.toFixed(1)} ${target ? `→ ${target.name}` : ''}`);
   });
 
-  if (difficulty === 'normal') {
-    // Candidate band driven by the shared difficulty preset (normal = top 30%),
-    // keeping at least the top 3 so placement stays sensible on small boards.
-    const topPercent = DIFFICULTY_PRESETS.normal.selectionTopPercent;
-    const topPlacements = scoredPlacements.slice(0, Math.max(3, Math.ceil(scoredPlacements.length * topPercent)));
-    const selected = topPlacements[Math.floor(Math.random() * topPlacements.length)];
-    console.log(`   ✓ Selected from top ${topPlacements.length}: Hex ${selected.hexId}`);
-    return selected;
-  }
-
-  console.log(`   ✓ Selected best: Hex ${scoredPlacements[0].hexId}`);
-  return scoredPlacements[0];
+  const selected = chooseByRubric(scoredPlacements, difficulty);
+  console.log(`   ✓ Selected: Hex ${selected.hexId}`);
+  return selected;
 }
 
 function generateRobberReasoning(

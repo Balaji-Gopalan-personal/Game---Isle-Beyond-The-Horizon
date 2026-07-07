@@ -4,6 +4,7 @@ import { getValidRoadPlacements, getValidVillagePlacements, getPlayerVillages } 
 import { loadBoardForSize } from '../graph/loadBoard';
 import { calculateBuildingPriority, evaluateVertex } from './aiStrategicEval';
 import { shouldHoldForHigherValue } from './aiPlanning';
+import { chooseByRubric } from './aiDifficultyTuning';
 
 export type BuildingType = 'road' | 'village' | 'estate' | 'dev_card';
 
@@ -104,29 +105,6 @@ export function getAvailableBuildingTypes(
     .map(opt => opt.type);
 }
 
-export function makeRandomBuildDecision(
-  playerId: string,
-  gameState: GameState,
-  boardSize: BoardSize,
-  actionCount: number = 0
-): AIBuildDecision {
-  const options = checkBuildingAvailability(playerId, gameState, boardSize);
-  const availableOptions = options.filter(opt => opt.canAfford && opt.hasValidLocation);
-
-  if (availableOptions.length === 0) {
-    return { shouldBuild: false };
-  }
-
-  availableOptions.sort((a, b) => b.priority - a.priority);
-  const topOptions = availableOptions.slice(0, Math.max(2, Math.ceil(availableOptions.length * 0.5)));
-
-  const randomIndex = Math.floor(Math.random() * topOptions.length);
-  return {
-    shouldBuild: true,
-    buildingType: topOptions[randomIndex].type
-  };
-}
-
 export function makeStrategicBuildDecision(
   playerId: string,
   gameState: GameState,
@@ -165,25 +143,11 @@ export function makeStrategicBuildDecision(
 
   availableOptions.sort((a, b) => b.priority - a.priority);
 
-  if (difficulty === 'hard') {
-    return {
-      shouldBuild: true,
-      buildingType: availableOptions[0].type
-    };
-  } else if (difficulty === 'normal') {
-    const topOptions = availableOptions.slice(0, Math.max(2, Math.ceil(availableOptions.length * 0.4)));
-    const randomIndex = Math.floor(Math.random() * topOptions.length);
-    return {
-      shouldBuild: true,
-      buildingType: topOptions[randomIndex].type
-    };
-  } else {
-    const randomIndex = Math.floor(Math.random() * availableOptions.length);
-    return {
-      shouldBuild: true,
-      buildingType: availableOptions[randomIndex].type
-    };
-  }
+  const selected = chooseByRubric(availableOptions, difficulty);
+  return {
+    shouldBuild: true,
+    buildingType: selected.type
+  };
 }
 
 export function selectRandomRoadLocation(

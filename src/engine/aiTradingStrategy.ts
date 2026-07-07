@@ -2,6 +2,7 @@ import { GameState, Player, Resources, TradingPort, BoardSize } from '../types/g
 import { ResourceType, getBestTradeRateForResource } from '../utils/tradingUtils';
 import { canAffordVillage, canAffordEstate, canAffordRoad, canAffordDevelopmentCard } from './aiBuilding';
 import { getValidVillagePlacements, getValidRoadPlacements, getPlayerVillages } from './gameplayActions';
+import { chooseByRubric } from './aiDifficultyTuning';
 
 export interface TradeGoal {
   targetBuilding: 'village' | 'estate' | 'road' | 'dev_card';
@@ -452,37 +453,28 @@ function isRecentlyAcquired(resource: ResourceType, history: TurnTradeHistory): 
   return history.tradesExecuted.some(trade => trade.requesting === resource);
 }
 
-function findBestPlayerTrade(
+interface PossiblePlayerTrade {
+  offering: ResourceType;
+  offeringAmount: number;
+  requesting: ResourceType;
+  requestingAmount: number;
+  fairness: number;
+}
+
+interface ScoredPlayerTrade extends PossiblePlayerTrade {
+  score: number;
+}
+
+// Every offering/requesting resource pair, at every affordable ratio. Shared by
+// findBestPlayerTrade and getAllRankedPlayerTrades so the two don't drift.
+function generatePossiblePlayerTrades(
   player: Player,
-  gameState: GameState,
   goal: TradeGoal,
+  surplus: ResourceType[],
+  neededResources: ResourceType[],
   tradeHistory?: TurnTradeHistory
-): TradeEvaluation | null {
-  const neededResources = Object.keys(goal.neededResources) as ResourceType[];
-  const surplus = getSurplusResources(player.resources, goal);
-
-  console.log(`   💰 Surplus resources available for trading: ${surplus.length > 0 ? surplus.join(', ') : 'None'}`);
-
-  if (surplus.length === 0 || neededResources.length === 0) {
-    if (surplus.length === 0) {
-      console.log(`   ⚠️ No surplus resources to offer in player trade`);
-    }
-    if (neededResources.length === 0) {
-      console.log(`   ⚠️ No resources needed for goal (can already afford)`);
-    }
-    return null;
-  }
-
-  const difficulty = player.difficulty || 'normal';
-  const personality = player.character?.personality || 'balanced';
-
-  const possibleTrades: Array<{
-    offering: ResourceType;
-    offeringAmount: number;
-    requesting: ResourceType;
-    requestingAmount: number;
-    fairness: number;
-  }> = [];
+): PossiblePlayerTrade[] {
+  const possibleTrades: PossiblePlayerTrade[] = [];
 
   for (const surplusResource of surplus) {
     // Don't trade away resources we just acquired (prevents cycling)
@@ -501,95 +493,48 @@ function findBestPlayerTrade(
       const neededAmount = goal.neededResources[neededResource] || 1;
 
       if (availableAmount >= 1) {
-        possibleTrades.push({
-          offering: surplusResource,
-          offeringAmount: 1,
-          requesting: neededResource,
-          requestingAmount: 1,
-          fairness: 1.0
-        });
+        possibleTrades.push({ offering: surplusResource, offeringAmount: 1, requesting: neededResource, requestingAmount: 1, fairness: 1.0 });
       }
-
       if (availableAmount >= 2) {
-        possibleTrades.push({
-          offering: surplusResource,
-          offeringAmount: 2,
-          requesting: neededResource,
-          requestingAmount: 1,
-          fairness: 0.5
-        });
+        possibleTrades.push({ offering: surplusResource, offeringAmount: 2, requesting: neededResource, requestingAmount: 1, fairness: 0.5 });
       }
-
       if (availableAmount >= 2 && neededAmount >= 2) {
-        possibleTrades.push({
-          offering: surplusResource,
-          offeringAmount: 2,
-          requesting: neededResource,
-          requestingAmount: 2,
-          fairness: 1.0
-        });
+        possibleTrades.push({ offering: surplusResource, offeringAmount: 2, requesting: neededResource, requestingAmount: 2, fairness: 1.0 });
       }
-
       if (availableAmount >= 3) {
-        possibleTrades.push({
-          offering: surplusResource,
-          offeringAmount: 3,
-          requesting: neededResource,
-          requestingAmount: 1,
-          fairness: 0.33
-        });
+        possibleTrades.push({ offering: surplusResource, offeringAmount: 3, requesting: neededResource, requestingAmount: 1, fairness: 0.33 });
       }
-
       if (availableAmount >= 3 && neededAmount >= 2) {
-        possibleTrades.push({
-          offering: surplusResource,
-          offeringAmount: 3,
-          requesting: neededResource,
-          requestingAmount: 2,
-          fairness: 0.67
-        });
+        possibleTrades.push({ offering: surplusResource, offeringAmount: 3, requesting: neededResource, requestingAmount: 2, fairness: 0.67 });
       }
-
       if (availableAmount >= 1 && neededAmount >= 2) {
-        possibleTrades.push({
-          offering: surplusResource,
-          offeringAmount: 1,
-          requesting: neededResource,
-          requestingAmount: 2,
-          fairness: 2.0
-        });
+        possibleTrades.push({ offering: surplusResource, offeringAmount: 1, requesting: neededResource, requestingAmount: 2, fairness: 2.0 });
       }
     }
   }
 
-  if (possibleTrades.length === 0) {
-    return null;
-  }
+  return possibleTrades;
+}
 
-  const scoredTrades = possibleTrades.map(trade => {
+// Fairness/personality/priority scoring is a single, difficulty-independent
+// standard - difficulty only affects which scored trade the AI ends up acting
+// on (via chooseByRubric in the callers below).
+function scorePlayerTrades(
+  possibleTrades: PossiblePlayerTrade[],
+  goal: TradeGoal,
+  player: Player,
+  personality: string
+): ScoredPlayerTrade[] {
+  const scored = possibleTrades.map(trade => {
     let score = 0;
 
     const totalPriority = goal.priority;
     const resourceScarcity = 1.0 / (player.resources[trade.offering] + 1);
 
-    if (difficulty === 'easy') {
-      if (trade.fairness >= 0.8 && trade.fairness <= 1.2) {
-        score += 10;
-      } else if (trade.fairness >= 0.6) {
-        score += 5;
-      }
-    } else if (difficulty === 'normal') {
-      if (trade.fairness >= 0.7) {
-        score += 8;
-      } else if (trade.fairness >= 0.4) {
-        score += 5;
-      }
-    } else {
-      if (trade.fairness >= 0.5) {
-        score += 6;
-      } else if (trade.fairness >= 0.3) {
-        score += 8;
-      }
+    if (trade.fairness >= 0.7) {
+      score += 8;
+    } else if (trade.fairness >= 0.4) {
+      score += 5;
     }
 
     if (personality === 'aggressive') {
@@ -618,9 +563,41 @@ function findBestPlayerTrade(
     return { ...trade, score };
   });
 
-  scoredTrades.sort((a, b) => b.score - a.score);
+  scored.sort((a, b) => b.score - a.score);
+  return scored;
+}
 
-  const bestTrade = scoredTrades[0];
+function findBestPlayerTrade(
+  player: Player,
+  gameState: GameState,
+  goal: TradeGoal,
+  tradeHistory?: TurnTradeHistory
+): TradeEvaluation | null {
+  const neededResources = Object.keys(goal.neededResources) as ResourceType[];
+  const surplus = getSurplusResources(player.resources, goal);
+
+  console.log(`   💰 Surplus resources available for trading: ${surplus.length > 0 ? surplus.join(', ') : 'None'}`);
+
+  if (surplus.length === 0 || neededResources.length === 0) {
+    if (surplus.length === 0) {
+      console.log(`   ⚠️ No surplus resources to offer in player trade`);
+    }
+    if (neededResources.length === 0) {
+      console.log(`   ⚠️ No resources needed for goal (can already afford)`);
+    }
+    return null;
+  }
+
+  const difficulty = player.difficulty || 'normal';
+  const personality = player.character?.personality || 'balanced';
+
+  const possibleTrades = generatePossiblePlayerTrades(player, goal, surplus, neededResources, tradeHistory);
+  if (possibleTrades.length === 0) {
+    return null;
+  }
+
+  const scoredTrades = scorePlayerTrades(possibleTrades, goal, player, personality);
+  const bestTrade = chooseByRubric(scoredTrades, difficulty);
 
   if (bestTrade.score > 0) {
     return {
@@ -654,146 +631,25 @@ export function getAllRankedPlayerTrades(
   const difficulty = player.difficulty || 'normal';
   const personality = player.character?.personality || 'balanced';
 
-  const possibleTrades: Array<{
-    offering: ResourceType;
-    offeringAmount: number;
-    requesting: ResourceType;
-    requestingAmount: number;
-    fairness: number;
-  }> = [];
-
-  for (const surplusResource of surplus) {
-    for (const neededResource of neededResources) {
-      // Skip if trying to trade the same resource for itself
-      if (surplusResource === neededResource) {
-        continue;
-      }
-
-      const availableAmount = player.resources[surplusResource];
-      const neededAmount = goal.neededResources[neededResource] || 1;
-
-      if (availableAmount >= 1) {
-        possibleTrades.push({
-          offering: surplusResource,
-          offeringAmount: 1,
-          requesting: neededResource,
-          requestingAmount: 1,
-          fairness: 1.0
-        });
-      }
-
-      if (availableAmount >= 2) {
-        possibleTrades.push({
-          offering: surplusResource,
-          offeringAmount: 2,
-          requesting: neededResource,
-          requestingAmount: 1,
-          fairness: 0.5
-        });
-      }
-
-      if (availableAmount >= 2 && neededAmount >= 2) {
-        possibleTrades.push({
-          offering: surplusResource,
-          offeringAmount: 2,
-          requesting: neededResource,
-          requestingAmount: 2,
-          fairness: 1.0
-        });
-      }
-
-      if (availableAmount >= 3) {
-        possibleTrades.push({
-          offering: surplusResource,
-          offeringAmount: 3,
-          requesting: neededResource,
-          requestingAmount: 1,
-          fairness: 0.33
-        });
-      }
-
-      if (availableAmount >= 3 && neededAmount >= 2) {
-        possibleTrades.push({
-          offering: surplusResource,
-          offeringAmount: 3,
-          requesting: neededResource,
-          requestingAmount: 2,
-          fairness: 0.67
-        });
-      }
-
-      if (availableAmount >= 1 && neededAmount >= 2) {
-        possibleTrades.push({
-          offering: surplusResource,
-          offeringAmount: 1,
-          requesting: neededResource,
-          requestingAmount: 2,
-          fairness: 2.0
-        });
-      }
-    }
-  }
-
-  const scoredTrades = possibleTrades.map(trade => {
-    let score = 0;
-
-    const totalPriority = goal.priority;
-    const resourceScarcity = 1.0 / (player.resources[trade.offering] + 1);
-
-    if (difficulty === 'easy') {
-      if (trade.fairness >= 0.8 && trade.fairness <= 1.2) {
-        score += 10;
-      } else if (trade.fairness >= 0.6) {
-        score += 5;
-      }
-    } else if (difficulty === 'normal') {
-      if (trade.fairness >= 0.7) {
-        score += 8;
-      } else if (trade.fairness >= 0.4) {
-        score += 5;
-      }
-    } else {
-      if (trade.fairness >= 0.5) {
-        score += 6;
-      } else if (trade.fairness >= 0.3) {
-        score += 8;
-      }
-    }
-
-    if (personality === 'aggressive') {
-      score += (1.0 - trade.fairness) * 5;
-    } else if (personality === 'defensive') {
-      if (trade.fairness >= 0.8) {
-        score += 3;
-      }
-    } else if (personality === 'balanced') {
-      if (trade.fairness >= 0.5 && trade.fairness <= 1.0) {
-        score += 4;
-      }
-    } else if (personality === 'economic') {
-      if (trade.fairness >= 1.0) {
-        score += 5;
-      }
-    }
-
-    score += totalPriority * 0.3;
-    score -= resourceScarcity * 2;
-
-    if (trade.offeringAmount === 1 && trade.requestingAmount === 1) {
-      score += 2;
-    }
-
-    return {
+  const possibleTrades = generatePossiblePlayerTrades(player, goal, surplus, neededResources);
+  const scoredTrades = scorePlayerTrades(possibleTrades, goal, player, personality)
+    .map(trade => ({
       ...trade,
-      score,
-      reasoning: `P2P trade: ${trade.offeringAmount} ${trade.offering} for ${trade.requestingAmount} ${trade.requesting} to build ${goal.targetBuilding} (fairness: ${trade.fairness.toFixed(2)}, score: ${score.toFixed(1)})`
-    };
-  });
-
-  scoredTrades.sort((a, b) => b.score - a.score);
+      reasoning: `P2P trade: ${trade.offeringAmount} ${trade.offering} for ${trade.requestingAmount} ${trade.requesting} to build ${goal.targetBuilding} (fairness: ${trade.fairness.toFixed(2)}, score: ${trade.score.toFixed(1)})`
+    }));
 
   const minFairnessThreshold = 0.25;
-  return scoredTrades.filter(trade => trade.score > 0 && trade.fairness >= minFairnessThreshold);
+  const viableTrades = scoredTrades.filter(trade => trade.score > 0 && trade.fairness >= minFairnessThreshold);
+
+  if (viableTrades.length === 0) {
+    return [];
+  }
+
+  // The rubric decides which viable trade the AI leads with; the caller
+  // (getPlayerTradeProposal) falls back through the rest, in score order, if
+  // that one has already failed as a proposal this turn.
+  const preferred = chooseByRubric(viableTrades, difficulty);
+  return [preferred, ...viableTrades.filter(trade => trade !== preferred)];
 }
 
 function findBestBankTrade(
@@ -1413,12 +1269,17 @@ export function evaluatePlayerTradeProposal(
   player: Player,
   gameState: GameState
 ): boolean {
+  const difficulty = player.difficulty || 'normal';
+  const netGain = calculateTradeValue(proposal.offeredResources, proposal.requestedResources, player, gameState);
+
   if (proposal.fromPlayerId) {
     const proposingPlayer = gameState.players.find(p => p.id === proposal.fromPlayerId);
     if (proposingPlayer) {
       const pointsToWin = gameState.gameSettings.pointsToWin;
       const proposerPointsAway = pointsToWin - (proposingPlayer.score + proposingPlayer.secretPoints);
 
+      // Absolute safety rules: never hand an opponent the win outright,
+      // regardless of difficulty - this isn't a skill/quality axis.
       if (proposerPointsAway <= 3) {
         console.log(`   ✗ Rejecting trade from ${proposingPlayer.name} - they're ${proposerPointsAway} points from winning`);
         return false;
@@ -1429,51 +1290,40 @@ export function evaluatePlayerTradeProposal(
         return false;
       }
 
-      // Don't feed a player who is about to seize a swing bonus (Longest Road /
-      // Largest Army). On hard difficulty this is a hard rule; softer below.
-      const difficulty = player.difficulty || 'normal';
-      if (isHighThreat(proposingPlayer, gameState)) {
-        const rejectChance = difficulty === 'hard' ? 1.0 : difficulty === 'normal' ? 0.85 : 0.5;
-        if (Math.random() < rejectChance) {
+      // A trade that's overwhelmingly good for us bypasses the strategic
+      // gates below outright - a clearly favorable deal outweighs "don't feed
+      // a threat/leader".
+      const isVeryHelpful = netGain >= 3.0;
+
+      // Don't feed a player who is about to seize a swing bonus (Longest Road
+      // / Largest Army). Rejecting is the optimal move here; whether the AI
+      // actually acts on it goes through the same shared rubric as every
+      // other AI decision.
+      if (!isVeryHelpful && isHighThreat(proposingPlayer, gameState)) {
+        if (chooseByRubric(['reject', 'accept'] as const, difficulty) === 'reject') {
           console.log(`   ✗ Rejecting trade from ${proposingPlayer.name} - they're close to a swing bonus (Longest Road / Largest Army)`);
           return false;
         }
+        console.log(`   ✓ Accepting trade from ${proposingPlayer.name} despite swing-bonus threat (${difficulty} difficulty rolled acceptance)`);
       }
 
+      // Don't feed the game leader unless the trade is clearly worth it.
       const gameLeader = getGameLeader(gameState);
       if (gameLeader && gameLeader.id === proposingPlayer.id) {
-        const netGain = calculateTradeValue(proposal.offeredResources, proposal.requestedResources, player, gameState);
-        const isVeryHelpful = netGain >= 3.0;
-
-        if (!isVeryHelpful) {
-          let rejectChance = 1.0;
-
-          if (difficulty === 'easy') {
-            rejectChance = 0.6;
-          } else if (difficulty === 'normal') {
-            rejectChance = 0.8;
-          } else if (difficulty === 'hard') {
-            rejectChance = 1.0;
-          }
-
-          if (Math.random() < rejectChance) {
-            console.log(`   ✗ Rejecting trade from game leader ${proposingPlayer.name} (${difficulty} difficulty: ${(rejectChance * 100).toFixed(0)}% reject chance, not VERY helpful)`);
-            return false;
-          } else {
-            console.log(`   ✓ Accepting trade from game leader ${proposingPlayer.name} despite policy (${difficulty} difficulty: rolled within ${(1 - rejectChance) * 100}% acceptance window)`);
-          }
-        } else {
+        if (isVeryHelpful) {
           console.log(`   ✓ Accepting VERY helpful trade from game leader ${proposingPlayer.name} (value: ${netGain.toFixed(1)})`);
+        } else if (chooseByRubric(['reject', 'accept'] as const, difficulty) === 'reject') {
+          console.log(`   ✗ Rejecting trade from game leader ${proposingPlayer.name} (not VERY helpful, ${difficulty} difficulty)`);
+          return false;
+        } else {
+          console.log(`   ✓ Accepting trade from game leader ${proposingPlayer.name} despite policy (${difficulty} difficulty rolled acceptance)`);
         }
       }
     }
   }
 
-  const netGain = calculateTradeValue(proposal.offeredResources, proposal.requestedResources, player, gameState);
-
   if (netGain > 0) {
-    const canAfford = canAffordProposal(proposal.offeredResources, player.resources);
-    return canAfford;
+    return canAffordProposal(proposal.offeredResources, player.resources);
   }
 
   return false;
@@ -1618,24 +1468,12 @@ export function shouldInitiatePlayerTrade(
     return false;
   }
 
+  // A viable goal plus surplus to trade means initiating is the optimal move;
+  // whether the AI acts on it goes through the same shared rubric as every
+  // other AI decision.
   const difficulty = player.difficulty || 'normal';
-
-  if (difficulty === 'hard') {
-    // Hard difficulty ALWAYS attempts trades when beneficial - zero randomness
-    console.log(`   ✓ Hard difficulty: ALWAYS attempt beneficial trades (100% deterministic)`);
-    return true;
-  }
-
-  let tradeChance = 0.8;
-
-  if (difficulty === 'easy') {
-    tradeChance = 0.6;
-  } else if (difficulty === 'normal') {
-    tradeChance = 0.85;  // Increased from 0.8
-  }
-
-  const willTrade = Math.random() < tradeChance;
-  console.log(`   ${willTrade ? '✓' : '✗'} Trade chance for ${difficulty}: ${(tradeChance * 100).toFixed(0)}% (rolled ${willTrade ? 'yes' : 'no'})`);
+  const willTrade = chooseByRubric(['trade', 'skip'] as const, difficulty) === 'trade';
+  console.log(`   ${willTrade ? '✓' : '✗'} Trade initiation for ${difficulty} difficulty (rolled ${willTrade ? 'yes' : 'no'})`);
 
   return willTrade;
 }
