@@ -5081,16 +5081,50 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
 
       let actionSuccess = false;
 
+      // Trades executed this turn are capped by urgency / Expert Negotiator,
+      // matching the budget the strategy layer (identifyTradeGoals,
+      // shouldInitiatePlayerTrade) already assumes when it commits to
+      // multi-trade goals - a flat cap here would strand those commitments.
+      const pointsAwayForTradeCap = gameState.gameSettings.pointsToWin - (currentPlayer.score + currentPlayer.secretPoints);
+      const maxTradesAllowed = gameState.turnState.expertNegotiatorActive ? 4 : (pointsAwayForTradeCap <= 2 ? 5 : 3);
+
       switch (nextAction.type) {
-        case 'play_dev_card':
-          console.log('   Playing development card...');
-          // Dev card playing would be handled here
-          break;
+        case 'play_dev_card': {
+          const cardId = nextAction.data?.cardId;
+          const cardToPlay = cardId ? currentPlayer.developmentCardsInHand.find(c => c.id === cardId) : undefined;
+
+          if (!cardToPlay) {
+            console.log('   ✗ Dev card play failed - card not found in hand');
+            break;
+          }
+
+          console.log(`   Playing development card: ${cardToPlay.name}`);
+          if (nextAction.data?.reasoning) {
+            const personality = currentPlayer.character?.name ? getPersonalityForCharacter(currentPlayer.character.name) : 'balanced';
+            setAiDevCardDecision({ reasoning: nextAction.data.reasoning, personality });
+          }
+          setPlayedCardForModal({
+            card: cardToPlay,
+            playerName: currentPlayer.name,
+            playerNumber: currentPlayer.order,
+            playerColor: currentPlayer.color
+          });
+          handlePlayDevCard(cardToPlay);
+
+          // Playing a card changes turnState.step away from 'main' (and, for
+          // interactive cards, requires the modal to close before further
+          // state changes). Pause here without incrementing the iteration
+          // count - the same way trade_player pauses for a pending response -
+          // so the loop resumes once the card's effect fully resolves.
+          console.log('   ⏸️  Pausing AI action loop - waiting for dev card effect to resolve');
+          console.log(`${'='.repeat(60)}\n`);
+          return;
+        }
 
         case 'trade_bank':
           console.log('   Attempting bank trade...');
           const tradeAttempts = gameState.turnState.aiTradeAttemptsThisTurn || 0;
-          if (tradeAttempts < 3) {
+          if (tradeAttempts < maxTradesAllowed) {
             actionSuccess = handleAIBankTrade(currentPlayer.id);
             console.log(`   ${actionSuccess ? '✓' : '✗'} Bank trade ${actionSuccess ? 'successful' : 'failed'}`);
           }
@@ -5099,7 +5133,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
         case 'trade_player':
           console.log('   Attempting player trade...');
           const playerTradeAttempts = gameState.turnState.aiTradeAttemptsThisTurn || 0;
-          if (playerTradeAttempts < 3) {
+          if (playerTradeAttempts < maxTradesAllowed) {
             actionSuccess = handleAIPlayerTrade(currentPlayer.id);
             console.log(`   ${actionSuccess ? '✓' : '✗'} Player trade ${actionSuccess ? 'initiated' : 'failed'}`);
 
@@ -5165,7 +5199,7 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [aiActionLoopActive, aiActionLoopIterations, gameState, boardSize, playedCardForModal, handleAIBuildRoad, handleAIBuildVillage, handleAIBuildEstate, handleBuyDevelopmentCard, handleAIBankTrade, handleAIPlayerTrade, advanceToNextPlayer]);
+  }, [aiActionLoopActive, aiActionLoopIterations, gameState, boardSize, playedCardForModal, handleAIBuildRoad, handleAIBuildVillage, handleAIBuildEstate, handleBuyDevelopmentCard, handleAIBankTrade, handleAIPlayerTrade, handlePlayDevCard, advanceToNextPlayer]);
 
   // Complete discard phase and transition to move_robber
   const completeDiscardPhase = useCallback(() => {
