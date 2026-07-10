@@ -1,7 +1,7 @@
 import { loadBoardGraph, loadBoardForSize } from '../graph/loadBoard';
 import { legalRoadEdgesFrom, canPlaceVillage, edgeTouchesVertex, whyNotVillage, initializeValidators } from './validators';
 import { BoardSize } from '../data/boardConfigs';
-import { evaluateVertex, evaluateRoadEdge } from './aiStrategicEval';
+import { evaluateSetupVertex, evaluateSetupRoad } from './aiSetupStrategy';
 import { getPersonalityForCharacter, PersonalityTrait } from './aiLocationStrategy';
 import { chooseByRubric } from './aiDifficultyTuning';
 
@@ -180,13 +180,14 @@ function chooseBestVillageVertex(state: any, candidates: number[], playerId: str
 
   const boardSize = state.gameSettings?.boardSize || state.boardSize || currentBoardSize || 'standard';
   const difficulty = player.difficulty || 'normal';
+  const isPhase2 = state.phase === 'setup-phase-2';
 
-  console.log(`\n📍 [SETUP PHASE 1] ${player.name} selecting village (${difficulty} difficulty)`);
+  console.log(`\n📍 [SETUP ${isPhase2 ? 'PHASE 2' : 'PHASE 1'}] ${player.name} selecting village (${difficulty} difficulty)`);
   console.log(`   Candidates: ${candidates.length}`);
 
   const evaluations = candidates.map(vertexId => {
-    const evaluation = evaluateVertex(vertexId, state, boardSize, player);
-    return evaluation;
+    const totalScore = evaluateSetupVertex(vertexId, state, boardSize, player, isPhase2);
+    return { vertexId, totalScore };
   });
 
   evaluations.sort((a, b) => b.totalScore - a.totalScore);
@@ -216,13 +217,14 @@ function chooseBestRoadEdge(state: any, options: string[], playerId: string, v: 
 
   const boardSize = state.gameSettings?.boardSize || state.boardSize || currentBoardSize || 'standard';
   const difficulty = player.difficulty || 'normal';
+  const isPhase2 = state.phase === 'setup-phase-2';
 
-  console.log(`\n🛤️  [SETUP PHASE 1] ${player.name} selecting road (${difficulty} difficulty)`);
+  console.log(`\n🛤️  [SETUP ${isPhase2 ? 'PHASE 2' : 'PHASE 1'}] ${player.name} selecting road (${difficulty} difficulty)`);
   console.log(`   Options: ${options.length}`);
 
   const evaluations = options.map(edgeId => {
-    const evaluation = evaluateRoadEdge(edgeId, v, state, boardSize, player);
-    return { edgeId, ...evaluation };
+    const totalScore = evaluateSetupRoad(edgeId, v, state, boardSize, player, isPhase2);
+    return { edgeId, totalScore };
   });
 
   evaluations.sort((a, b) => b.totalScore - a.totalScore);

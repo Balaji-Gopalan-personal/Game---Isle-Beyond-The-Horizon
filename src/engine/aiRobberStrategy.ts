@@ -49,7 +49,7 @@ export function selectRobberPlacement(
 
   const scoredPlacements = validHexes.map(hex => {
     const score = scoreRobberPlacement(hex.id, player, gameState, boardSize);
-    const targetPlayer = selectStealTarget(hex.id, gameState, player.id, boardSize);
+    const targetPlayer = selectStealTarget(hex.id, gameState, player.id, boardSize, difficulty);
     const reasoning = generateRobberReasoning(hex, targetPlayer, player, gameState, boardSize);
 
     return {
@@ -275,7 +275,8 @@ function selectStealTarget(
   hexId: number,
   gameState: GameState,
   currentPlayerId: string,
-  boardSize: BoardSize
+  boardSize: BoardSize,
+  difficulty: 'easy' | 'normal' | 'hard'
 ): string | undefined {
   const playersOnHex = getPlayersOnHex(hexId, gameState, boardSize).filter(
     pid => pid !== currentPlayerId
@@ -348,5 +349,5 @@ function selectStealTarget(
   });
 
   scoredTargets.sort((a, b) => b.score - a.score);
-  return scoredTargets[0].playerId;
+  return chooseByRubric(scoredTargets, difficulty).playerId;
 }

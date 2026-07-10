@@ -202,7 +202,7 @@ export function evaluateTradeOpportunity(
   }
 
   // Evaluate both bank and P2P trades, then choose the best option
-  const bestBankTrade = findBestBankTrade(player, gameState, activeGoal, tradeHistory, frustrationLevel, remainingTradeBudget);
+  const bestBankTrade = findBestBankTrade(player, gameState, activeGoal, tradeHistory, frustrationLevel, remainingTradeBudget, difficulty);
   const bestPlayerTrade = findBestPlayerTrade(player, gameState, activeGoal, tradeHistory);
 
   const wouldCycle = (trade: TradeEvaluation | null): boolean => {
@@ -658,7 +658,8 @@ function findBestBankTrade(
   goal: TradeGoal,
   tradeHistory?: TurnTradeHistory,
   frustrationLevel: number = 0,
-  remainingTradeBudget: number = 4
+  remainingTradeBudget: number = 4,
+  difficulty: 'easy' | 'normal' | 'hard' = 'normal'
 ): TradeEvaluation | null {
   const neededResources = Object.keys(goal.neededResources) as ResourceType[];
   const surplus = getSurplusResources(player.resources, goal);
@@ -679,8 +680,7 @@ function findBestBankTrade(
     return null;
   }
 
-  let bestTrade: TradeEvaluation | null = null;
-  let bestTradeScore = -Infinity;
+  const candidates: Array<TradeEvaluation & { score: number }> = [];
   let completingTrade: TradeEvaluation | null = null;  // Track if a trade would complete the goal
 
   console.log(`   🏦 Evaluating bank trade options...`);
@@ -798,18 +798,16 @@ function findBestBankTrade(
             console.log(`         🎯 THIS TRADE COMPLETES THE GOAL! Maximum priority!`);
           }
 
-          if (tradeScore > bestTradeScore) {
-            bestTradeScore = tradeScore;
-            bestTrade = {
-              shouldTrade: true,
-              tradeType: 'bank',
-              offering: surplusResource,
-              offeringAmount: offeringAmount,
-              requesting: neededResource,
-              requestingAmount: requestingAmount,
-              reasoning: `Bank trade ${offeringAmount}:${requestingAmount} (${tradeRate.rate}:1 rate) ${surplusResource}→${neededResource} for ${goal.targetBuilding} (score: ${tradeScore.toFixed(1)}${tradeRate.portType ? `, ${tradeRate.portType} port` : ''})`
-            };
-          }
+          candidates.push({
+            shouldTrade: true,
+            tradeType: 'bank',
+            offering: surplusResource,
+            offeringAmount: offeringAmount,
+            requesting: neededResource,
+            requestingAmount: requestingAmount,
+            reasoning: `Bank trade ${offeringAmount}:${requestingAmount} (${tradeRate.rate}:1 rate) ${surplusResource}→${neededResource} for ${goal.targetBuilding} (score: ${tradeScore.toFixed(1)}${tradeRate.portType ? `, ${tradeRate.portType} port` : ''})`,
+            score: tradeScore
+          });
         }
       }
     } else {
@@ -823,8 +821,11 @@ function findBestBankTrade(
     return completingTrade;
   }
 
+  candidates.sort((a, b) => b.score - a.score);
+  const bestTrade = candidates.length > 0 ? chooseByRubric(candidates, difficulty) : null;
+
   if (bestTrade) {
-    console.log(`      ✓ Best bank trade: ${bestTrade.offeringAmount}x ${bestTrade.offering} → ${bestTrade.requestingAmount}x ${bestTrade.requesting} (score: ${bestTradeScore.toFixed(1)})`);
+    console.log(`      ✓ Best bank trade: ${bestTrade.offeringAmount}x ${bestTrade.offering} → ${bestTrade.requestingAmount}x ${bestTrade.requesting} (score: ${bestTrade.score.toFixed(1)})`);
 
     // VALIDATION: Check if this trade is part of a viable path to the goal
     const simulatedResources: Resources = {
