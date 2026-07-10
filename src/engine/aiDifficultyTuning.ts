@@ -49,13 +49,17 @@ export function getOptimalChoice<T>(sortedByScoreDesc: T[]): T {
 
 /**
  * The band of options a difficulty samples from when it misses the optimal
- * roll: the top slice of the sorted list, sized by BAND_PERCENT and floored
- * at min(3, list length) so the band is never a single option.
+ * roll: the next-best slice of the sorted list, EXCLUDING the optimal choice
+ * itself (index 0) - otherwise a "miss" could still land on the best option,
+ * which would inflate the effective optimal-pick rate above OPTIMAL_RATE.
+ * Sized by BAND_PERCENT of the remaining (non-optimal) options, floored at
+ * min(3, remaining) so the band is never a single option on longer lists.
  */
 export function getRandomnessBand<T>(sortedByScoreDesc: T[], difficulty: Difficulty): T[] {
-  const minSize = Math.min(3, sortedByScoreDesc.length);
-  const size = Math.max(minSize, Math.ceil(sortedByScoreDesc.length * BAND_PERCENT[difficulty]));
-  return sortedByScoreDesc.slice(0, size);
+  const remaining = sortedByScoreDesc.length - 1;
+  const minSize = Math.min(3, remaining);
+  const size = Math.max(minSize, Math.ceil(remaining * BAND_PERCENT[difficulty]));
+  return sortedByScoreDesc.slice(1, 1 + size);
 }
 
 /**

@@ -71,11 +71,17 @@ function evaluateBlockingPotential(
 
 export function evaluateSetupVertex(
   vertexId: number,
-  gameState: GameState,
+  rawGameState: GameState,
   boardSize: BoardSize,
   player: Player,
   isPhase2: boolean
 ): number {
+  // boardCenters may not be populated yet on the very first AI setup turn -
+  // fall back to the static board data, same as evaluateVertex does.
+  const gameState = rawGameState.boardCenters && rawGameState.boardCenters.length > 0
+    ? rawGameState
+    : { ...rawGameState, boardCenters: loadBoardForSize(boardSize).centers };
+
   const evaluation = evaluateVertex(vertexId, gameState, boardSize, player);
   const weights = isPhase2 ? PHASE_2_WEIGHTS : PHASE_1_WEIGHTS;
 
@@ -379,11 +385,17 @@ function evaluateRoadExpansionPath(
 export function evaluateSetupRoad(
   edgeId: string,
   fromVertex: number,
-  gameState: GameState,
+  rawGameState: GameState,
   boardSize: BoardSize,
   player: Player,
   isPhase2: boolean
 ): number {
+  // boardCenters may not be populated yet on the very first AI setup turn -
+  // fall back to the static board data, same as evaluateVertex does.
+  const gameState = rawGameState.boardCenters && rawGameState.boardCenters.length > 0
+    ? rawGameState
+    : { ...rawGameState, boardCenters: loadBoardForSize(boardSize).centers };
+
   const evaluation = evaluateRoadEdge(edgeId, fromVertex, gameState, boardSize, player);
 
   const weights = isPhase2 ? PHASE_2_WEIGHTS : PHASE_1_WEIGHTS;

@@ -3997,9 +3997,11 @@ export const useGameEngine = (aiPlayerCount: number = 2, boardSize: BoardSize = 
           const playerVillages = gameState.villages.filter(v => v.playerId === currentPlayer.id && v.type === 'settlement');
           console.log(`🔥 FREE UPGRADE: Found ${playerVillages.length} villages to upgrade`);
           if (playerVillages.length > 0) {
-            const village = playerVillages[Math.floor(Math.random() * playerVillages.length)];
-            console.log(`🔥 FREE UPGRADE: Calling handleFreeUpgradeVillageSelection(${village.vertexId})`);
-            handleFreeUpgradeVillageSelection(village.vertexId);
+            const difficulty = currentPlayer.difficulty || 'normal';
+            const estateDecision = selectStrategicEstateLocation(currentPlayer.id, gameState, difficulty);
+            const vertexId = estateDecision?.vertexId ?? playerVillages[0].vertexId;
+            console.log(`🔥 FREE UPGRADE: Calling handleFreeUpgradeVillageSelection(${vertexId})`);
+            handleFreeUpgradeVillageSelection(vertexId);
           } else {
             // Edge case: AI has no villages to upgrade
             console.log(`DEBUG: AI player ${currentPlayer.name} has no villages to upgrade, canceling Free Upgrade card`);
