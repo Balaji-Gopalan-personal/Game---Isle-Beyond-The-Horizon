@@ -2,82 +2,12 @@ import { GameState, Player, DevelopmentCard } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
 import { getMostNeededResources } from './buildingCosts';
 import { loadBoardForSize } from '../graph/loadBoard';
-import { getStrategicDynamicForCharacter } from './aiPersonality';
 import { chooseByRubric } from './aiDifficultyTuning';
 
 export interface DevCardPlayDecision {
   shouldPlay: boolean;
   cardId?: string;
   reasoning?: string;
-}
-
-export function shouldBuyDevelopmentCard(
-  player: Player,
-  gameState: GameState
-): boolean {
-  if (gameState.developmentCardDeck.length === 0) {
-    return false;
-  }
-
-  const pointsToWin = gameState.gameSettings.pointsToWin;
-  const pointsAway = pointsToWin - (player.score + player.secretPoints);
-  const strategicDynamic = getStrategicDynamicForCharacter(player.character?.name);
-  const villageCount = gameState.villages.filter(v => v.playerId === player.id && v.type === 'settlement').length;
-
-  let buyProbability = 0.4;
-
-  switch (strategicDynamic) {
-    case 'dev_card_gambler':
-      buyProbability = 0.65;
-      break;
-    case 'village_rusher':
-      buyProbability = 0.22;
-      break;
-    case 'estate_climber':
-      buyProbability = 0.38;
-      break;
-  }
-
-  if (pointsAway <= 2) {
-    buyProbability = Math.min(buyProbability + 0.3, 0.9);
-  } else if (pointsAway <= 3) {
-    buyProbability = Math.min(buyProbability + 0.25, 0.85);
-  } else if (pointsAway <= 5) {
-    buyProbability = Math.min(buyProbability + 0.15, 0.75);
-  }
-
-  if (gameState.gameSettings.largestArmyEnabled) {
-    const largestArmyBonus = gameState.gameSettings.largestArmyBonus;
-    const largestArmySize = gameState.gameSettings.largestArmySize;
-    const myGuardCount = player.guardsPlayed;
-    const currentLargestArmyHolder = gameState.players.find(p => p.hasLargestArmy);
-
-    if (largestArmyBonus >= 3) {
-      if (currentLargestArmyHolder && currentLargestArmyHolder.id === player.id) {
-        buyProbability += 0.15;
-      } else if (myGuardCount >= largestArmySize - 2) {
-        const guardsNeeded = currentLargestArmyHolder
-          ? Math.max(currentLargestArmyHolder.guardsPlayed + 1 - myGuardCount, 0)
-          : largestArmySize - myGuardCount;
-
-        if (guardsNeeded <= 1) {
-          buyProbability += 0.25;
-        } else if (guardsNeeded <= 2) {
-          buyProbability += 0.2;
-        }
-      }
-    }
-  }
-
-  // buyProbability aggregates the strategic case for buying (points-away,
-  // largest-army race, personality). Whether the AI actually acts on that
-  // case - versus deviating - is decided by the shared difficulty rubric,
-  // the same way as every other AI decision.
-  const difficulty = player.difficulty || 'normal';
-  const optimalAction: 'buy' | 'skip' = buyProbability >= 0.5 ? 'buy' : 'skip';
-  const alternativeAction: 'buy' | 'skip' = optimalAction === 'buy' ? 'skip' : 'buy';
-
-  return chooseByRubric([optimalAction, alternativeAction], difficulty) === 'buy';
 }
 
 export function evaluateDevCardPlay(

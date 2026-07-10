@@ -85,7 +85,7 @@ export function createTurnPlan(
     actions.push({
       type: 'play_dev_card',
       priority: 10,
-      data: { cardId: devCardDecision.cardId }
+      data: { cardId: devCardDecision.cardId, reasoning: devCardDecision.reasoning }
     });
   }
 
