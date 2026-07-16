@@ -3,6 +3,7 @@ import { ResourceType, getBestTradeRateForResource } from '../utils/tradingUtils
 import { canAffordVillage, canAffordEstate, canAffordRoad, canAffordDevelopmentCard } from './aiBuilding';
 import { getValidVillagePlacements, getValidRoadPlacements, getPlayerVillages } from './gameplayActions';
 import { chooseByRubric } from './aiDifficultyTuning';
+import { countVillageSpotsByHops } from './aiLocationStrategy';
 
 export interface TradeGoal {
   targetBuilding: 'village' | 'estate' | 'road' | 'dev_card';
@@ -256,6 +257,14 @@ export function identifyTradeGoals(
   const upgradableVillages = getPlayerVillages(player.id, gameState);
   const hasDevCardsAvailable = gameState.developmentCardDeck.length > 0;
 
+  // BFS reachability for village spots up to 2 roads out. Using only the
+  // directly-placeable set (depth 0) here previously meant that right after
+  // placing a village (when the next spot is 1-2 roads away, which is most
+  // of the game) the village goal's priority collapsed to near-zero and the
+  // road goal got boosted instead - even when those roads led nowhere useful.
+  const villageReachability = countVillageSpotsByHops(player.id, gameState, boardSize, 2);
+  const roadsCanOpenVillageSpot = villageReachability.byDepth[1] > 0;
+
   const villageNeeds = calculateResourceNeeds(player.resources, {
     clay: 1,
     lumber: 1,
@@ -276,18 +285,24 @@ export function identifyTradeGoals(
       villagePriority = 12;
     }
 
-    // Check if village placement is actually viable
-    const hasViablePlacement = validVillagePlacements.length > 0;
-    if (!hasViablePlacement) {
-      // Drastically reduce priority if no viable placements exist
+    // A village goal is viable if a legal spot exists now OR is reachable
+    // within 2 roads - not just directly placeable this instant. Only
+    // collapse priority to near-zero when there's genuinely nowhere to go.
+    const hasReachablePlacement = villageReachability.total > 0;
+    const hasDirectPlacement = validVillagePlacements.length > 0;
+    if (!hasReachablePlacement) {
       villagePriority = 1;
+    } else if (!hasDirectPlacement) {
+      // Spot needs 1-2 roads first - still worth trading toward, just
+      // slightly less urgent than an immediately placeable spot.
+      villagePriority *= 0.8;
     }
 
     goals.push({
       targetBuilding: 'village',
       neededResources: villageNeeds,
       priority: villagePriority,
-      hasViablePlacement
+      hasViablePlacement: hasReachablePlacement
     });
   }
 
@@ -336,10 +351,15 @@ export function identifyTradeGoals(
       roadPriority = 4;
     }
 
-    // Boost road priority if it could open village spots
+    // Boost road priority only when building one would actually open a new
+    // village spot (a legal spot exists exactly 1 road away). Previously this
+    // boosted any time no spot was directly placeable and roads were legal
+    // ANYWHERE on the network, regardless of whether those roads led toward
+    // a village or off into empty board - producing long, directionless
+    // roads that out-competed saving for a village.
     const hasViablePlacement = validRoadPlacements.length > 0;
-    if (validVillagePlacements.length === 0 && hasViablePlacement) {
-      // No village spots on current network but roads are available - boost priority
+    if (validVillagePlacements.length === 0 && hasViablePlacement && roadsCanOpenVillageSpot) {
+      // No village spot directly placeable, but a road would open one - boost priority
       roadPriority = 14; // Make roads higher priority than base estate (12)
     }
 

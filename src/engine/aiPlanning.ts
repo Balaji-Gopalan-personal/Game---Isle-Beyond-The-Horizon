@@ -1,6 +1,6 @@
 import { GameState, Player, Resources } from '../types/game';
 import { BoardSize } from '../data/boardConfigs';
-import { ResourceType } from '../utils/tradingUtils';
+import { ResourceType, getBestTradeRateForResource } from '../utils/tradingUtils';
 import { BUILDING_COSTS } from './buildingCosts';
 import { getValidVillagePlacements, getPlayerVillages } from './gameplayActions';
 import { DIFFICULTY_PRESETS } from './aiDifficultyTuning';
@@ -46,17 +46,29 @@ export function computeExpectedIncome(player: Player, gameState: GameState): Exp
 }
 
 /**
- * Expected number of turns until the player can afford `buildingType` from
- * production alone (no trading), given current resources and expected income.
- * Returns Infinity if a required resource has zero income and is missing.
+ * Expected number of turns until the player can afford `buildingType`, given
+ * current resources and expected income. For a resource the player produces
+ * directly, this is deficit / income rate. For a resource with zero direct
+ * income, rather than declaring it unreachable (the old behaviour), we model
+ * trading surplus production of other resources for it at the player's best
+ * available rate (port or bank) - otherwise an AI with no fabric/grain income
+ * would never hold resources and would dump everything into cheap builds
+ * (roads) forever, even when a village is one trade away.
  */
 export function expectedTurnsToAfford(
-  resources: Resources,
+  player: Player,
+  gameState: GameState,
   buildingType: BuildingType,
   income: ExpectedIncome
 ): number {
   const cost = BUILDING_COSTS[buildingType];
+  const resources = player.resources;
   let turns = 0;
+
+  // Total income across all resources - the pool of production that can be
+  // redirected via trades toward a resource with no direct income.
+  const totalIncome = (Object.keys(income) as ResourceType[])
+    .reduce((sum, r) => sum + (income[r] || 0), 0);
 
   for (const [resource, required] of Object.entries(cost)) {
     const key = resource as ResourceType;
@@ -65,8 +77,20 @@ export function expectedTurnsToAfford(
     if (deficit <= 0) continue;
 
     const rate = income[key] || 0;
-    if (rate <= 0) return Infinity; // cannot be produced; would require trading
-    turns = Math.max(turns, deficit / rate);
+    if (rate > 0) {
+      turns = Math.max(turns, deficit / rate);
+      continue;
+    }
+
+    // No direct income for this resource - estimate turns via trading other
+    // production toward it. Optimistic (assumes all surplus income could be
+    // redirected), but this is a "should we hold" heuristic gated by a short
+    // planning horizon, so an optimistic estimate is preferable to Infinity.
+    if (totalIncome <= 0) return Infinity; // genuinely no way to produce anything
+
+    const tradeRate = getBestTradeRateForResource(player.id, key, gameState).rate;
+    const turnsViaTrade = (deficit * tradeRate) / totalIncome;
+    turns = Math.max(turns, turnsViaTrade);
   }
 
   return turns;
@@ -138,17 +162,14 @@ export function shouldHoldForHigherValue(
   if (getPlayerVillages(player.id, gameState).length > 0) {
     targets.push('estate'); // upgrading to a city: +1 pt and doubled production
   }
-  const settlementCount = gameState.villages.filter(
-    v => v.playerId === player.id && v.type === 'settlement'
-  ).length;
   // Saving toward another settlement is worthwhile when there is a legal spot
   // either reachable NOW (0 roads) or reachable with 1 road (approaching).
   // Only consider candidate=road as conflicting when the spot is already
   // placeable; for the approaching case the road is actually helping, so we
-  // skip the conflict check and won't wrongly hold.
-  const villageReach = settlementCount >= 2
-    ? countVillageSpotsByHops(player.id, gameState, boardSize, 1)
-    : null;
+  // skip the conflict check and won't wrongly hold. Checked regardless of
+  // current settlement count - a player who has placed fewer than 2
+  // settlements (e.g. one was lost) should still save toward the next one.
+  const villageReach = countVillageSpotsByHops(player.id, gameState, boardSize, 1);
   const hasImmediateVillageSpot = (villageReach?.byDepth[0] ?? 0) > 0;
   const hasApproachingVillageSpot = (villageReach?.byDepth[1] ?? 0) > 0;
 
@@ -162,7 +183,7 @@ export function shouldHoldForHigherValue(
   }
 
   for (const target of targets) {
-    const turns = expectedTurnsToAfford(player.resources, target, income);
+    const turns = expectedTurnsToAfford(player, gameState, target, income);
     if (turns <= horizon && buildsConflict(player.resources, candidate, target)) {
       return {
         hold: true,
