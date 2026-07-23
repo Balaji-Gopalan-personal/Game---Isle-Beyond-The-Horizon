@@ -70,3 +70,10 @@ export function loadBoardForSize(boardSize: BoardSize): BoardWithCenters {
   };
   return boardCacheBySize[boardSize];
 }
+
+// Clears the cached board (including randomized hex/center layout) so the next
+// loadBoardForSize call regenerates a fresh randomized board instead of reusing
+// the previous game's layout for the same board size.
+export function clearLoadedBoardCache(): void {
+  Object.keys(boardCacheBySize).forEach(key => delete boardCacheBySize[key]);
+}

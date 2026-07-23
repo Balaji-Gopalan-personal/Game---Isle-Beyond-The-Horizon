@@ -3,6 +3,43 @@ import { BoardSize } from '../data/boardConfigs';
 import { getMostNeededResources } from './buildingCosts';
 import { loadBoardForSize } from '../graph/loadBoard';
 import { chooseByRubric } from './aiDifficultyTuning';
+import { getValidRoadPlacements } from './gameplayActions';
+
+// Mirrors the human-facing legality checks in useGameEngine's validateDevCardPlay,
+// so the AI never scores/plays a card that has no legal effect on the current board.
+function isCardLegalToPlay(
+  card: DevelopmentCard,
+  player: Player,
+  gameState: GameState,
+  boardSize: BoardSize
+): boolean {
+  switch (card.name) {
+    case 'Guard':
+      return player.guardsPlayedThisTurn === 0;
+    case 'Expert Negotiator':
+      return !gameState.turnState.expertNegotiatorActive;
+    case 'Road Construction': {
+      const validRoadPlacements = getValidRoadPlacements(player.id, gameState, boardSize);
+      return validRoadPlacements.length >= 1;
+    }
+    case 'Free Upgrade': {
+      const playerVillages = gameState.villages.filter(
+        v => v.playerId === player.id && v.type === 'settlement'
+      );
+      return playerVillages.length > 0;
+    }
+    case 'Resource Swap': {
+      const opponents = gameState.players.filter(p => p.id !== player.id);
+      return opponents.some(opp =>
+        opp.resources.clay > 0 || opp.resources.lumber > 0 ||
+        opp.resources.grain > 0 || opp.resources.fabric > 0 ||
+        opp.resources.mineral > 0
+      );
+    }
+    default:
+      return true;
+  }
+}
 
 export interface DevCardPlayDecision {
   shouldPlay: boolean;
@@ -29,11 +66,15 @@ export function evaluateDevCardPlay(
       console.log(`   [Dev Card Filter] Skipping ${card.name} - cannot be played`);
       return false;
     }
+    if (!isCardLegalToPlay(card, player, gameState, boardSize)) {
+      console.log(`   [Dev Card Filter] Skipping ${card.name} - no legal target/effect available on current board`);
+      return false;
+    }
     return true;
   });
 
   if (playableCards.length === 0) {
-    return { shouldPlay: false, reasoning: 'No playable cards (all drawn this turn or Extra Point cards)' };
+    return { shouldPlay: false, reasoning: 'No playable cards (all drawn this turn, Extra Point cards, or no legal targets)' };
   }
 
   const scoredCards = playableCards.map(card => ({

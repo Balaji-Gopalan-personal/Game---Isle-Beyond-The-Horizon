@@ -21,7 +21,7 @@ import { QuitGameModal } from './components/QuitGameModal';
 import { Gamepad2 } from 'lucide-react';
 import { BoardSize } from './data/boardConfigs';
 import { AICharacter } from './data/aiCharacters';
-import { loadBoardForSize, loadBoardGraph } from './graph/loadBoard';
+import { loadBoardForSize, loadBoardGraph, clearLoadedBoardCache } from './graph/loadBoard';
 import { getAllPlayerStats } from './utils/victoryDetection';
 import { useAssets } from './contexts/AssetsContext';
 import { preloadCharacterAssets, preloadGameAssets } from './assets/assetLoader';
@@ -162,6 +162,9 @@ function App() {
   };
 
   const handleNewGame = () => {
+    // Ensure the next game regenerates a freshly randomized board instead of
+    // reusing the previous game's cached hex/center layout for the same board size.
+    clearLoadedBoardCache();
     setAppPhase('setup');
     setGameConfig(null);
     setIsVictoryModalMinimized(false);
